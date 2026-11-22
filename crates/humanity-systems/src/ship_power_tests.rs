@@ -186,3 +186,34 @@ fn the_fleet_total_sums_every_homes_lines() {
     assert_eq!(f[POWER], SupplyTally { drawn: 180.0, returned: 6.0 });
     assert_eq!(f["water"].drawn, 12.0);
 }
+
+/// AN ISLAND OF THE SHIP'S OWN MACHINES IS THE SHIP'S (2026-11-21, `SHIP_MACHINES`): the ship's
+/// machines a household file merges in (the Commons' tent humidifier, CO2 fan and fish tank pump)
+/// are fed from the ship's bus in EITHER Ship life support mode, metered under the ship's line,
+/// and left out of the household's Live power readout, while the household's own island runs as
+/// before (Realistic: on what it makes, its load shed). Seen red 2026-11-21 with the ship's tap
+/// fed and counted like a household's (`feed_watts`, every island in the readout): "realistic=false:
+/// the household's readout leaves the ship's machines out: 124 W".
+#[test]
+fn an_island_of_the_ships_machines_is_fed_and_metered_as_the_ships() {
+    for realistic in [false, true] {
+        let data = store(realistic);
+        let mut world = hecs::World::new();
+        spawn_feed_taps(&mut world, PLAYER_HOME, [0]);
+        spawn_feed_taps(&mut world, SHIP_MACHINES, [1]);
+        let own = world.spawn((PowerConsumer { draw_watts: 100.0, priority: 5, enabled: true }, PowerCircuit { island: 0 }));
+        let commons = world.spawn((PowerConsumer { draw_watts: 24.0, priority: 4, enabled: true }, PowerCircuit { island: 1 }, ShipMachine));
+        let mut sys = ElectricalSystem::new(&humanity_core::storage::data_dir());
+        for _ in 0..3600 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(world.get::<&PowerConsumer>(commons).unwrap().enabled, "realistic={realistic}: the ship powers its own humidifier");
+        assert_eq!(world.get::<&PowerConsumer>(own).unwrap().enabled, !realistic, "realistic={realistic}: the household's own load runs as its mode says");
+        let ship = tally(&data, SHIP_MACHINES, POWER);
+        assert!((ship.drawn - 24.0).abs() < 0.5, "realistic={realistic}: the ship's line meters its machines' 24 Wh: {}", ship.drawn);
+        let s = status(&data);
+        let household_w = if realistic { 0.0 } else { 100.0 };
+        assert!((s.consumption - household_w).abs() < 0.5, "realistic={realistic}: the household's readout leaves the ship's machines out: {} W", s.consumption);
+        assert!((drawn(&data).drawn - f64::from(household_w)).abs() < 0.5, "realistic={realistic}: the household's line is its own: {} Wh", drawn(&data).drawn);
+    }
+}

@@ -36,58 +36,33 @@ pub(crate) const USUAL_KEY: &str = "wake_at";
 /// The dev-only place the rigs may ask for: the front door (`respawn_spot`). Never listed.
 pub(crate) const DEV_DOOR: &str = "door";
 
-/// Where the player may wake now (`respawners::wake_places`): the household's machine file
-/// (which merges the ship's rows when it names them) and, for a household that does not (the
-/// one-person homestead), the ship's own rows read from data/machines/ship.ron, so General
-/// Services is always among them. Empty with no ship.
+/// Where the player may wake now (`respawners::wake_places`): the respawners in the household's
+/// machine file, which merges the ship's own rows (General Services' and Cabin Block A's pods), so
+/// General Services is always among them. Empty with no ship.
 pub(crate) fn places(state: &EngineState) -> Vec<WakePlace> {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else { return Vec::new() };
-    places_for(ship, state.gui_state.home_machines.as_ref(), &state.data_dir)
+    places_for(ship, state.gui_state.home_machines.as_ref())
 }
 
-/// `places` for a ship and a household's machines (pure apart from reading data/machines/ship.ron
-/// for a household file that links none of the ship's rows).
-pub(crate) fn places_for(ship: &ShipStructure, home: Option<&MachineHome>, data_dir: &std::path::Path) -> Vec<WakePlace> {
-    let mut all = home.map(|h| respawners::respawners_in(ship, h)).unwrap_or_default();
-    if !home.is_some_and(|h| h.ship_machines.is_some()) {
-        let file = data_dir.join("machines").join("ship.ron");
-        if let Some(rows) = MachineHome::load_file(&file) {
-            for r in respawners::respawners_in(ship, &rows) {
-                if !all.iter().any(|a| a.machine_id == r.machine_id) {
-                    all.push(r);
-                }
-            }
-        }
-    }
+/// `places` for a ship and a household's machines (pure). Every shipped household file merges the
+/// ship's rows since 2026-11-21, the one-person homestead's too (a household's figures count only
+/// its own machines, `humanity_ship::machines::owner`), so the ship's pods are among its machines
+/// and drawn with its home (crates/humanity-ship/src/respawners_tests.rs
+/// `every_household_draws_the_ships_pods`). Until then this read data/machines/ship.ron for a
+/// household file that linked none of the ship's rows, and the death screen said under General
+/// Services that its pod was not drawn.
+pub(crate) fn places_for(ship: &ShipStructure, home: Option<&MachineHome>) -> Vec<WakePlace> {
+    let all = home.map(|h| respawners::respawners_in(ship, h)).unwrap_or_default();
     places_on(ship, &all)
 }
 
-/// Is the respawner of `w` drawn in this household's world? The world draws the household's
-/// machine file (`MachineHome::placements`), so a pod that file does not hold is not drawn: the
-/// ship's own pods for a household file that links none of the ship's rows. home_solo.ron is such a
-/// file (2026-11-21): the one-person homestead's machine list is the honest baseline of what one
-/// person runs, and its power, water and food figures add up every machine it holds, so merging the
-/// ship's rows would count the Commons' garden, humidifiers and fish tank as this household's own
-/// (and draw the ship's composter and wall screen with the one-person home's smaller definitions).
-/// Until the household's figures count only its own machines, the death screen says so instead
-/// (`entries`).
-pub(crate) fn drawn_here(home: Option<&MachineHome>, w: &WakePlace) -> bool {
-    home.is_some_and(|h| h.all_instances().iter().any(|i| i.id == w.respawner.machine_id))
-}
-
-/// The death screen's list from the places to list (the usual place first): each one's words, the
-/// usual one marked, and for a place whose pod this household does not draw (`drawn_here`) the
-/// sentence that says why (`hud.wake_not_drawn`), so nobody wakes beside a pod they never saw.
-pub(crate) fn entries(listed: &[WakePlace], home: Option<&MachineHome>) -> Vec<crate::gui::wake_view::WakeEntry> {
+/// The death screen's list from the places to list (the usual place first): each one's words and
+/// the usual one marked.
+pub(crate) fn entries(listed: &[WakePlace]) -> Vec<crate::gui::wake_view::WakeEntry> {
     listed
         .iter()
         .enumerate()
-        .map(|(i, w)| crate::gui::wake_view::WakeEntry {
-            place: w.place.clone(),
-            name: name_of(w),
-            usual: i == 0,
-            note: (!drawn_here(home, w)).then(|| t("hud.wake_not_drawn").to_string()),
-        })
+        .map(|(i, w)| crate::gui::wake_view::WakeEntry { place: w.place.clone(), name: name_of(w), usual: i == 0 })
         .collect()
 }
 
@@ -152,7 +127,7 @@ pub(crate) fn refresh_view(state: &mut EngineState) {
     }
     let usual = usual(&state.data_store).flatten();
     let listed = respawners::usual_first(&places(state), usual.as_deref());
-    state.gui_state.wake.places = entries(&listed, state.gui_state.home_machines.as_ref());
+    state.gui_state.wake.places = entries(&listed);
     state.gui_state.wake.filled = true;
 }
 
@@ -202,6 +177,17 @@ pub(crate) fn add_to_join(join: &mut serde_json::Value, state: &mut EngineState)
     }
 }
 
+/// The places the player may wake whose pod the world drew (`probe_json`'s `pods_drawn`): those
+/// whose respawner has a machine label this frame, the label the world builds with each placed
+/// machine's mesh (engine/home_meshes.rs).
+fn pods_drawn(state: &EngineState) -> Vec<String> {
+    places(state)
+        .iter()
+        .filter(|w| state.gui_state.machine_labels.iter().any(|l| l.machine_id == w.respawner.machine_id))
+        .map(|w| w.place.clone())
+        .collect()
+}
+
 /// The probe's `wake` block (debug/remote_players_request.json, engine/ipc.rs): every place the
 /// player may wake now with its eye, the place and eye the last respawn chose, and the floor stood
 /// on and the room the HUD names this frame (engine/storey_probe.rs), so scripts/verify-respawn.js
@@ -215,8 +201,10 @@ pub(crate) fn probe_json(state: &EngineState) -> serde_json::Value {
     serde_json::json!({
         "places": places,
         "listed": state.gui_state.wake.places.iter().map(|w| w.place.clone()).collect::<Vec<_>>(),
-        // The listed places whose pod this household does not draw, each said so on the screen.
-        "not_drawn": state.gui_state.wake.places.iter().filter(|w| w.note.is_some()).map(|w| w.place.clone()).collect::<Vec<_>>(),
+        // The listed places whose pod the world drew a machine for (its label, engine/home_meshes.rs,
+        // built from the placed machines the world draws): every one, since every household file
+        // merges the ship's rows (2026-11-21; the one-person homestead drew none of the ship's).
+        "pods_drawn": pods_drawn(state),
         "last": last,
         "usual": usual(&state.data_store).flatten(),
         "storey": crate::engine::storey_probe::frame_json(state),

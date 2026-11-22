@@ -183,22 +183,32 @@ impl System for PlumbingSystem {
 
         // 1. Per-island production from powered producers. A producer that needs power only counts when
         //    the SAME entity's PowerConsumer is enabled (the power -> water consequence chain).
+        // The ship's own machines (`ship_power::ShipMachine`, 2026-11-21) run like the rest but are
+        // the ship's: the household's readout (`prod_all` and the rest) leaves them out.
+        use crate::ship_power::ShipMachine;
+        let (mut prod_all, mut dem_all, mut stored_all, mut cap_all) = (0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32);
         let mut prod_by: HashMap<Option<u32>, f32> = HashMap::new();
-        for (_, (p, pc, power)) in
-            world.query::<(&WaterProducer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>().iter()
+        for (_, (p, pc, power, ship)) in
+            world.query::<(&WaterProducer, Option<&PlumbingCircuit>, Option<&PowerConsumer>, Option<&ShipMachine>)>().iter()
         {
             let powered = !p.needs_power || power.map(|c| c.enabled).unwrap_or(false);
             if powered {
                 *prod_by.entry(pc.map(|c| c.island)).or_default() += p.lpm;
+                if ship.is_none() {
+                    prod_all += p.lpm;
+                }
             }
         }
         // 2. Per-island demand from powered consumers.
         let mut dem_by: HashMap<Option<u32>, f32> = HashMap::new();
-        for (_, (c, pc, power)) in
-            world.query::<(&WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>().iter()
+        for (_, (c, pc, power, ship)) in
+            world.query::<(&WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>, Option<&ShipMachine>)>().iter()
         {
             if consumer_powered(c, power) {
                 *dem_by.entry(pc.map(|c| c.island)).or_default() += c.lpm;
+                if ship.is_none() {
+                    dem_all += c.lpm;
+                }
             }
         }
         // Tanks grouped by island (Entity is Copy; the query borrow releases after collect).
@@ -215,14 +225,11 @@ impl System for PlumbingSystem {
         // Game minutes (the one clock, 2026-09-27): the tanks fill and drain
         // at the time speed, with the crops that drink from them.
         let dt_min = crate::time::scaled_dt(dt, data) / 60.0;
-        let (mut prod_all, mut dem_all, mut stored_all, mut cap_all) = (0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32);
 
         // 3. Integrate the net flow into each island's tanks (sequential bite, no double counting).
         for key in keys {
             let prod = prod_by.get(&key).copied().unwrap_or(0.0);
             let dem = dem_by.get(&key).copied().unwrap_or(0.0);
-            prod_all += prod;
-            dem_all += dem;
             // +fills, -drains; in f64, with what rounding held back last tick.
             let want = f64::from(prod - dem) * f64::from(dt_min) + self.carry.get(&key).copied().unwrap_or(0.0);
             let mut delta_l = want;
@@ -241,8 +248,12 @@ impl System for PlumbingSystem {
                             delta_l += take;
                         }
                         applied += f64::from(t.liters) - before;
-                        stored_all += t.liters;
-                        cap_all += t.capacity_l;
+                        let (liters, capacity) = (t.liters, t.capacity_l);
+                        drop(t);
+                        if world.get::<&ShipMachine>(*e).is_err() {
+                            stored_all += liters;
+                            cap_all += capacity;
+                        }
                     }
                 }
                 // The tanks took `want - delta_l`; what rounding kept out of them waits.

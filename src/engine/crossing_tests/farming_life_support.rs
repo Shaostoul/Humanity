@@ -315,9 +315,22 @@ fn the_shipped_homes_hold_their_air_and_return_their_water() {
         // cannot hold flat out (it held 600 at the family home's, the home's air
         // near 495 ppm, on 2026-10-21; it reached about 604 on 2026-09-27).
         assert!(day.mushroom_room_ppm.1 <= room_set * 1.02, "{file}: the mushroom room at {:?} ppm, over its fan's {room_set}", day.mushroom_room_ppm);
-        // The static meter's average draws are the measured ones.
+        // The static meter's average draws are the measured ones. A type the ship's machine file
+        // defines too (the tent humidifier and CO2 fan of the Commons' rack) carries ONE
+        // definition in every household file that merges the ship's rows, measured in the family
+        // home's tents (2026-11-21, `a_type_two_machine_files_define_is_defined_the_same`): the
+        // one-person home's tents measure 17.0 W where the family's measure 20.4, so it is held
+        // to the family home's measurement there, not its own, and its meter charges what its
+        // tents really drew once they have run a game day. Seen red so 2026-11-21:
+        // "home_solo.ron: `tent_humidifier` averages 17.0 W a unit over the day, its catalog says 20.4".
+        let ship_types: std::collections::BTreeSet<String> = humanity_ship::machines::MachineHome::load_file(&root.join("ship.ron"))
+            .map(|s| s.catalog.into_keys().collect())
+            .unwrap_or_default();
         for (id, def) in &home.catalog {
             let Some(humanity_ship::machines::MachinePower::Consumer { average_watts: Some(avg), .. }) = def.power else { continue };
+            if file != "home.ron" && ship_types.contains(id) {
+                continue;
+            }
             let (total, units) = day.by_type.get(id).copied().unwrap_or_default();
             assert!(units > 0, "{file}: `{id}` carries average_watts but none is placed");
             let measured = total / units as f64;

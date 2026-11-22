@@ -1,5 +1,13 @@
 # Single-Occupant Closed-Loop Homestead — Buildable Design for HumanityOS
 
+> **The ship's machines (2026-11-21).** `data/machines/home_solo.ron` merges the ship's own rows
+> (`data/machines/ship.ron`: the Commons' garden and fish tank, General Services' pods), as every
+> household file does, so its world draws them; they are the ship's, and this home's figures (its
+> loops, meters, food and power circuit) count only its own machines
+> (`crates/humanity-ship/src/machines/owner.rs`). Its composter and wall screen are its own smaller
+> types, `composter_small` and `wall_screen_small`. Nothing below changes: the sizing is still one
+> person's own machines, and the Commons garden never closes this home's food loop.
+
 > Status: **design complete, ready to implement.** Produced 2026-07-01 by a
 > dedicated research+synthesis pass (operator request: "designing a fully
 > fledged self-sustaining homestead including all the machines, furniture,

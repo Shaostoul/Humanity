@@ -75,17 +75,39 @@ pub(crate) fn own_home_air_m3(data_dir: &std::path::Path, ship: Option<&humanity
 /// `systems::ship_power`): one feed tap per island any of its machines is on,
 /// the same island each machine's `PowerCircuit` gets. The reactor feeds a
 /// tap only in the Station-supplied mode. Called beside every home spawn.
+///
+/// The ship's own machines (2026-11-21, `humanity_ship::machines::owner`): an island whose
+/// machines are all the ship's (the Commons' tent humidifier, CO2 fan and fish tank pump, merged
+/// in from data/machines/ship.ron) is tapped as the ship's (`ship_power::SHIP_MACHINES`), fed in
+/// either mode and left out of the household's readouts, and each of the ship's machines' entities
+/// is marked `ShipMachine` so the water readout leaves it out too. An island holding any of the
+/// household's machines (a household's own wire to a ship machine) stays the household's.
 pub(crate) fn spawn_home_feed_taps(
     world: &mut hecs::World,
     home: &humanity_ship::machines::MachineHome,
     all: &[humanity_ship::machines::MachineInstance],
     power_islands: &std::collections::HashMap<String, u32>,
 ) {
-    let islands = all
+    use humanity_ship::machines::Owner;
+    use humanity_systems::ship_power::{spawn_feed_taps, ShipMachine, PLAYER_HOME, SHIP_MACHINES};
+    // Each island with something electrical on it: true while every machine on it is the ship's.
+    let mut ships_island: std::collections::BTreeMap<u32, bool> = std::collections::BTreeMap::new();
+    for i in all.iter().filter(|i| home.catalog.get(&i.machine).map_or(false, |d| d.power.is_some())) {
+        let ship = home.owner_of(i) == Owner::Ship;
+        *ships_island.entry(power_islands.get(&i.id).copied().unwrap_or(0)).or_insert(true) &= ship;
+    }
+    spawn_feed_taps(world, PLAYER_HOME, ships_island.iter().filter(|(_, s)| !**s).map(|(i, _)| *i));
+    spawn_feed_taps(world, SHIP_MACHINES, ships_island.iter().filter(|(_, s)| **s).map(|(i, _)| *i));
+    let ship_ids: std::collections::HashSet<&str> = all.iter().filter(|i| home.owner_of(i) == Owner::Ship).map(|i| i.id.as_str()).collect();
+    let marked: Vec<hecs::Entity> = world
+        .query::<&humanity_core::ecs::components::MachineInstanceId>()
         .iter()
-        .filter(|i| home.catalog.get(&i.machine).map_or(false, |d| d.power.is_some()))
-        .map(|i| power_islands.get(&i.id).copied().unwrap_or(0));
-    humanity_systems::ship_power::spawn_feed_taps(world, humanity_systems::ship_power::PLAYER_HOME, islands);
+        .filter(|(_, id)| ship_ids.contains(id.0.as_str()))
+        .map(|(e, _)| e)
+        .collect();
+    for e in marked {
+        let _ = world.insert_one(e, ShipMachine);
+    }
 }
 
 /// The household's food energy, kcal a day: its Food loop's demand (the home breathes what it eats,

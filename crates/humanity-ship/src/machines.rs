@@ -21,6 +21,11 @@ use std::path::Path;
 /// `systems::day_energy`); the simulation writes it.
 pub mod day_energy;
 
+/// Whose a placed machine is, the household's or the ship's, and the ship's own figures
+/// (2026-11-21): a household's figures count only its own machines.
+pub mod owner;
+pub use owner::{Owner, ShipShare};
+
 /// Default placement-palette category for an untagged machine type. (v0.527)
 fn default_category() -> String {
     "Machines".to_string()
@@ -975,13 +980,10 @@ pub struct MachineHome {
     /// docs/design/ship-homes-and-logistics.md), named relative to this file's folder
     /// (`Some("ship.ron")`). `load` merges that file's rows in, and `save` writes them back
     /// there instead of into this file: a row belongs to the ship file when its `zone` is not
-    /// "home", and a connection when either end is such a row. data/machines/home.ron names it
-    /// because its battery bank powers the Commons' machines and its loops count them (how the
-    /// household was modelled before the split); home_solo.ron does not, so it loads without
-    /// them, as it always has: its figures add up every machine it holds, and the ship's would
-    /// count as one person's own (its header says it in full; its world draws none of the ship's
-    /// machines, and the death screen says so, src/engine/wake.rs `drawn_here`). None (the
-    /// default) = a self-contained file.
+    /// "home", and a connection when either end is such a row. Every shipped household file names
+    /// it (home_solo.ron too since 2026-11-21), so every household's world draws the ship's
+    /// machines; the merged rows are the SHIP'S (`owner`), and a household's figures count only
+    /// its own. None (the default) = a self-contained file, every row its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ship_machines: Option<String>,
     /// Machine types, keyed by id. BTreeMap (not HashMap) so `save()` emits the catalog in
@@ -1908,11 +1910,14 @@ impl MachineHome {
         stats
     }
 
-    /// The whole home's computed food, kcal a day: every placed machine (instances and
-    /// array cells) at its type's computed figure. The Home page and the garden overview
-    /// both show this one number.
+    /// The household's computed food, kcal a day: every one of ITS OWN placed machines
+    /// (instances and array cells) at its type's computed figure. The Home page and the garden
+    /// overview both show this one number. The ship's machines merged in (the Commons garden)
+    /// are the ship's, not counted here (`owner`, 2026-11-21; `ship_share` counts them): until
+    /// then this added up every row, so the family home's food loop counted the Commons garden
+    /// as its own.
     pub fn grown_kcal_per_day(&self) -> f32 {
-        self.all_instances().iter().filter_map(|i| self.grown.get(&i.machine)).map(|g| g.kcal_per_day).sum()
+        self.grown_kcal_per_day_of(Owner::Household)
     }
 
     /// A machine-instance id not already used by ANY placed machine, so the editor can add a
@@ -2309,7 +2314,9 @@ impl MachineHome {
         let (mut water_prod, mut water_dem) = (0.0f32, 0.0f32);
         let (mut data_sup, mut data_dem) = (0.0f32, 0.0f32);
         let mut sources = Vec::new();
-        let all = self.all_instances();
+        // The household's own machines only (2026-11-21, `owner`): the ship's rows merged in are
+        // the ship's, powered by its reactor and counted in `ship_share`.
+        let all = self.instances_of(Owner::Household);
         for inst in &all {
             if let Some(def) = self.catalog.get(&inst.machine) {
                 supply_watts += def.average_supply_watts(sun_hours);
@@ -2416,7 +2423,8 @@ impl MachineHome {
         // The lights' day (2026-10-22): measured once each has run one, else its timer's hours.
         let (mut lights_day_watts, mut lights_measured) = (0.0f32, 0usize);
         let (mut supply_watts, mut other_watts) = (0.0f32, 0.0f32);
-        for inst in self.all_instances() {
+        // The household's own machines, as `utility_meters` counts them (2026-11-21).
+        for inst in self.instances_of(Owner::Household) {
             let Some(def) = self.catalog.get(&inst.machine) else { continue };
             // What the home makes on its own, as utility_meters counts it (2026-09-27; a
             // backstop genset is not headroom, it is fuel).
@@ -2526,7 +2534,18 @@ impl MachineHome {
     /// `buildability_report` with the ship's zones (`ShipStructure::zone_rects`), so the run
     /// lengths it sizes cables and data links by are measured in ship metres (`run_pos`).
     pub fn buildability_report_in(&self, sun_hours: f32, basis: MeterBasis, zones: Option<&[ZoneRect]>) -> BuildabilityReport {
-        let all = self.all_instances();
+        // The HOUSEHOLD'S design (2026-11-21, `owner`): its own machines and its own wires. The
+        // ship's rows merged in are the ship's, on the ship's supply, so the power circuit no
+        // longer asks the Commons' loads to reach this household's panels (merging the ship's
+        // rows into the one-person homestead failed that check before). `everyone` is every
+        // placed row: a household wire to a ship machine reaches a real machine, not a dangling
+        // end, and is sized like any other run the household pays for.
+        let everyone = self.all_instances();
+        let all: Vec<MachineInstance> = everyone.iter().filter(|i| self.owner_of(i) == Owner::Household).cloned().collect();
+        let ship_ids: std::collections::HashSet<&str> =
+            everyone.iter().filter(|i| self.owner_of(i) == Owner::Ship).map(|i| i.id.as_str()).collect();
+        let wires: Vec<&MachineConnection> =
+            self.connections.iter().filter(|c| !(ship_ids.contains(c.from.as_str()) && ship_ids.contains(c.to.as_str()))).collect();
         // Sum the electrical roles across every placed machine (via its catalog def's power).
         let mut solar_peak = 0.0f32; // W at full sun
         let mut steady_watts = 0.0f32; // W a fuel-free generator makes, averaged over a day (wind)
@@ -2656,13 +2675,9 @@ impl MachineHome {
 
         // 3. Wiring integrity: no connection points at a machine that is not placed (an AI hand-
         //    edit could introduce a dangling reference the editor's add_connection would refuse).
-        if !self.connections.is_empty() {
-            let live: std::collections::HashSet<&str> = all.iter().map(|i| i.id.as_str()).collect();
-            let dangling = self
-                .connections
-                .iter()
-                .filter(|c| !live.contains(c.from.as_str()) || !live.contains(c.to.as_str()))
-                .count();
+        if !wires.is_empty() {
+            let live: std::collections::HashSet<&str> = everyone.iter().map(|i| i.id.as_str()).collect();
+            let dangling = wires.iter().filter(|c| !live.contains(c.from.as_str()) || !live.contains(c.to.as_str())).count();
             if dangling > 0 {
                 checks.push(BuildabilityCheck {
                     name: "Wiring".into(),
@@ -2673,7 +2688,7 @@ impl MachineHome {
                 checks.push(BuildabilityCheck {
                     name: "Wiring".into(),
                     status: CheckStatus::Pass,
-                    detail: format!("{} connection(s), all endpoints valid", self.connections.len()),
+                    detail: format!("{} connection(s), all endpoints valid", wires.len()),
                 });
             }
         }
@@ -2684,12 +2699,11 @@ impl MachineHome {
         //    needs 6 AWG). Run length is the straight line between the two machines in ship metres
         //    (`run_pos`, given the zones). A connection may pin a cable via `spec`; otherwise it's
         //    auto-sized.
-        let power_runs: Vec<&MachineConnection> =
-            self.connections.iter().filter(|c| c.kind == "power").collect();
+        let power_runs: Vec<&MachineConnection> = wires.iter().copied().filter(|c| c.kind == "power").collect();
         if !power_runs.is_empty() {
             const VOLTS: f32 = 120.0; // residential default; per-connection voltage is a later increment
             let by_id: std::collections::HashMap<&str, &MachineInstance> =
-                all.iter().map(|i| (i.id.as_str(), i)).collect();
+                everyone.iter().map(|i| (i.id.as_str(), i)).collect();
             let dist = |a: (f32, f32, f32), b: (f32, f32, f32)| {
                 ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt()
             };
@@ -2771,10 +2785,10 @@ impl MachineHome {
         //    pinned medium. A wireless medium is judged like a wired one, on bandwidth and range (its
         //    RF-harms-a-grow caution was removed 2026-09-27 with the crop harm). Length as the
         //    Conduits check measures it (`run_pos`).
-        let data_runs: Vec<&MachineConnection> = self.connections.iter().filter(|c| c.kind == "data").collect();
+        let data_runs: Vec<&MachineConnection> = wires.iter().copied().filter(|c| c.kind == "data").collect();
         if !data_runs.is_empty() {
             let by_id: std::collections::HashMap<&str, &MachineInstance> =
-                all.iter().map(|i| (i.id.as_str(), i)).collect();
+                everyone.iter().map(|i| (i.id.as_str(), i)).collect();
             let dist = |a: (f32, f32, f32), b: (f32, f32, f32)| {
                 ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt()
             };
@@ -4516,8 +4530,14 @@ mod tests {
     /// switched at 900 ppm) and the room fan (CLOUDLINE S6: 425 CFM = 722.1
     /// m3/h, 70 W, at 600 ppm); every mushroom rack has a tent fan at its spot,
     /// high enough to stand inside its tent, and each home's mushroom room one
-    /// room fan, all cabled to a battery. Seen red by deleting home.ron's
+    /// room fan, the household's own all cabled to a battery. Seen red by deleting home.ron's
     /// `mushfan` array (the six home racks then had none).
+    ///
+    /// The Commons' rack (data/machines/ship.ron, merged into every household file) is the
+    /// SHIP'S (2026-11-21, `owner`): its fan is on the ship's own supply, so no household wire
+    /// reaches it. Until then the family home's battery_7 powered it and this test asked for that
+    /// wire; with home_solo.ron merging the ship's rows it failed "home_solo.ron: mushfan_c1
+    /// cabled to a battery", the one-person home asked to power the ship's machine.
     #[test]
     fn every_shipped_mushroom_rack_has_a_wired_co2_fan() {
         for file in ["home.ron", "home_solo.ron"] {
@@ -4542,7 +4562,10 @@ mod tests {
                     .unwrap_or_else(|| panic!("{file}: no CO2 fan in rack {}'s tent", r.id));
                 // Inside the tent: the medium's 1.9 m tall enclosure stands on the rack's floor.
                 assert!(fan.offset.1 > r.offset.1 && fan.offset.1 < r.offset.1 + 1.9, "{file}: {} inside the tent", fan.id);
-                assert!(wired(&fan.id), "{file}: {} cabled to a battery", fan.id);
+                match home.owner_of(r) {
+                    Owner::Household => assert!(wired(&fan.id), "{file}: {} cabled to a battery", fan.id),
+                    Owner::Ship => assert!(!wired(&fan.id), "{file}: {} is the ship's, on no household battery", fan.id),
+                }
             }
             let room_fans: Vec<_> = all.iter().filter(|i| i.machine == "room_co2_fan").collect();
             assert_eq!(room_fans.len(), 1, "{file}: one room fan");
@@ -4558,7 +4581,9 @@ mod tests {
     /// (CLOUDFORGE T3, 240 ml/h, 24 W), one placed on every mushroom rack
     /// (at the rack's spot, inside its tent) and cabled to a battery. Seen
     /// red by turning home.ron's `mushhum` array into another machine (the
-    /// six home racks then had none).
+    /// six home racks then had none). The Commons' rack's humidifier is the ship's, on no
+    /// household wire (2026-11-21, as the CO2 fan test above says; red the same way:
+    /// "home_solo.ron: mushhum_c1 cabled to a battery").
     #[test]
     fn every_shipped_mushroom_rack_has_a_wired_tent_humidifier() {
         for file in ["home.ron", "home_solo.ron"] {
@@ -4585,11 +4610,11 @@ mod tests {
                     .iter()
                     .find(|h| h.machine == "tent_humidifier" && h.offset == r.offset)
                     .unwrap_or_else(|| panic!("{file}: no tent humidifier on rack {}", r.id));
-                assert!(
-                    home.connections.iter().any(|c| c.kind == "power" && c.to == hum.id && c.from.starts_with("battery_")),
-                    "{file}: {} cabled to a battery",
-                    hum.id
-                );
+                let wired = home.connections.iter().any(|c| c.kind == "power" && c.to == hum.id && c.from.starts_with("battery_"));
+                match home.owner_of(r) {
+                    Owner::Household => assert!(wired, "{file}: {} cabled to a battery", hum.id),
+                    Owner::Ship => assert!(!wired, "{file}: {} is the ship's, on no household battery", hum.id),
+                }
             }
         }
     }
@@ -4801,8 +4826,8 @@ mod tests {
     /// Increment 1a (docs/design/ship-homes-and-logistics.md): the Commons' 11 rows live in
     /// data/machines/ship.ron, Commons-local. home.ron links it, so loading home.ron gives the
     /// same machines as before the split, and on the ship assembled at p1 every Commons machine
-    /// stands exactly where it stood (its old absolute position). home_solo.ron does not link it.
-    /// Saving writes the household's part to the home file and the ship's part only through
+    /// stands exactly where it stood (its old absolute position). home_solo.ron links it too since
+    /// 2026-11-21 (`owner`: a household's figures count only its own machines). Saving writes the household's part to the home file and the ship's part only through
     /// `save_ship_part`. Red check, run: dropping `merge_ship_machines` from `load` fails the
     /// first assertion (the Commons machines are missing).
     #[test]
@@ -4834,9 +4859,19 @@ mod tests {
         // General Services' respawner and bunks.
         let shared = ["commons", "commons-2", "cabins-1", "general-services-1"];
         assert!(ship_only.all_instances().iter().all(|i| shared.contains(&i.zone.as_str())), "every row stands in a shared zone");
-        assert_eq!(home_only.connections.iter().filter(|c| c.from == "battery_7" && c.to.ends_with("_c1")).count(), 3, "home.ron powers the Commons");
+        // Since 2026-11-21 (`owner`) the Commons' machines are the ship's, on the ship's own supply:
+        // no household wire reaches them (home.ron's battery_7 powered three until then), and the
+        // one-person homestead merges them like every other household file (it loaded without
+        // them until then; this check read "the solo home loads without them, as before", and
+        // failed so when home_solo.ron first named ship.ron).
+        let wired: Vec<&MachineConnection> = home_only.connections.iter().filter(|c| ship_ids.contains(&c.to) || ship_ids.contains(&c.from)).collect();
+        assert!(wired.is_empty(), "no household wire to the Commons: {wired:?}");
         let solo = MachineHome::load(&machines.join("home_solo.ron")).expect("home_solo.ron loads");
-        assert!(solo.ship_machines.is_none() && solo.all_instances().iter().all(|i| i.zone == "home"), "the solo home loads without them, as before");
+        let solo_ids: Vec<String> = solo.all_instances().into_iter().map(|i| i.id).collect();
+        assert_eq!(solo.ship_machines.as_deref(), Some("ship.ron"), "the solo home names the ship's file");
+        for id in commons_ids.iter().chain(["ctower_0", "ctower_8"].iter()) {
+            assert!(solo_ids.iter().any(|i| i == id), "{id} is merged into the solo home too");
+        }
 
         // Every Commons machine stands where it stood before the split.
         let ship = crate::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles");
@@ -4887,6 +4922,9 @@ mod tests {
     fn the_ships_machines_are_read_only_outside_the_dev_mode() {
         let machines = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         let mut layout = MachineHome::load(&machines.join("home.ron")).expect("home.ron loads");
+        // A household's own wire to a ship row, added in the Dev mode (home.ron ships none since
+        // 2026-11-21, the Commons being on the ship's own supply): locked, it is read-only too.
+        assert!(layout.add_connection("battery_7", "mushhum_c1", "power"), "the Dev mode wires a ship row");
         layout.ship_part.locked = true;
         let has = |h: &MachineHome, id: &str| h.all_instances().iter().any(|i| i.id == id);
         assert!(layout.is_locked("market_c2") && layout.is_locked("ctower_0"), "a Commons row and an array cell are the ship's");
@@ -4915,7 +4953,11 @@ mod tests {
         assert!(!has(&layout, "market_c2"), "in the Dev mode a ship row can be removed");
 
         // A self-contained file has no ship part to lock.
-        let mut solo = MachineHome::load(&machines.join("home_solo.ron")).expect("home_solo.ron loads");
+        // A layout that links no ship file: the one-person home's file as written with its link
+        // taken off (since 2026-11-21 every shipped household file links ship.ron, the solo one
+        // too, so this read the solo file as it loads and failed once it merged the ship's rows).
+        let mut solo = MachineHome::load_file(&machines.join("home_solo.ron")).expect("home_solo.ron parses");
+        solo.ship_machines = None;
         solo.ship_part.locked = true;
         let first = solo.instances[0].id.clone();
         assert!(!solo.is_locked(&first) && solo.locked_ids().is_empty());
@@ -5003,10 +5045,13 @@ mod tests {
     /// comments and number formatting do not count), wherever it meets itself in a merge (ship.ron
     /// and the files that merge it, home.ron and cabin.ron), and, for Furniture, in every shipped
     /// file that defines it (home_solo.ron too): a chair is the same chair in the Commons, the
-    /// family home, the one-person home and a cabin. (home_solo.ron does not merge ship.ron, and
-    /// its own machines of other kinds differ from home.ron's on purpose: its composter's stats
-    /// are a one-person household's, its wall screen a smaller one, its air handler's load its
-    /// own rooms'.) And ship.ron defines every type its rows use.
+    /// family home, the one-person home and a cabin. (home_solo.ron merges ship.ron too since
+    /// 2026-11-21, so its tent humidifier and tent CO2 fan carry the ship's one definition, whose
+    /// average draw is measured in the family home's tents: its meter charges what its own tents
+    /// drew once they have run a game day, `machines::day_energy`. Its machines that differ from
+    /// the ship's on purpose are types of their own: `composter_small`, a one-person household's,
+    /// and `wall_screen_small`. Its air handler's load is its own rooms', and the ship defines no
+    /// air handler.) And ship.ron defines every type its rows use.
     ///
     /// Seen red 2026-10-12 with ship.ron's chair 0.6 m wide for 0.5: "the chair is defined
     /// differently in ship.ron and home.ron".
@@ -5042,6 +5087,54 @@ mod tests {
         }
     }
 
+    /// A HOUSEHOLD'S METERS COUNT ONLY ITS OWN MACHINES, AND THE SHIP'S ARE COUNTED AS THE SHIP'S
+    /// (2026-11-21, `owner`). In every household file that merges data/machines/ship.ron: a row in
+    /// a ship zone is the ship's and every other the household's (the rule the save splits by),
+    /// the power meter charges none of the ship's rows and exactly the household's, the ship's
+    /// share counts the ship's rows and what they draw, and a file that links no ship file is all
+    /// the household's.
+    ///
+    /// Seen red 2026-11-21 with `owner_of` calling every row the household's (the figures as they
+    /// added up before): "home.ron: the ship's rows are its shared zones' rows". The same run
+    /// failed `buildability_seed_home_power_circuit_is_connected` and
+    /// `home_solo_variant_power_circuit_is_connected` ("3 load(s) not wired to any generator:
+    /// mushhum_c1, mushfan_c1, aqua_c1": the Commons' loads asked of a household's circuit) and the
+    /// family Energy loop's check (the meter at 23.99 kWh/day, the Commons' loads charged).
+    #[test]
+    fn a_households_meters_count_only_its_own_machines_and_the_ships_are_the_ships() {
+        let machines = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
+        let station = MeterBasis { life_support_on_grid: false, recorded: None };
+        for file in ["home.ron", "home_solo.ron", "cabin.ron"] {
+            let home = MachineHome::load(&machines.join(file)).unwrap_or_else(|| panic!("{file} loads"));
+            let all = home.all_instances();
+            let ship: Vec<&MachineInstance> = all.iter().filter(|i| home.owner_of(i) == Owner::Ship).collect();
+            assert!(ship.iter().all(|i| i.zone != "home") && all.iter().filter(|i| i.zone != "home").count() == ship.len(), "{file}: the ship's rows are its shared zones' rows");
+            assert!(ship.iter().any(|i| i.id == "ctower_0") && ship.iter().any(|i| i.id == "respawn_pod_gs"), "{file}: the Commons garden and General Services' pod are the ship's");
+            assert_eq!(home.owner_of_id("ctower_0"), Some(Owner::Ship), "{file}");
+            if let Some(power) = home.utility_meters(4.5, station).into_iter().find(|m| m.utility == "power") {
+                for s in &power.sources {
+                    assert_eq!(home.owner_of_id(&s.id), Some(Owner::Household), "{file}: the power meter charges the ship's {}", s.id);
+                }
+                let own: f32 = home
+                    .instances_of(Owner::Household)
+                    .iter()
+                    .filter_map(|i| home.catalog.get(&i.machine).map(|d| home.grid_day_draw(i, d, station).watts))
+                    .sum::<f32>()
+                    * 24.0
+                    / 1000.0;
+                assert!((power.demand - own).abs() < 1e-3, "{file}: the meter's {:.3} kWh/day is the household's own {own:.3}", power.demand);
+            }
+            let share = home.ship_share(station);
+            let drawn: f32 = ship.iter().filter_map(|i| home.catalog.get(&i.machine).map(|d| home.day_draw(i, d, None).watts)).sum::<f32>() * 24.0 / 1000.0;
+            assert_eq!(share.machines, ship.len(), "{file}: the ship's share counts the ship's rows");
+            assert!(share.power_kwh_day > 1.0 && (share.power_kwh_day - drawn).abs() < 1e-3, "{file}: the ship's machines draw {drawn:.3} kWh/day, its share says {:.3}", share.power_kwh_day);
+        }
+        // A self-contained file: every row is its own.
+        let mut alone = MachineHome::load_file(&machines.join("home_solo.ron")).expect("parses");
+        alone.ship_machines = None;
+        assert!(alone.all_instances().iter().all(|i| alone.owner_of(i) == Owner::Household), "a file that links no ship file is all the household's");
+    }
+
     /// A HOUSEHOLD WIRE TO A SHIP ROW STAYS WITH THE HOUSEHOLD (ship homes increment 6, lane 1A).
     /// The family home's battery bank powers the Commons' tent humidifier, CO2 fan and fish tank
     /// pump. Those three wires are home.ron's: a Dev save of the family layout writes them to
@@ -5052,6 +5145,10 @@ mod tests {
     ///
     /// Seen red 2026-10-12 with `split_for_save` sending every wire that touches a ship row to the
     /// ship file (the code before lane 1A): "battery_7 -> mushhum_c1 went into ship.ron".
+    ///
+    /// Since 2026-11-21 the Commons' machines are the ship's, on the ship's own supply (`owner`),
+    /// and home.ron ships no wire to them; the rule still holds for a wire a household adds itself
+    /// (in the Dev mode), so the test adds the same three to the loaded family layout first.
     #[test]
     fn a_household_wire_to_a_ship_row_stays_with_the_household() {
         let src = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
@@ -5062,7 +5159,10 @@ mod tests {
         let wires = [("battery_7", "mushhum_c1"), ("battery_7", "mushfan_c1"), ("battery_7", "aqua_c1")];
         let has = |h: &MachineHome, (from, to): (&str, &str)| h.connections.iter().filter(|c| c.from == from && c.to == to).count();
         // A Dev save of the family layout: the household's part and the ship's part.
-        let layout = MachineHome::load(&dir.join("home.ron")).expect("home.ron loads merged");
+        let mut layout = MachineHome::load(&dir.join("home.ron")).expect("home.ron loads merged");
+        for (from, to) in wires {
+            assert!(layout.add_connection(from, to, "power"), "the household wires {from} -> {to}");
+        }
         layout.save(&dir.join("home.ron")).expect("saves the household's part");
         layout.save_ship_part(&dir.join("home.ron")).expect("saves the ship's part");
         let home_back = MachineHome::load_file(&dir.join("home.ron")).expect("parses");

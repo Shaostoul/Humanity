@@ -1147,6 +1147,22 @@ Left for later:
 - the single bed's and the counter's models (a download only the operator can approve);
 - Apartment plots and an apartment design (increment 10); the other kinds of section 1.2b as each gets a design and plots.
 
+### A household's figures count only its own machines (2026-11-21)
+
+The operator, asked "Should a household's figures count only its own machines? I recommend yes, with the ship's machines shown as the ship's.": "Yes". Increment 1a moved the Commons' machines into data/machines/ship.ron but left the family home powering three of them and counting the Commons garden in its loops ("a later increment"); this is that increment.
+
+- **Whose a machine is** is data: a row in a ship zone of a layout that links the ship's file is the ship's, every other row the household's (`crates/humanity-ship/src/machines/owner.rs`, `MachineHome::owner_of`), the rule `split_for_save` already sends rows back to their files by.
+- **A household's figures** (its food, the power, water and data meters, each loop's live line, the Energy gauge, the grow-light meter, the buildability report and its power circuit) count only its own machines. The family home now grows about 4,890 kcal a day of its 6,600 (74%; the Commons garden's 1,110 was counted as its own, 91%) and draws 21.8 kWh a day Station-supplied (24.0 before).
+- **The ship's machines are the ship's**: `ship_share` counts them (75 rows, about 1,110 kcal a day for everyone aboard, 2.1 kWh a day), shown above the Home page's loops and under the Construction page's meters. The live sim meters their power under the ship's own line (`ship_power::SHIP_MACHINES`); a fleet-level view of them is left for later (below).
+- **Power**: the ship's machines are on the ship's own bus in either Ship life support mode (an island of only the ship's machines is tapped as the ship's), never on a household's battery; the family home's three wires to the Commons are gone. A household may still wire one of its own machines to a ship row; that wire and its island stay the household's.
+- **Every household draws the ship's pods**: home_solo.ron links ship.ron like the rest (its composter and wall screen are its own smaller types, `composter_small` and `wall_screen_small`, so the ship's same-named machines keep the ship's definitions), and the death screen's "its pod is not drawn" note is gone.
+- **One definition for a shared type** (decided in the review, 2026-11-21): a type the ship's file defines and a household's file uses too (the tent humidifier and the tent CO2 fan of the Commons' rack) is ONE definition in every file that merges the ship's rows (`a_type_two_machine_files_define_is_defined_the_same`), its `average_watts` the draw measured in the family home's tents (20.4 W a humidifier, `the_shipped_homes_hold_their_air_and_return_their_water`). The one-person home's tents draw less (17.0 W measured), and its meter charges each tent's real draw once it has run a game day (`machines::day_energy`), so the shared estimate shows only on a new game's first day. No per-household variant of a shared type.
+- **The loop words' measured figures**: the family home's Water and Air loops quote the life-support measurement, which reads only the home zone's machines (the Commons' rack, fish tank and towers were never in it); they were re-measured on the household's own machines on 2026-11-21 and moved only a little, with other changes to the home (docs/design/ship-life-support.md section 10; data/machines/home.ron names each figure's source).
+
+Left for later:
+
+- **A fleet-level view of the ship's machines** (decided in the review, 2026-11-21): how many there are, the food they grow and what they draw for everyone aboard, summed across the ship, belongs on the fleet ledger page (Inventory > The fleet, `src/gui/pages/fleet_ledger.rs`), beside what each player used and contributed. Until then each household's Home page and Construction page show the ship's share apart from its own figures.
+
 ### Increment 7: stacked homes and decks
 
 This is the gate for any multi-storey Cabin block or apartment above the ground floor.

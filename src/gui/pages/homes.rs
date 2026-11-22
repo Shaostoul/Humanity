@@ -302,6 +302,8 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let power_meter = state.home_machines.as_ref().and_then(|h| {
         h.utility_meters(humanity_ship::machines::METER_SUN_HOURS, basis).into_iter().find(|m| m.utility == "power").map(|m| (m.generation, m.demand))
     });
+    // Whose machines these figures count (2026-11-21): the household's own, the ship's apart.
+    let whose = state.home_machines.as_ref().map(|h| super::home_whose::whose(h, basis));
     let now = HomeNow {
         power: LivePower {
             gen: state.power_generation,
@@ -330,6 +332,7 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         metered: &metered,
         grown_kcal,
         power_meter,
+        whose,
     };
     draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &now);
 }
@@ -388,6 +391,8 @@ struct HomeNow<'a> {
     metered: &'a [Option<String>],
     grown_kcal: f32,
     power_meter: Option<(f32, f32)>,
+    /// Whose machines the figures count (`home_whose`), None with no household file loaded.
+    whose: Option<super::home_whose::Whose>,
 }
 
 /// The cards in the row of readouts under the scale, in order; a live one only while the sim
@@ -518,7 +523,11 @@ fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign, tower
     });
 
     // ── Loop closure (the self-sufficiency demonstration, v0.432) ──
-    // The coupled loops with whether each closes, from data/machines/home.ron.
+    // The coupled loops with whether each closes, from data/machines/home.ron. Above them, whose
+    // machines they count (2026-11-21): the household's own, the ship's shown apart.
+    if let Some(w) = &now.whose {
+        super::home_whose::draw(ui, theme, w);
+    }
     super::home_loops::draw_home_loops(ui, theme, now.loops, now.metered, now.grown_kcal, now.power_meter);
 
     // ── The ideal closed loop (the requirements outline) ──

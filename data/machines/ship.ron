@@ -9,17 +9,17 @@
 // labelled volume a row stands in (data/blueprints/ship_structure.ron: "mess-hall",
 // "recreation", "mess-hall-2"), or the zone itself.
 //
-// How it is loaded: a household file that names this file (`ship_machines: Some("ship.ron")` in
-// data/machines/home.ron and data/machines/cabin.ron) gets these rows merged in when it loads, and
-// the editor writes them back here, not into the household file, and only in the Dev play mode.
-// The family home names it because its battery bank powers the Commons' tent humidifier, CO2 fan
-// and fish tank and its loops count the Commons garden: that is how the household was modelled
-// before the split, and moving those machines onto the ship's own supply (and off the
-// household's meters) is a later increment. Those three power wires are the family home's own
-// rows (home.ron's connections, since increment 6 lane 1A): a wire from a household's machine
-// stays with that household (crates/humanity-ship/src/machines.rs `split_for_save`), so a cabin, which merges this
-// file too, finds no wire here naming a battery it does not have. home_solo.ron does not name
-// this file, so the one-person home loads without the Commons, as before.
+// How it is loaded: every household file names this file (`ship_machines: Some("ship.ron")` in
+// data/machines/home.ron, home_solo.ron, cabin.ron and the rest) and gets these rows merged in
+// when it loads, and the editor writes them back here, not into the household file, and only in
+// the Dev play mode. These rows are the SHIP'S (2026-11-21, crates/humanity-ship/src/machines/owner.rs):
+// a household's figures (its loops, meters and food) count only its own machines, the ship's are
+// shown apart as the ship's, and the live sim feeds their power islands from the ship's own bus
+// in either Ship life support mode (systems::ship_power `SHIP_MACHINES`). Until then the family
+// home's battery bank powered the Commons' tent humidifier, CO2 fan and fish tank through three
+// wires of its own, its loops counted the Commons garden, and home_solo.ron could not name this
+// file at all. A household may still wire one of its own machines to a ship row: that wire is
+// the household's (crates/humanity-ship/src/machines.rs `split_for_save`).
 //
 // THE CATALOG (increment 6, lane 1A) defines every type these rows use, so any household file
 // can merge it: each copied from data/machines/home.ron, which defines the same types the same

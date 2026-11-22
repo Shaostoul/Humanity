@@ -177,9 +177,21 @@ impl System for ElectricalSystem {
         // Station-supplied mode every island with a feed tap may take up to
         // the reactor's output from the ship's bus, after its own generation
         // and batteries; in the Realistic mode (None) no island may.
-        let feed_w = crate::ship_power::feed_watts(data).map(|w| w as f32);
+        // An island of the SHIP'S OWN machines (its tap is `ship_power::SHIP_MACHINES`, 2026-11-21)
+        // is fed in both modes, metered as the ship's, and left out of the household's readout
+        // below: the ship's machines are the ship's, not the household's.
+        let (feed_w, ship_feed_w) = (
+            crate::ship_power::feed_watts(data).map(|w| w as f32),
+            crate::ship_power::ship_machines_feed_watts(data).map(|w| w as f32),
+        );
         let taps = crate::ship_power::taps(world);
-        let fed = |island: &Option<u32>| feed_w.and_then(|w| taps.get(island).map(|home| (w, home.clone())));
+        let fed = |island: &Option<u32>| {
+            taps.get(island).and_then(|home| {
+                let w = if home == crate::ship_power::SHIP_MACHINES { ship_feed_w } else { feed_w };
+                w.map(|w| (w, home.clone()))
+            })
+        };
+        let ships = |island: &Option<u32>| taps.get(island).is_some_and(|home| home == crate::ship_power::SHIP_MACHINES);
 
         // Power flows PER ISLAND (v0.607): generation, loads, and batteries are grouped by their
         // PowerCircuit.island, so a generator only feeds loads on its own wired circuit -- no magic
@@ -334,7 +346,12 @@ impl System for ElectricalSystem {
             // query's order.
             consumers.sort_by(|a, b| a.2.cmp(&b.2));
             let total_demand: f32 = consumers.iter().map(|(_, w, _)| *w).sum();
-            demand_all += total_demand;
+            // The ship's own machines' island runs like any other, but is the ship's: none of it
+            // goes into the household's readout (2026-11-21).
+            let household = !ships(&key);
+            if household {
+                demand_all += total_demand;
+            }
 
             // What this island's batteries can give this tick: each bank's
             // discharge limit, and no more than the energy it holds (the
@@ -383,8 +400,10 @@ impl System for ElectricalSystem {
                     }
                 }
             }
-            total_gen_all += total_gen;
-            consumed_all += consumed;
+            if household {
+                total_gen_all += total_gen;
+                consumed_all += consumed;
+            }
 
             // Batteries on THIS island buffer this island's surplus/deficit (sequential bite, no
             // double counting). The balance is what the loads that stayed on USED against what
@@ -399,8 +418,10 @@ impl System for ElectricalSystem {
                         );
                         b.charge_wh = new_charge;
                         grid_balance -= applied_w;
-                        battery_wh += b.charge_wh;
-                        battery_cap += b.capacity_wh;
+                        if household {
+                            battery_wh += b.charge_wh;
+                            battery_cap += b.capacity_wh;
+                        }
                     }
                 }
             }
@@ -409,9 +430,11 @@ impl System for ElectricalSystem {
             // metered to the watt-hour on the game clock, in f64.
             if let Some((_, home)) = feed {
                 let (drawn, returned) = if grid_balance < 0.0 { (-grid_balance, 0.0) } else { (0.0, grid_balance) };
-                ship.fed = true;
-                ship.drawn_w += drawn;
-                ship.returned_w += returned;
+                if household {
+                    ship.fed = true;
+                    ship.drawn_w += drawn;
+                    ship.returned_w += returned;
+                }
                 let h = f64::from(dt) / 3600.0;
                 crate::ship_power::record(
                     data,

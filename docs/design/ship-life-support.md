@@ -693,3 +693,39 @@ to 82%): the mushrooms still cannot fruit in the air they enrich, as section 7 f
 home's settles near 465 ppm as before (started at 450: 430 to 452, 1.92 kg taken up) and its
 tents still hold 90%. Holding the family mushroom room at 550 instead of 600 runs its fan all
 but 0.3% of the time and the room still reaches 593 ppm.
+
+## 10. 2026-11-21: re-measured on the household's own machines
+
+A household's figures count only its own machines since 2026-11-21 (the operator's "Yes";
+docs/design/ship-homes-and-logistics.md, "A household's figures count only its own machines"):
+the Commons' rack, fish tank and towers in data/machines/ship.ron are the ship's. The homes'
+Water and Air loops quote `the_shipped_homes_hold_their_air_and_return_their_water` and the
+ignored `print_the_shipped_homes_with_the_home_air_at_its_settled_co2`
+(src/engine/crossing_tests/farming_life_support.rs), and that measurement spawns only the home
+zone's machines, so the Commons was never in it; the static power meter did count the Commons'
+loads (the family Energy loop's 24.0 kWh a day Station-supplied is 21.8 for its own machines),
+and the tent test in crates/humanity-systems (`the_shipped_homes_keep_every_racks_tent_in_range`)
+stood the Commons' rack in the home's mushroom room, and now counts the household's six. Both
+homes were re-measured the same day on their own machines (a day to settle and a day measured at
+full planting, the home at 50%). The figures drifted a little since section 9 with other changes
+to the home (among them, it now publishes 29 rooms of its own where it had 30), not with the
+Commons:
+
+| | Family home | Solo home |
+|---|---|---|
+| Rooms counted for the leak / air leaked overboard | 29 / 0.58 kg a day (was 30 / 0.60) | 29 / 0.58 kg a day (was 30 / 0.60) |
+| Returned, of what was put in the air, L a day | 688 of 688 (was 689): crops 647, tents 7 breathed and 29 humidified, people 5 | 254 of 254: crops 242, tents 2 and 8, the resident 2 |
+| Drawn by the irrigation / the garden's net draw | 780 / 91 | 297 / 43 |
+| Home air CO2 over the day | 444 to 494 ppm (was 445 to 495) | 400 to 421 ppm (was 401 to 421) |
+| CO2 taken up by the crops, of what is breathed out | 5.02 of 5.89 kg (was 4.98) | 1.87 of 1.96 kg (was 1.86) |
+| Air handlers at 50% | 1,535 W, 36.9 kWh a day (was 1,536) | 961 W, 23.1 kWh a day |
+| Tent humidifiers | 120 W (20.1 W a tent), 28.9 L a day | 34 W (17.0 W a tent), 8.2 L a day |
+| CO2 fans: the room's / the tents' | 49.6 W, on 71% of the time / 9.9 W (was 50, 72% / 10) | 1.6 W / 3.3 W |
+
+The settled air: the family home started at 700 ppm ran 592 to 656 with the crops taking up
+5.76 kg, and at 800 ran 643 to 713 and 5.98, so it settles near 655 ppm (was 670: 595 to 658 and
+5.71, 645 to 714 and 5.93). There the mushroom room still sits at 691 to 811 ppm with its fan
+flat out and the tents at 68 to 82% humidity, under the oyster's 85%. The solo home started at
+450 ran 429 to 451 with 1.94 kg taken up (was 430 to 452 and 1.92), its tents at 90%. The two
+homes' Water and Air loops (data/machines/home.ron, home_solo.ron) carry these figures with their
+source.

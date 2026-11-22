@@ -774,13 +774,15 @@ fn a_tent_starts_from_its_rooms_air_and_saves_like_a_room() {
 
 /// The shipped homes keep every rack's tent in range at full planting. Each
 /// home's mushroom racks (the showcase sows oyster mushrooms on all five
-/// shelves, two blocks a shelf) stand in the blueprint's 10 x 3 x 10 m mushroom room (the
-/// commons rack in the home's air), each in the shipped tent with the tent
+/// shelves, two blocks a shelf) stand in the blueprint's 10 x 3 x 10 m mushroom room, each in the shipped tent with the tent
 /// humidifier placed on its bottom shelf, built from the catalog def. After
 /// two game days every tent is inside the oyster's 85 to 95% window and no
 /// oyster is capped; with the humidifiers unpowered no tent is in range.
 /// Seen red by turning home.ron's `mushhum` array into another machine (a
-/// humidifier for only one of the seven racks).
+/// humidifier for only one of the seven racks). Since 2026-11-21 it counts the household's own
+/// racks only (the Commons' rack is the ship's, and stood in the home's air here until then): with
+/// home_solo.ron merging the ship's rows it failed "home_solo.ron: a humidifier for every rack",
+/// (3, 3) against (2, 2).
 #[test]
 fn the_shipped_homes_keep_every_racks_tent_in_range() {
     use humanity_ship::machines::MachinePower;
@@ -799,7 +801,8 @@ fn the_shipped_homes_keep_every_racks_tent_in_range() {
         };
         let (o, s) = (triple("origin: ("), triple("size: ("));
         let mushroom = GrowRoom { id: "room-mushroom".into(), name: "Mushroom room".into(), min: o, max: [o[0] + s[0], o[1] + s[1], o[2] + s[2]], ..Default::default() };
-        let all = home.all_instances();
+        // The household's own racks (2026-11-21): the Commons' rack is the ship's, in the Commons' air.
+        let all = home.instances_of(humanity_ship::machines::Owner::Household);
         let racks: Vec<_> = all.iter().filter(|i| i.machine == "mushroom_rack").collect();
         let mut data = store(0.5, 1.0, 0.0);
         data.insert(humidity::ROOMS_KEY, Mutex::new(vec![mushroom]));
@@ -834,7 +837,7 @@ fn the_shipped_homes_keep_every_racks_tent_in_range() {
         println!("{file} powered={powered}: {} racks, {} humidifiers, tents {rhs:.4?}, room {room_rh:.4}, {litres:.2} L/day, {watts:.1} W", racks.len(), hums.len());
         (rhs, litres, watts, room_rh, hums.len(), healthy)
     };
-    for (file, racks) in [("home.ron", 7), ("home_solo.ron", 2)] {
+    for (file, racks) in [("home.ron", 6), ("home_solo.ron", 2)] {
         let (rhs, _, _, _, n, healthy) = settle(file, true);
         assert_eq!((rhs.len(), n), (racks, racks), "{file}: a humidifier for every rack");
         assert!(rhs.iter().all(|rh| (0.85..=0.95).contains(rh)), "{file}: tents at {rhs:?}, the oyster's window is 85 to 95%");

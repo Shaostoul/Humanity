@@ -11,10 +11,12 @@
 //     "general-services-1:room_3", the hall's anonymous id);
 //   - the death screen listed both places, home first (the usual place);
 //   - with the one-person homestead's household (the showcase `household` verb, 2026-11-21),
-//     whose world draws none of the ship's machines (data/machines/home_solo.ron says why), the
-//     death screen in General Services' hall lists General Services and says its pod is not drawn
-//     (the probe's wake.not_drawn, src/engine/wake.rs `entries`), and the family household is put
-//     back after it.
+//     whose world draws the ship's machines since a household's figures count only its own
+//     (crates/humanity-ship/src/machines/owner.rs; until then it drew none and the death screen
+//     said so), the death screen in General Services' hall lists General Services and the world
+//     drew its pod (the probe's wake.pods_drawn: the listed places whose pod has the label the
+//     world builds with each placed machine, src/engine/wake.rs `pods_drawn`), and the family
+//     household is put back after it.
 // Pure: `judge(manifest, data)` returns { pass, checks }.
 
 const fs = require("fs");
@@ -104,11 +106,11 @@ function judge(manifest, data) {
   add("solo_in_general_services", inXZ(scam, data.services), `the solo vantage's camera at ${fmt(scam)} is ${inXZ(scam, data.services) ? "inside" : "NOT inside"} General Services`);
   const sw = solo.wake || {};
   const soloListed = Array.isArray(sw.listed) ? sw.listed : null;
-  const soloNotDrawn = Array.isArray(sw.not_drawn) ? sw.not_drawn : null;
+  const soloDrawn = Array.isArray(sw.pods_drawn) ? sw.pods_drawn : null;
   add(
-    "solo_says_why_the_pod_is_not_drawn",
-    !!soloListed && soloListed.includes("general-services-1") && !!soloNotDrawn && soloNotDrawn.includes("general-services-1") && !soloNotDrawn.includes("home"),
-    `the solo household's death screen listed ${JSON.stringify(soloListed)}, saying the pod is not drawn under ${JSON.stringify(soloNotDrawn)}; General Services listed and said so, the home's own pod not, are expected`,
+    "solo_draws_the_general_services_pod",
+    !!soloListed && soloListed.includes("general-services-1") && !!soloDrawn && soloDrawn.includes("general-services-1") && soloDrawn.includes("home"),
+    `the solo household's death screen listed ${JSON.stringify(soloListed)}, and the world drew the pods of ${JSON.stringify(soloDrawn)}; General Services listed, and both its pod and the home's own drawn, are expected (a game from before 2026-11-21 drew no pod of the ship's for this household)`,
   );
   const back = byId("respawn-family-again")?.probe || {};
   const backHousehold = back.household ?? null;

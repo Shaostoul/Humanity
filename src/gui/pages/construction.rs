@@ -3811,6 +3811,12 @@ fn draw_buildability(
             .size(theme.font_size_small)
             .color(theme.text_muted()),
         );
+        // Whose machines these meters count (2026-11-21, home_whose.rs): the household's own.
+        let whose = super::home_whose::whose(home, basis);
+        ui.label(RichText::new(&whose.household).size(theme.font_size_small).color(theme.text_muted()));
+        if let Some(ship) = &whose.ship {
+            ui.label(RichText::new(ship).size(theme.font_size_small).color(theme.text_muted()));
+        }
         for m in &meters {
             let look = legend_look(theme, &m.utility, mode);
             ui.horizontal_wrapped(|ui| {

@@ -42,8 +42,24 @@ pub const LEDGER_KEY: &str = "ship_supply";
 /// The player's home in the ledger. One home per player today; in a fleet
 /// each home's taps carry their own id.
 pub const PLAYER_HOME: &str = "home";
+/// The SHIP'S OWN machines in the ledger (2026-11-21, `humanity_ship::machines::owner`): the
+/// ship's rows a household file merges in (the Commons' tent humidifier, CO2 fan and fish tank
+/// pump, General Services' pods) are the ship's, not the household's. Their islands carry a tap
+/// for this "home" instead of `PLAYER_HOME` (`engine::home_spawn::spawn_home_feed_taps`), the
+/// ship's bus feeds them in either Ship life support mode (`ship_machines_feed_watts`), what
+/// they draw is metered here, and the household's live power readout leaves them out
+/// (`electrical::PowerStatus`). Before this a cabin's or the one-person home's unwired Commons
+/// loads were tapped and metered as the player's home, and the family home's battery powered
+/// three of them.
+pub const SHIP_MACHINES: &str = "ship";
 /// The ledger's line for electricity (`Utility::Electricity.id()`), in Wh.
 pub const POWER: &str = "power";
+
+/// Marks the live entity of one of the SHIP'S OWN machines (see `SHIP_MACHINES`), so the
+/// household's live readouts (the water status, `plumbing`) leave it out while the simulation
+/// still runs it. Inserted by `engine::home_spawn::spawn_home_feed_taps` beside every home spawn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShipMachine;
 /// The ledger's line for oxygen the home's fires burned out of the ship's air,
 /// in kg (2026-10-20): a stove fed from outside through its outside air kit
 /// (`ecs::components::CombustionAir::Outside`, `farming::heat`) takes the
@@ -151,6 +167,24 @@ pub fn register(data_store: &mut DataStore) {
 pub fn feed_watts(data: &DataStore) -> Option<f64> {
     let d = data.get::<ShipPowerData>(DATA_KEY)?;
     (!crate::life_support::is_realistic(data)).then_some(d.electric_watts.max(0.0))
+}
+
+/// The watts an island of the SHIP'S OWN machines (`SHIP_MACHINES`) may take from the ship's bus:
+/// the reactor's output in EITHER Ship life support mode, because the Realistic mode asks a
+/// household to run on what it makes, and the ship's machines were never the household's. None
+/// with no reactor registered (headless tests).
+pub fn ship_machines_feed_watts(data: &DataStore) -> Option<f64> {
+    data.get::<ShipPowerData>(DATA_KEY).map(|d| d.electric_watts.max(0.0))
+}
+
+/// The watts the tap of `home` may take now: `ship_machines_feed_watts` for the ship's own
+/// machines, `feed_watts` for a household's island.
+pub fn tap_watts(data: &DataStore, home: &str) -> Option<f64> {
+    if home == SHIP_MACHINES {
+        ship_machines_feed_watts(data)
+    } else {
+        feed_watts(data)
+    }
 }
 
 /// Add to the ledger (a no-op with none registered).

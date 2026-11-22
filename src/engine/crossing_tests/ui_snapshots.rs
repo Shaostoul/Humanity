@@ -273,8 +273,8 @@ fn snapshot_death_screen_wake() {
     render_page_png("death_screen_wake", 2560, 1440, |ctx, theme, state| {
         state.player_death_cause = Some("dehydration".into());
         state.wake.places = vec![
-            crate::gui::wake_view::WakeEntry { place: "home".into(), name: humanity_core::i18n::t("hud.wake_home").into(), usual: true, note: None },
-            crate::gui::wake_view::WakeEntry { place: "general-services-1".into(), name: "General Services".into(), usual: false, note: None },
+            crate::gui::wake_view::WakeEntry { place: "home".into(), name: humanity_core::i18n::t("hud.wake_home").into(), usual: true },
+            crate::gui::wake_view::WakeEntry { place: "general-services-1".into(), name: "General Services".into(), usual: false },
         ];
         state.wake.filled = true;
         crate::gui::pages::hud::draw_death_screen(ctx, theme, state);
@@ -282,11 +282,11 @@ fn snapshot_death_screen_wake() {
 }
 
 /// THE ONE-PERSON HOMESTEAD'S DEATH SCREEN (2026-11-21, the arrival rungs' follow-up), at the
-/// operator's 2560 x 1440: its own pod upstairs first, then General Services, whose pod this
-/// household's world does not draw (home_solo.ron holds only what one person runs, and links none
-/// of the ship's rows), so the sentence under it says why and that you still wake there
-/// (`hud.wake_not_drawn`). The list is the one engine/wake.rs makes for the shipped files
-/// (`places_for`, `entries`), not one typed here.
+/// operator's 2560 x 1440: its own pod upstairs first, then General Services. Since 2026-11-21
+/// home_solo.ron merges the ship's rows like every household file (a household's figures count
+/// only its own machines), so General Services' pod is drawn with this home and its entry carries
+/// no sentence under it (until then: "Its pod is not drawn with your home"). The list is the one
+/// engine/wake.rs makes for the shipped files (`places_for`, `entries`), not one typed here.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_death_screen_wake_solo() {
@@ -295,8 +295,8 @@ fn snapshot_death_screen_wake_solo() {
             let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
             let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
             let home = humanity_systems::grow_machines::load_home(&data.join("machines/home_solo.ron")).expect("home_solo.ron");
-            let listed = humanity_ship::respawners::usual_first(&crate::engine::wake::places_for(&ship, Some(&home), &data), None);
-            state.wake.places = crate::engine::wake::entries(&listed, Some(&home));
+            let listed = humanity_ship::respawners::usual_first(&crate::engine::wake::places_for(&ship, Some(&home)), None);
+            state.wake.places = crate::engine::wake::entries(&listed);
             state.wake.filled = true;
         }
         state.player_death_cause = Some("dehydration".into());

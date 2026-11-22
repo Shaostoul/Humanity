@@ -147,10 +147,6 @@ pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                                 if w.usual {
                                     ui.label(RichText::new(t("hud.wake_usual")).size(theme.font_size_small).color(theme.text_muted()));
                                 }
-                                // A place whose pod this home does not draw says why (engine/wake.rs `entries`).
-                                if let Some(note) = &w.note {
-                                    ui.label(RichText::new(note).size(theme.font_size_small).color(theme.text_muted()));
-                                }
                                 ui.add_space(theme.spacing_xs);
                             }
                             ui.label(RichText::new(fill(t("hud.wake_change"), &[("key", &key)])).size(theme.font_size_small).color(theme.text_muted()));

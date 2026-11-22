@@ -22,7 +22,7 @@ function run(over = {}) {
     { id: "respawn-death-screen", screenshot: "respawn-death-screen.png", probe: { wake: { listed: ["home", "general-services-1"] } } },
     { id: "respawn-wake-home", screenshot: "respawn-wake-home.png", probe: { camera_end: { pos: WAKE_HOME, yaw: 0, pitch: 0 }, wake: { last: { place: "home" }, storey: { floor: 3.0, room: { name: "Bedroom" } } } } },
     { id: "respawn-wake-general-services", screenshot: "respawn-wake-general-services.png", probe: { camera_end: WAKE_GS, wake: { last: { place: "general-services-1" }, storey: { floor: 0.0, room: { name: "General Services" } } } } },
-    { id: "respawn-solo-general-services-pod", screenshot: "respawn-solo-general-services-pod.png", probe: { camera_end: { pos: [189, 1.7, 133], yaw: -1.5708, pitch: -0.12 }, household: "solo", wake: { listed: ["home", "general-services-1"], not_drawn: ["general-services-1"] } } },
+    { id: "respawn-solo-general-services-pod", screenshot: "respawn-solo-general-services-pod.png", probe: { camera_end: { pos: [189, 1.7, 133], yaw: -1.5708, pitch: -0.12 }, household: "solo", wake: { listed: ["home", "general-services-1"], pods_drawn: ["home", "general-services-1"] } } },
     { id: "respawn-family-again", screenshot: "respawn-family-again.png", probe: { camera_end: [53.5, 1.7, 40.5], household: "family" } },
   ];
   for (const [id, f] of Object.entries(over)) {
@@ -86,13 +86,14 @@ test("the solo vantage still on the family household: the solo check fails", () 
   assert.deepEqual(failed(s), ["family_household_again"]);
 });
 
-// The death screen as the arrival rungs left it: General Services listed for the one-person
-// homestead with no word that its pod is not drawn there. Seen red that way.
-test("the solo death screen says nothing about the pod it does not draw: the check fails", () => {
-  const r = RJ.judge(run({ "respawn-solo-general-services-pod": (x) => ({ ...x, probe: { ...x.probe, wake: { listed: ["home", "general-services-1"], not_drawn: [] } } }) }), DATA);
-  assert.deepEqual(failed(r), ["solo_says_why_the_pod_is_not_drawn"]);
-  const old = RJ.judge(run({ "respawn-solo-general-services-pod": (x) => ({ ...x, probe: { ...x.probe, wake: { listed: ["home", "general-services-1"] } } }) }), DATA);
-  assert.deepEqual(failed(old), ["solo_says_why_the_pod_is_not_drawn"], "a game from before `not_drawn`");
+// The one-person homestead as the arrival follow-ups left it (2026-11-21): General Services listed
+// but its pod not drawn with this home (the world drew only the home's own), and a game from
+// before `pods_drawn` that says nothing. Both fail the check; seen red that way.
+test("the solo household's world does not draw General Services' pod: the check fails", () => {
+  const r = RJ.judge(run({ "respawn-solo-general-services-pod": (x) => ({ ...x, probe: { ...x.probe, wake: { listed: ["home", "general-services-1"], pods_drawn: ["home"] } } }) }), DATA);
+  assert.deepEqual(failed(r), ["solo_draws_the_general_services_pod"]);
+  const old = RJ.judge(run({ "respawn-solo-general-services-pod": (x) => ({ ...x, probe: { ...x.probe, wake: { listed: ["home", "general-services-1"], not_drawn: ["general-services-1"] } } }) }), DATA);
+  assert.deepEqual(failed(old), ["solo_draws_the_general_services_pod"], "a game from before `pods_drawn`");
 });
 
 test("a vantage that took no picture", () => {

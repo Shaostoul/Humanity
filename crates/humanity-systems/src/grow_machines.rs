@@ -652,4 +652,53 @@ mod tests {
         assert!(files.len() > 500, "the scan found only {} files under src/ and crates/", files.len());
         assert!(bare.is_empty(), "these load a home without its food figures (use humanity_systems::grow_machines::load_home): {bare:?}");
     }
+
+    /// A HOUSEHOLD'S FOOD LOOP EXCLUDES THE COMMONS GARDEN, AND THE ONE-PERSON HOMESTEAD'S FIGURES
+    /// DO NOT MOVE WHEN IT DRAWS THE SHIP'S MACHINES (2026-11-21, the operator's "Yes" to "Should
+    /// a household's figures count only its own machines?"). Every household file merges the
+    /// ship's rows (data/machines/ship.ron), and the Commons garden among them is the SHIP'S
+    /// (`humanity_ship::machines::owner`): the family home's food figure is its own grow machines
+    /// summed, none of the Commons' towers or its rack in it, and the garden is counted as the
+    /// ship's. The one-person homestead merges the ship's rows too since then, so its world draws
+    /// the ship's pods, and its food, power and water figures are exactly what its own file alone
+    /// gives (the Food loop still short, as its words say, the others as before).
+    ///
+    /// Seen red 2026-11-21 with `MachineHome::owner_of` calling every row the household's (the
+    /// figures as they added up before): "home.ron: the household's food counts no Commons
+    /// machine: 6000.1 kcal/day, its own machines grow 4888.4" (the solo home's would have read
+    /// 2,872 with the Commons garden's 1,112 against its own file's 1,760).
+    #[test]
+    fn a_households_food_loop_excludes_the_commons_garden() {
+        use humanity_ship::machines::{MeterBasis, Owner};
+        let family = home("home.ron");
+        let own: f32 = family.all_instances().iter().filter(|i| i.zone == "home").filter_map(|i| family.grown.get(&i.machine)).map(|g| g.kcal_per_day).sum();
+        let grown = family.grown_kcal_per_day();
+        assert!((grown - own).abs() < 0.05, "home.ron: the household's food counts no Commons machine: {grown:.1} kcal/day, its own machines grow {own:.1}");
+        let commons: Vec<_> = family.instances_of(Owner::Ship).into_iter().filter(|i| family.grown.contains_key(&i.machine)).collect();
+        assert!(commons.iter().any(|i| i.id == "mush_c1") && commons.iter().any(|i| i.id.starts_with("ctower_")), "home.ron: the Commons garden is the ship's: {commons:?}");
+        let ship_kcal = family.grown_kcal_per_day_of(Owner::Ship);
+        assert!(ship_kcal > 1000.0, "home.ron: the Commons garden grows for the ship: {ship_kcal:.1} kcal/day");
+        let food = family.loops.iter().find(|l| l.food_demand_kcal.is_some()).expect("a food loop");
+        assert!(!food.closes && !food.closes_given(grown), "home.ron: its food loop, judged on its own {grown:.0} kcal/day, is short and says so");
+
+        // The one-person homestead with the ship's rows merged, against its own file alone.
+        let solo = home("home_solo.ron");
+        assert_eq!(solo.ship_machines.as_deref(), Some("ship.ron"), "the solo home merges the ship's rows");
+        assert!(solo.all_instances().iter().any(|i| i.id == "respawn_pod_gs"), "the solo home's world holds General Services' pod");
+        let path = data_dir().join("machines").join("home_solo.ron");
+        let mut alone = MachineHome::load_file(&path).expect("home_solo.ron parses");
+        alone.ship_machines = None;
+        alone.grown = grown_food(&alone, &data_dir());
+        assert!((solo.grown_kcal_per_day() - alone.grown_kcal_per_day()).abs() < 0.05, "home_solo.ron: food {:.1} with the ship's rows, {:.1} its own file alone", solo.grown_kcal_per_day(), alone.grown_kcal_per_day());
+        for basis in [MeterBasis::default(), MeterBasis { life_support_on_grid: true, recorded: None }] {
+            let (a, b) = (solo.utility_meters(4.5, basis), alone.utility_meters(4.5, basis));
+            assert_eq!(a.len(), b.len(), "home_solo.ron: the same meters");
+            for (m, n) in a.iter().zip(&b) {
+                assert!(m.utility == n.utility && (m.generation - n.generation).abs() < 1e-3 && (m.demand - n.demand).abs() < 1e-3, "home_solo.ron: the {} meter {}/{} with the ship's rows, {}/{} alone", m.utility, m.generation, m.demand, n.generation, n.demand);
+            }
+            let (ra, rb) = (solo.buildability_report(4.5, basis), alone.buildability_report(4.5, basis));
+            let verdicts = |r: &humanity_ship::machines::BuildabilityReport| r.checks.iter().map(|c| (c.name.clone(), c.status)).collect::<Vec<_>>();
+            assert_eq!(verdicts(&ra), verdicts(&rb), "home_solo.ron: the same buildability verdicts, its power circuit asking no Commons load for power");
+        }
+    }
 }

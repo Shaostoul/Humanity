@@ -5002,11 +5002,12 @@ general services and frontier). Where you wake after a death is a place, in data
   "general-services-1:room_3", and a corridor names the two zones it joins (`hud.corridor_between`; test
   `every_room_of_the_shipped_ship_reads_as_a_place_never_an_id`; snapshot `just snapshot hud_general_services_hall`).
   The Map page and the web plan name a zone's floor once (its biggest pocket, `zone_floor` / `zoneFloor`) and leave
-  corridors unnamed, as tubes. The one-person homestead (`home_solo.ron`) is the one household file that links none of
-  the ship's machines, on purpose (its figures add up every machine it holds; its header says why), so its world draws
-  no General Services or Cabin Block A pod, and its death screen says so under General Services (`hud.wake_not_drawn`,
-  `src/engine/wake.rs` `drawn_here`, `entries`; tests `a_place_whose_pod_this_home_does_not_draw_says_why`,
-  `every_household_but_the_one_person_homestead_draws_the_ships_pods`; snapshot `just snapshot death_screen_wake_solo`).
+  corridors unnamed, as tubes. The one-person homestead (`home_solo.ron`) linked none of the ship's machines that day
+  (its figures added up every machine it held), so its death screen said under General Services that its pod was not
+  drawn; the same day a household's figures came to count only its own machines ("A household's figures count only
+  its own machines", after "Home Machine Layout"), the solo file links the ship's rows and draws General Services' and Cabin Block A's pods,
+  and the note is gone (tests `every_household_draws_the_ships_pods`,
+  `every_place_the_death_screen_offers_is_a_pod_the_world_draws`; snapshot `just snapshot death_screen_wake_solo`).
   Dev verbs: showcase `household` (the live save's household, the home built again with its machines; verify-respawn
   looks at the solo household's death screen with it) and `crew_figures` ("hidden" leaves the crew out of the picture,
   for verify-copresence's crew look, which now counts what the crew's figures change between two pictures instead of
@@ -5763,6 +5764,39 @@ coordinates. Editable live in the construction editor (place / move / wire / ins
 - Native: `crates/humanity-ship/src/machines.rs` (`MachineHome`, `MachineDef`, `MachineInstance`, `MachineArray`, `MachineConnection`, `MachinePower`, `HomeLoop`, `placements`)
 - Data: `data/machines/home.ron`
 - Editor: `src/gui/pages/construction.rs` (`draw_machine_detail`)
+
+### A household's figures count only its own machines; the ship's are the ship's (2026-11-21)
+The operator's "Yes" to "Should a household's figures count only its own machines? I recommend yes,
+with the ship's machines shown as the ship's." Every household file merges the ship's own rows
+(`data/machines/ship.ron`: the Commons' gardens, fish tank and humidifiers, General Services' and Cabin
+Block A's pods), the one-person homestead's (`home_solo.ron`) too since then, so every household's world
+draws the ship's pods and machines. Each row knows whose it is (`MachineHome::owner_of`, `Owner`): a row
+in a ship zone of a layout that links the ship's file is the ship's, every other the household's, the
+same rule the save splits the two files by. A household's figures count only its own machines: the food
+it grows (`grown_kcal_per_day`), the power, water and data meters (`utility_meters`, so each loop's live
+line and the Energy gauge), the grow-light meter, and the buildability report with its power circuit
+(the Commons' loads no longer need wiring to a household's battery). The ship's machines are counted as
+the ship's (`ship_share`: how many, the food they grow and what they draw for everyone aboard), shown on
+the Home page above the loops and on the Construction page under the meters (`home.whose_*`). In the
+live sim an island of only the ship's machines is tapped as the ship's (`ship_power::SHIP_MACHINES`), fed
+from the ship's bus in either Ship life support mode, metered as the ship's and left out of the
+household's Live power card, and the ship's machines' entities are marked `ShipMachine` so the Live
+water card leaves them out too. The family home's three wires from its battery to the Commons are gone.
+Figures: the family home grows about 4,890 kcal a day of its 6,600 (74%; it was 6,000, 91%, with the
+Commons garden's 1,110 counted as its own) and draws 21.8 kWh a day Station-supplied (was 24.0); the
+one-person home's figures are exactly its own file's (food 1,760 kcal, 8.9 kWh), its composter and wall
+screen renamed `composter_small` and `wall_screen_small` so the ship's same-named machines draw with the
+ship's definitions, and its tent humidifier and CO2 fan carrying the ship's definition (the same
+machine; the meter's estimate rose 0.2 kWh a day until they have run a game day). The death screen's
+"its pod is not drawn" note is gone with the case. A type both files define (the tent humidifier and
+tent CO2 fan) keeps one definition, measured in the family home's tents; each household's meter
+charges its own tents' real draw once they have run a game day. The family home's Water and Air loop
+words were re-measured on its own machines the same day (docs/design/ship-life-support.md section
+10). Left for later: a fleet-level view of the ship's machines on the fleet ledger page (Inventory >
+The fleet).
+- Native: `crates/humanity-ship/src/machines/owner.rs` (`Owner`, `owner_of`, `instances_of`, `ship_share`), `crates/humanity-ship/src/machines.rs` (`grown_kcal_per_day`, `utility_meters`, `grow_light_report`, `buildability_report_in`), `crates/humanity-systems/src/ship_power.rs` (`SHIP_MACHINES`, `ShipMachine`, `ship_machines_feed_watts`), `crates/humanity-systems/src/electrical.rs`, `crates/humanity-systems/src/plumbing.rs`, `src/engine/home_spawn.rs` (`spawn_home_feed_taps`), `src/gui/pages/home_whose.rs`, `src/gui/pages/homes.rs`, `src/gui/pages/construction.rs`, `src/engine/wake.rs` (`places_for`, `pods_drawn`)
+- Data: `data/machines/home_solo.ron`, `data/machines/home.ron`, `data/machines/ship.ron`, `data/i18n/en.json` (`home.whose_*`)
+- Tests: `a_households_meters_count_only_its_own_machines_and_the_ships_are_the_ships` (machines.rs), `a_households_food_loop_excludes_the_commons_garden` (grow_machines.rs), `the_ships_machines_appear_as_the_ships` (home_whose.rs), `every_household_draws_the_ships_pods` (respawners_tests.rs), `every_place_the_death_screen_offers_is_a_pod_the_world_draws` (wake_tests.rs); verify-respawn's `solo_draws_the_general_services_pod`
 
 ### Household size: Family vs Solo home design (v0.656)
 A second, fully self-sufficient home layout for ONE person alongside the existing 3-person

@@ -93,28 +93,32 @@ fn a_respawn_lands_on_the_chosen_pods_floor_on_every_storey() {
     assert_eq!(storeys.into_iter().collect::<Vec<_>>(), vec![0, 30], "both storeys are woken on");
 }
 
-/// A PLACE WHOSE POD THIS HOME DOES NOT DRAW SAYS WHY ON THE DEATH SCREEN (2026-11-21, the arrival
-/// rungs' follow-up). The world draws the household's machine file, and home_solo.ron links none of
-/// the ship's rows (its figures add up every machine it holds, `drawn_here` says why), so with the
-/// one-person homestead General Services' pod is not drawn though the list offers it (found in
-/// ship.ron, `places_for`). Its entry carries the key's words; the family home's does not, and
-/// neither household's own pod does. The list is the one the game makes (`places_for`, `entries`).
+/// EVERY PLACE THE DEATH SCREEN OFFERS IS A POD THE WORLD DRAWS (2026-11-21). The world draws the
+/// household's machine file (`MachineHome::placements`), and since a household's figures count only
+/// its own machines (`humanity_ship::machines::owner`) every household file merges the ship's rows,
+/// the one-person homestead's too, so both its own pod and General Services' are placed with its
+/// home, and the death screen's entries carry no "its pod is not drawn" sentence (the entry has no
+/// such field any more; `places_for` no longer reads data/machines/ship.ron on the side). The list
+/// is the one the game makes (`places_for`, `entries`).
 ///
-/// Seen red 2026-11-21 with `entries` giving no entry a note (the death screen as the arrival rungs
-/// left it): "home_solo.ron: General Services' pod is not drawn: the death screen says why",
-/// left None.
+/// Seen red 2026-11-21 with home_solo.ron's `ship_machines` line taken out (the file as the
+/// arrival follow-ups left it): "home_solo.ron: General Services: [WakeEntry { place: "home", ...
+/// }]", General Services not even offered, `places_for` no longer reading ship.ron on the side.
 #[test]
-fn a_place_whose_pod_this_home_does_not_draw_says_why() {
+fn every_place_the_death_screen_offers_is_a_pod_the_world_draws() {
     let ship = ship_on("p1");
-    for (file, gs_drawn) in [("home.ron", true), ("home_solo.ron", false)] {
+    let zones = ship.zone_rects();
+    for file in ["home.ron", "home_solo.ron"] {
         let home = machines(file);
-        let listed = respawners::usual_first(&places_for(&ship, Some(&home), &data()), None);
-        let list = entries(&listed, Some(&home));
-        let own = list.iter().find(|e| e.place == respawners::HOME).unwrap_or_else(|| panic!("{file}: a home place: {list:?}"));
-        assert_eq!(own.note, None, "{file}: the home's own pod is drawn");
-        let gs = list.iter().find(|e| e.place == "general-services-1").unwrap_or_else(|| panic!("{file}: General Services: {list:?}"));
-        let want = (!gs_drawn).then(|| t("hud.wake_not_drawn").to_string());
-        assert_eq!(gs.note, want, "{file}: General Services' pod {}", if gs_drawn { "is drawn: no note" } else { "is not drawn: the death screen says why" });
+        let listed = respawners::usual_first(&places_for(&ship, Some(&home)), None);
+        let list = entries(&listed);
+        assert!(list.iter().any(|e| e.place == respawners::HOME && e.usual), "{file}: the home's own pod, first: {list:?}");
+        assert!(list.iter().any(|e| e.place == "general-services-1"), "{file}: General Services: {list:?}");
+        let placed = home.placements(&std::collections::HashMap::new(), Some(&zones));
+        for w in &listed {
+            let id = &w.respawner.machine_id;
+            assert!(placed.iter().any(|p| &p.id == id), "{file}: {}'s pod ({id}) is placed with the home", w.place);
+        }
     }
 }
 

@@ -477,9 +477,12 @@
     // 14 W, where holding the room took the T7 flat out at 31 L and 100 W,
     // and still fell short of 90%. Since 2026-09-27 the CO2 fans (THE CO2
     // FANS, at the end) draw more and drier air through the tents, and the
-    // humidifiers work harder: the family home's six tents about 122 W and
-    // 29 L a day together, the solo home's two about 34 W and 8 L, every tent
-    // still at 90.0% (docs/design/ship-life-support.md, section 7).
+    // humidifiers work harder: the family home's six tents about 120 W and
+    // 29 L a day together (122 W in section 7; 120 re-measured 2026-11-21,
+    // section 10), the solo home's two about 34 W and 8 L, every tent still
+    // at 90.0% (docs/design/ship-life-support.md). The commons rack above is
+    // the SHIP'S since 2026-11-21, in the Commons' air, not the home's: the
+    // figures with it are the 2026-09-26 history.
     substrate_co2_g_kg_h: 1.09,
     fruiting_co2_limit_ppm: 1000.0,
     intake_co2_ppm: 400.0,

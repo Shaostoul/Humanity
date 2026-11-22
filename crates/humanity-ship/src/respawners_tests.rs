@@ -72,24 +72,24 @@ fn the_homestead_wakes_you_upstairs_and_general_services_is_public() {
     assert!(inside(gs[0].floor, ((x0, x1), (z0 + 34.0, z1))), "in the hall, at {:?}", gs[0].floor);
 }
 
-/// WHICH HOUSEHOLDS DRAW THE SHIP'S PODS (2026-11-21, the arrival rungs' follow-up): the world
-/// draws a household's machine file (`placements`, what the world load and the editor place), so
-/// the ship's own machines, General Services' and Cabin Block A's pods among them, are drawn only
-/// for a household file that links the ship's rows (`ship_machines`). Every household of every
-/// start in data/homes/starts.ron whose file exists does, and draws General Services' pod in its
-/// hall, except the one-person homestead (home_solo.ron): its machine list is the honest baseline
-/// of what one person runs, its power, water and food figures add up every machine in it, and its
-/// composter and wall screen are smaller types than the ship's of the same name, so it links
-/// none (src/engine/wake.rs `drawn_here`; its death screen says so under General Services,
-/// `a_place_whose_pod_this_home_does_not_draw_says_why`). A new household file that forgets
-/// the link fails here, and so does the solo file if it gains one without its figures being
-/// made to count only its own machines.
+/// EVERY HOUSEHOLD DRAWS THE SHIP'S PODS (2026-11-21): the world draws a household's machine file
+/// (`placements`, what the world load and the editor place), so the ship's own machines, General
+/// Services' and Cabin Block A's pods among them, are drawn only for a household file that links
+/// the ship's rows (`ship_machines`). Every household of every start in data/homes/starts.ron whose
+/// file exists does, and draws General Services' pod in its hall. A new household file that
+/// forgets the link fails here.
 ///
-/// Seen red 2026-11-21 written as "every household draws them": "households that do not draw the
-/// ship's pods: homestead/solo (home_solo.ron) draws no General Services pod; homestead/solo
-/// (home_solo.ron) draws no Cabin Block A pod".
+/// The one-person homestead (home_solo.ron) linked none until a household's figures counted only
+/// its own machines (crates/humanity-ship/src/machines/owner.rs): its power, water and food
+/// figures added up every machine in its file, so the ship's would have counted as its own, and
+/// its composter and wall screen were smaller types of the same names (now composter_small and
+/// wall_screen_small). Seen red twice: written as "every household draws them" before the solo
+/// file linked the ship's rows ("homestead/solo (home_solo.ron) draws no General Services pod;
+/// ... no Cabin Block A pod"), and with the arrival follow-ups' one exception still expected
+/// after it did: "the households that draw none of the ship's pods: left [] right
+/// ["home_solo.ron"]".
 #[test]
-fn every_household_but_the_one_person_homestead_draws_the_ships_pods() {
+fn every_household_draws_the_ships_pods() {
     let starts = crate::starts::Starts::load(&data());
     let ship = ship_on("p1");
     let zones = ship.zone_rects();
@@ -119,7 +119,7 @@ fn every_household_but_the_one_person_homestead_draws_the_ships_pods() {
         }
     }
     assert!(checked >= 8, "the households checked: {checked}");
-    assert_eq!(missing, vec!["home_solo.ron".to_string()], "the households that draw none of the ship's pods");
+    assert!(missing.is_empty(), "the households that draw none of the ship's pods: {missing:?}");
 }
 
 /// A cabin has no room for a pod, so a cabin holder's "home" place is Cabin Block A's shared pod,
