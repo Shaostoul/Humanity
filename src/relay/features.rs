@@ -711,9 +711,10 @@ mod tests {
         state.features.set(Feature::VaultBackup, false);
         let state = Arc::new(state);
 
-        let app = crate::relay::build_router(state);
+        let app = crate::relay::build_router(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
@@ -802,6 +803,7 @@ mod tests {
         let app = crate::relay::build_router(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
@@ -819,7 +821,6 @@ mod tests {
         payload: serde_json::Value,
         needles: &[&str],
     ) -> Option<String> {
-        use base64::{engine::general_purpose::STANDARD as B64, Engine};
         use futures::{SinkExt, StreamExt};
         use tokio_tungstenite::tungstenite::Message as WsMsg;
 
@@ -844,9 +845,8 @@ mod tests {
         let challenge: Value = serde_json::from_str(&challenge).unwrap();
         assert_eq!(challenge["type"], "identify_challenge", "expected a challenge: {challenge}");
         let nonce = challenge["nonce"].as_str().unwrap();
-        let sig = B64.encode(dil.sign(format!("hum/identify/v1\n{nonce}\n{pubkey}").as_bytes()));
         sock.send(WsMsg::Text(
-            serde_json::json!({ "type": "identify_response", "sig_b64": sig })
+            crate::relay::audience::test_identify_response(&dil, &format!("127.0.0.1:{port}"), &nonce, &pubkey)
                 .to_string()
                 .into(),
         ))
@@ -907,7 +907,6 @@ mod tests {
         tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
         String,
     ) {
-        use base64::{engine::general_purpose::STANDARD as B64, Engine};
         use futures::{SinkExt, StreamExt};
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         use tokio_tungstenite::tungstenite::Message as WsMsg;
@@ -916,8 +915,14 @@ mod tests {
         let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
         let mut request = format!("ws://127.0.0.1:{port}/ws").into_client_request().expect("a websocket request");
+        // The address this app signs for: the loopback one, or, for a client standing in behind a
+        // proxy (its address forwarded), the test relay's public name, as a proxied client opens
+        // the server's public name (a loopback name from a public address is refused, audience.rs).
+        let mut opened = format!("127.0.0.1:{port}");
         if let Some(ip) = forwarded_for {
             request.headers_mut().insert("x-forwarded-for", ip.parse().expect("an address header"));
+            opened = crate::relay::audience::TEST_AUDIENCE.to_string();
+            request.headers_mut().insert("host", opened.parse().expect("a host header"));
         }
         let (mut sock, _) = tokio_tungstenite::connect_async(request)
             .await
@@ -929,8 +934,7 @@ mod tests {
         .unwrap();
         let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
         let nonce = challenge["nonce"].as_str().expect("an identify challenge").to_string();
-        let sig = B64.encode(dil.sign(format!("hum/identify/v1\n{nonce}\n{pubkey}").as_bytes()));
-        sock.send(WsMsg::Text(serde_json::json!({ "type": "identify_response", "sig_b64": sig }).to_string().into()))
+        sock.send(WsMsg::Text(crate::relay::audience::test_identify_response(&dil, &opened, &nonce, &pubkey).to_string().into()))
             .await
             .unwrap();
         let ok = wait_until(|| async { live_count(state, &pubkey).await == expect_live }).await;
@@ -1190,6 +1194,7 @@ mod tests {
         let app = crate::relay::build_router(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
@@ -1255,6 +1260,7 @@ mod tests {
         let app = crate::relay::build_router(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
@@ -1779,6 +1785,7 @@ mod tests {
         let app = crate::relay::build_router(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         let server = tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
@@ -2889,6 +2896,7 @@ mod tests {
         let app = crate::relay::build_router(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         let server = tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
@@ -3067,6 +3075,7 @@ mod tests {
         let app = crate::relay::build_router(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         let server = tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
@@ -3718,7 +3727,6 @@ mod tests {
     /// sets). Returns at once, without waiting to be signed in: a key whose erase this relay
     /// remembers is never signed in (handlers/sign_ups.rs).
     async fn identify_with(port: u16, seed: [u8; 32], name: &str, extra: Value) -> (TestSocket, String) {
-        use base64::{engine::general_purpose::STANDARD as B64, Engine};
         use futures::StreamExt;
         let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&seed));
         let pubkey = hex::encode(dil.public_key());
@@ -3730,8 +3738,7 @@ mod tests {
         send_json(&mut sock, identify).await;
         let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
         let nonce = challenge["nonce"].as_str().expect("an identify challenge").to_string();
-        let sig = B64.encode(dil.sign(format!("hum/identify/v1\n{nonce}\n{pubkey}").as_bytes()));
-        send_json(&mut sock, serde_json::json!({ "type": "identify_response", "sig_b64": sig })).await;
+        send_json(&mut sock, crate::relay::audience::test_identify_response(&dil, &format!("127.0.0.1:{port}"), &nonce, &pubkey)).await;
         (sock, pubkey)
     }
 
@@ -4350,13 +4357,13 @@ mod tests {
     }
 
     /// The household permit the player with seed `[issuer; 32]` (key `issuer_key`) signs for
-    /// `grantee` (a did:hum) on `plot` of the server `server`, running out at `expiry`, minted at
-    /// `minted`, as the game mints one (pq_crypto.rs `build_plot_permit`), under a fresh serial
-    /// (permit v2, ship homes 5b).
-    fn mint_permit(issuer: u8, issuer_key: &str, server: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> humanity_core::build_permission::Permit {
+    /// `grantee` (a did:hum) on `plot` of the server the giver's app opened as `aud`, running out
+    /// at `expiry`, minted at `minted`, as the game mints one (pq_crypto.rs `build_plot_permit`),
+    /// under a fresh serial (permit v3, 2026-11-21).
+    fn mint_permit(issuer: u8, issuer_key: &str, aud: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> humanity_core::build_permission::Permit {
         let serial = humanity_protocol::pq_crypto::new_friend_cert_serial().expect("randomness");
-        let sig = humanity_protocol::pq_crypto::build_plot_permit(&[issuer; 32], server, plot, grantee, &serial, expiry, minted).expect("minted");
-        humanity_core::build_permission::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), serial, expiry, sig }
+        let sig = humanity_protocol::pq_crypto::build_plot_permit(&[issuer; 32], aud, plot, grantee, &serial, expiry, minted).expect("minted");
+        humanity_core::build_permission::Permit { issuer: issuer_key.into(), aud: aud.into(), plot: plot.into(), grantee: grantee.into(), serial, expiry, sig }
     }
 
     /// The relay's clock, Unix seconds.
@@ -4569,7 +4576,7 @@ mod tests {
         let (cy, cy_key, _) = joiner(&state, port, 47, "PermitCy").await;
         let (mut bo, bo_key, bo_plot) = joiner(&state, port, 48, "PermitBo").await;
         assert_eq!(bo_plot.as_deref(), Some("p3"), "Ann p1, Cy p2, Bo p3");
-        let here = state.db.server_did().expect("the relay's own did:hum");
+        let here = crate::relay::audience::test_pass_audience(&state); // a name of this relay any client may use
         let bo_did = crate::relay::storage::plot_owner_id(&bo_key);
         let now = unix_now();
         let day = 86_400;
@@ -4596,7 +4603,7 @@ mod tests {
             ("a permit that has run out", "plot:p1", Some(mint_permit(46, &ann_key, &here, "p1", &bo_did, now - day, now - 10 * day)), "permit_expired"),
             ("a permit from Cy, who does not hold p1", "plot:p1", Some(mint_permit(47, &cy_key, &here, "p1", &bo_did, now + day, now)), "permit_not_from_holder"),
             ("Ann's p1 permit on Cy's p2", "plot:p2", Some(good.clone()), "permit_bad"),
-            ("a permit Ann gave on another server", "plot:p1", Some(mint_permit(46, &ann_key, "did:hum:AnotherServer1234567", "p1", &bo_did, now + day, now)), "permit_bad"),
+            ("a permit Ann gave on another server", "plot:p1", Some(mint_permit(46, &ann_key, "another.example", "p1", &bo_did, now + day, now)), "permit_bad"),
             ("no permit at all", "plot:p1", None, "not_your_plot"),
         ];
         for (k, (what, frame, permit, why)) in refused.iter().enumerate() {
@@ -4714,7 +4721,7 @@ mod tests {
         state.db.set_role(&admin_key, "admin").expect("make admin");
         let (mut ann, ann_key, ann_plot) = joiner(&state, port, 91, "CheckAnn").await;
         let (mut bo, bo_key) = bind_socket_from(&state, port, [92u8; 32], Some("CheckBo"), 1, Some("10.55.0.92")).await;
-        let here = state.db.server_did().expect("the relay's own did:hum");
+        let here = crate::relay::audience::test_pass_audience(&state); // a name of this relay any client may use
         let now = unix_now();
         let from_ann = mint_permit(91, &ann_key, &here, "p1", &crate::relay::storage::plot_owner_id(&bo_key), now + 30 * 86_400, now);
 
@@ -4796,7 +4803,7 @@ mod tests {
         let (mut cy, cy_key, cy_plot) = joiner(&state, port, 95, "OthersCy").await;
         assert_eq!(cy_plot.as_deref(), Some("p3"), "Ann p1, Bo p2, Cy p3");
         let dee_key = key_of_seed(96);
-        let here = state.db.server_did().expect("the relay's own did:hum");
+        let here = crate::relay::audience::test_pass_audience(&state); // a name of this relay any client may use
         let cy_did = crate::relay::storage::plot_owner_id(&cy_key);
         let now = unix_now();
         let month = now + 30 * 86_400;
@@ -4861,7 +4868,7 @@ mod tests {
         let (mut ann, ann_key, _) = joiner(&state, port, 97, "TakeBackAnn").await;
         let (mut bo, bo_key, bo_plot) = joiner(&state, port, 98, "TakeBackBo").await;
         assert_eq!(bo_plot.as_deref(), Some("p2"), "Ann p1, Bo p2");
-        let here = state.db.server_did().expect("the relay's own did:hum");
+        let here = crate::relay::audience::test_pass_audience(&state); // a name of this relay any client may use
         let bo_did = crate::relay::storage::plot_owner_id(&bo_key);
         let now = unix_now();
         let first = mint_permit(97, &ann_key, &here, "p1", &bo_did, now + 30 * 86_400, now);
@@ -5455,7 +5462,7 @@ mod tests {
         let (mut ann, ann_key, _) = joiner(&state, port, 70, "GiveBackAnn").await;
         let (mut bo, bo_key, _) = joiner(&state, port, 71, "GiveBackBo").await;
         let (mut cy, cy_key, _) = joiner(&state, port, 72, "GiveBackCy").await;
-        let here = state.db.server_did().unwrap();
+        let here = crate::relay::audience::test_pass_audience(&state);
         let bo_did = crate::relay::storage::plot_owner_id(&bo_key);
         let now = unix_now();
         let from_ann = mint_permit(70, &ann_key, &here, "p1", &bo_did, now + 86_400, now);
@@ -5627,7 +5634,7 @@ mod tests {
         let key = hex::encode(dil.public_key());
         let now = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
         let signed = |path: &str, signed_content: &str, ts: u64| {
-            let words = format!("{}\n{ts}", crate::relay::api::write_purpose(path, signed_content));
+            let words = crate::relay::signed_request::request_preimage(&format!("127.0.0.1:{port}"), &crate::relay::api::write_purpose(path, signed_content), ts);
             hex::encode(dil.sign(words.as_bytes()))
         };
         let post = |body: serde_json::Value| client.post(url.clone()).json(&body).send();
@@ -5698,7 +5705,7 @@ mod tests {
         let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&[8u8; 32]));
         let key = hex::encode(dil.public_key());
         let now = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-        let sign = |purpose: String, ts: u64| hex::encode(dil.sign(format!("{purpose}\n{ts}").as_bytes()));
+        let sign = |purpose: String, ts: u64| hex::encode(dil.sign(crate::relay::signed_request::request_preimage(&format!("127.0.0.1:{port}"), &purpose, ts).as_bytes()));
         let post = |url: &str, body: serde_json::Value| client.post(url).json(&body).send();
         let body_of = |r: reqwest::Response| async move { (r.status().as_u16(), r.text().await.unwrap_or_default()) };
 

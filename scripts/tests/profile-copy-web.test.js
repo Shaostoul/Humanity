@@ -447,7 +447,7 @@ test("the chat page loads the builder before chat-profile.js, and keeps no copy 
   assert.ok(at('src="/shared/profile-copy.js?v=') > at('src="/shared/profile-changes.js?v='), "after profile-changes.js");
   assert.ok(at('src="/shared/profile-copy.js?v=') < at('src="/chat/chat-profile.js?v='), "before chat-profile.js");
   const chat = fs.readFileSync(path.join(WEB, "chat", "chat-profile.js"), "utf8");
-  assert.ok(!chat.includes("profile_v1"), "chat-profile.js keeps no copy of the signed words");
+  assert.ok(!chat.includes("hum/profile/v1") && !chat.includes("profile_v1"), "chat-profile.js keeps no copy of the signed words");
   assert.ok(chat.includes("C.publicCopy(") && chat.includes("C.copyText(") && chat.includes("C.nextCopyTime("), "it uses the shared builder");
   assert.ok(/function ownProfileArrived\(msg\) \{\s*if \(!msg \|\| typeof msg\.privacy !== 'string'\) return;[\s\S]{0,200}signProfileCopy\(msg\)/.test(chat),
     "ownProfileArrived asks signProfileCopy right after its own-copy check");

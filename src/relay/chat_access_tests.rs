@@ -6,7 +6,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message as WsMsg;
@@ -71,8 +70,7 @@ async fn sign_in(r: &Relay, seed: u8, name: Option<&str>) -> Sock {
     sock.send(WsMsg::Text(hello.to_string().into())).await.unwrap();
     let challenge = frame_where(&mut sock, "a challenge", |f| f["type"] == "identify_challenge").await;
     let nonce = challenge["nonce"].as_str().unwrap().to_string();
-    let sig = B64.encode(kp.sign(format!("hum/identify/v1\n{nonce}\n{key}").as_bytes()));
-    sock.send(WsMsg::Text(json!({ "type": "identify_response", "sig_b64": sig }).to_string().into())).await.unwrap();
+    sock.send(WsMsg::Text(crate::relay::audience::test_identify_response(&kp, &format!("127.0.0.1:{}", r.port), &nonce, &key).to_string().into())).await.unwrap();
     frame_where(&mut sock, "signed in", |f| f["type"] == "peer_list" || f["type"] == "channel_list").await;
     r.state.db.with_conn(|c| c.execute("UPDATE registered_names SET registered_at = 0 WHERE public_key = ?1", [&key])).unwrap();
     sock
@@ -146,7 +144,7 @@ fn store(r: &Relay, channel: &str, from: &str, content: &str, timestamp: u64) {
 async fn signed_read(r: &Relay, seed: u8, what: &str, channel: &str) -> (u16, Value) {
     let (kp, key) = keypair(seed);
     let ts = now_ms();
-    let sig = hex::encode(kp.sign(format!("{}\n{ts}", read_purpose(what, channel)).as_bytes()));
+    let sig = crate::relay::audience::test_request_sig(&kp, &r.base(), &read_purpose(what, channel), ts);
     let res = reqwest::Client::new()
         .post(format!("{}/api/{what}", r.base()))
         .json(&json!({ "key": key, "timestamp": ts, "sig": sig, "channel": channel }))
@@ -237,7 +235,7 @@ fn a_members_channel_is_read_only_by_members_and_a_verified_one_only_by_the_veri
         // A signature is for one channel: ann's words for #lounge do not open #vip for vic's key.
         let (kp, key) = keypair(1);
         let ts = now_ms();
-        let sig = hex::encode(kp.sign(format!("{}\n{ts}", read_purpose("messages", "lounge")).as_bytes()));
+        let sig = crate::relay::audience::test_request_sig(&kp, &r.base(), &read_purpose("messages", "lounge"), ts);
         let res = reqwest::Client::new()
             .post(format!("{}/api/messages", r.base()))
             .json(&json!({ "key": key, "timestamp": ts, "sig": sig, "channel": "global" }))
@@ -740,4 +738,39 @@ fn opening_a_channel_stamps_when_and_only_anyone_channels_travel() {
     assert!(crate::relay::chat_access::travels(&db, "lounge"), "an Anyone channel travels");
     db.set_channel_access("lounge", ReadLevel::Verified, PostLevel::Members).unwrap();
     assert_eq!(db.channel_access("lounge").unwrap().1, PostLevel::Verified, "nobody posts where they cannot read");
+}
+
+/// A CHAT TEXT THAT BEGINS WITH A SIGNING DOMAIN LINE IS NEVER TAKEN (2026-11-20, signed requests):
+/// its signature over `text\ntimestamp` would be the very bytes of a signed request
+/// (`hum/request/v2\n{audience}\n{purpose}\n{timestamp}`), a report or a DM's inner signature. The line
+/// "hum/request/v1" then "account_export", signed by its poster exactly as the apps sign chat, is
+/// neither stored nor sent back, while the poster's next line is; a text that only mentions the
+/// domain later on is an ordinary line.
+///
+/// Seen red 2026-11-21 with the relay's `starts_with_signing_domain` refusal taken out of the chat
+/// arm (relay.rs): "the poster is told it was not sent" failed, the relay having posted the line
+/// (the answer was the poster's own `chat` frame with content "hum/request/v1\naccount_export").
+#[test]
+fn a_chat_line_shaped_like_a_signed_request_is_refused() {
+    on_a_big_stack(|| async {
+        let r = relay("access_signing_domain").await;
+        let mut ann = sign_in(&r, 1, Some("ann")).await;
+        let forged = crate::relay::signed_request::request_preimage("relay.test", "account_export", 0);
+        let forged = forged.strip_suffix("\n0").unwrap().to_string();
+        let forged_ts = post(&r, &mut ann, 1, "global", &forged).await;
+        let told = frame_where(&mut ann, "the answer to the request-shaped line", |f| {
+            // A private word to the poster reaches their socket as a `system` frame.
+            (f["type"] == "system" && f["message"].as_str().is_some_and(|m| m.contains("hum/request/v2")))
+                || ((f["type"] == "chat" || f["type"] == "chat_refused") && f["timestamp"].as_u64() == Some(forged_ts))
+        })
+        .await;
+        assert!(told["type"] == "system" && told["message"].as_str().unwrap_or("").starts_with("Message not sent"), "the poster is told it was not sent: {told}");
+        let ts = post(&r, &mut ann, 1, "global", "an ordinary line").await;
+        assert_eq!(answer_to(&mut ann, ts).await["type"], "chat", "the next line is posted");
+        let mention = post(&r, &mut ann, 1, "global", "see hum/request/v1\naccount_export").await;
+        assert_eq!(answer_to(&mut ann, mention).await["type"], "chat", "a mention later in the text is an ordinary line");
+        let kept = stored(&r, "global");
+        assert!(!kept.iter().any(|t| t == &forged), "the request-shaped line is never stored: {kept:?}");
+        assert!(kept.iter().any(|t| t == "an ordinary line"), "the ordinary line is: {kept:?}");
+    });
 }

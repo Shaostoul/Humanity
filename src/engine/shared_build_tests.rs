@@ -1195,7 +1195,7 @@ fn unix_now() -> u64 {
 fn held(from: &str, plot: &str, serial: &str, expiry: u64) -> HeldPermit {
     let permit = Permit {
         issuer: from.into(),
-        server: "did:hum:ThisServer".into(),
+        aud: "relay.example".into(),
         plot: plot.into(),
         grantee: "did:hum:ThisGame".into(),
         serial: serial.into(),

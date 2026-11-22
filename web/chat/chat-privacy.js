@@ -174,11 +174,11 @@ async function maybeShowPrivacyTierModal() {
 
 async function exportMyAccountData() {
   const say = (m) => { if (typeof addSystemMessage === 'function') addSystemMessage(m); };
-  // Signed the same way every other chat-side REST call is: Dilithium3 over
-  // the purpose-plus-timestamp preimage via pqSignChatMessage.
+  // Signed the way every other chat-side REST call is: a signed request (pq.js: hum/request/v2,
+  // the purpose, the time) via pqSignMyRequest, never a chat line's shape.
   // pq-relay-auth.js is for the standalone pages and is not loaded here.
-  const timestamp = Date.now();
-  const sig = await pqSignChatMessage('account_export', timestamp);
+  const timestamp = pqRequestTimestamp();
+  const sig = await pqSignMyRequest('account_export', timestamp);
   if (!sig) {
     say('Cannot export: signing failed. Unlock your identity and try again.');
     return;

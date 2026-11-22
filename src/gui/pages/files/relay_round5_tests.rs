@@ -123,11 +123,14 @@ fn relay(tag: &str) -> Relay {
                 }
             }),
         )
+        // The request's Host, which a signed request is checked against (relay/audience.rs).
+        .layer(axum::middleware::from_fn(crate::relay::audience::scope_host))
         .with_state(state.clone());
     let listener = rt.block_on(tokio::net::TcpListener::bind("127.0.0.1:0")).unwrap();
     let port = listener.local_addr().unwrap().port();
+    let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap()));
     rt.spawn(async move {
-        let _ = axum::serve(listener, app).await;
+        let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
     });
     Relay { state, dirs, base: format!("http://127.0.0.1:{port}"), _rt: rt }
 }

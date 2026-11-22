@@ -269,8 +269,8 @@ pub fn shows_links(rank: Rank) -> bool {
 }
 
 /// What a member signs to read a channel's `what` (`messages`, `pins` or `reactions`) through the
-/// POST routes: these words, then `\n` and the time in milliseconds, the shape every signed
-/// request has (the relay's `verify_dilithium_signature`).
+/// POST routes: the purpose of a signed request (`signed_request::request_preimage`: the domain
+/// line, these words, the time in milliseconds; the relay's `signed_request::check`).
 pub fn read_purpose(what: &str, channel: &str) -> String {
     format!("chat_read\n{what}\n{channel}")
 }

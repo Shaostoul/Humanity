@@ -12,7 +12,10 @@ use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
 /// The server every app here is on.
-const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The server these tests' apps are on, by the address passes and permits name (C8, 2026-11-21:
+// a pass names the address the app opened; the DM store's identity, `set_pass_server`, takes it
+// too, any text standing for the server's did:hum there).
+const SERVER: &str = "relay.example";
 const SERIAL: &str = "00112233445566778899aabbccddeeff";
 
 /// The seed and key (Dilithium3, hex) of the person whose seed is `[n; 32]`.
@@ -105,12 +108,12 @@ fn now() -> u64 {
     now_s()
 }
 
-/// The permit `giver` (seed) mints on `server` for `grantee`'s key, for `plot`, named `serial`, running
-/// out at `expiry`, minted at `minted`.
-fn permit_by(seed: &[u8], issuer: &str, server: &str, plot: &str, grantee: &str, serial: &str, expiry: u64, minted: u64) -> Permit {
+/// The permit `giver` (seed) mints at the server its app opened as `aud` for `grantee`'s key, for
+/// `plot`, named `serial`, running out at `expiry`, minted at `minted`.
+fn permit_by(seed: &[u8], issuer: &str, aud: &str, plot: &str, grantee: &str, serial: &str, expiry: u64, minted: u64) -> Permit {
     let grantee_did = plot_owner_id(grantee);
-    let sig = build_plot_permit(seed, server, plot, &grantee_did, serial, expiry, minted).expect("minted");
-    Permit { issuer: issuer.into(), server: server.into(), plot: plot.into(), grantee: grantee_did, serial: serial.into(), expiry, sig }
+    let sig = build_plot_permit(seed, aud, plot, &grantee_did, serial, expiry, minted).expect("minted");
+    Permit { issuer: issuer.into(), aud: aud.into(), plot: plot.into(), grantee: grantee_did, serial: serial.into(), expiry, sig }
 }
 
 /// A DM `from` to `to` saying `text`, as `ingest_dm` gets it once opened and checked.
@@ -168,7 +171,9 @@ fn giving_seals_one_note_to_the_friend_and_counts_only_once_the_server_took_it()
     let inner = open(&to_bo[0], &bo_seed);
     assert_eq!((inner.from.as_str(), inner.to.as_str()), (ada.as_str(), bo.as_str()));
     let p = crate::net::household::parse_note(&inner.text).expect("a permit note");
-    assert_eq!((p.issuer.as_str(), p.server.as_str(), p.plot.as_str(), p.grantee.clone()), (ada.as_str(), SERVER, "p2", plot_owner_id(&bo)));
+    // The permit names the address Ada's app opened (C8), never what the server says it is.
+    let opened = humanity_protocol::signed_request::audience_of(&gs.server_url).expect("the app's address");
+    assert_eq!((p.issuer.as_str(), p.aud.as_str(), p.plot.as_str(), p.grantee.clone()), (ada.as_str(), opened.as_str(), "p2", plot_owner_id(&bo)));
     assert!((now() + 30 * DAY).abs_diff(p.expiry) <= 5, "30 days from now: {}", p.expiry);
     let rows = given_to(&gs, &bo);
     assert_eq!(rows.len(), 1);
@@ -196,9 +201,10 @@ fn giving_seals_one_note_to_the_friend_and_counts_only_once_the_server_took_it()
 }
 
 /// A RECEIVED PERMIT IS CHECKED, AND KEPT PER SERVER (plan 3.1 and 3.2). I am Bo. Ada's good permit
-/// for her p1 is kept. Not kept: one signed by Cy in Ada's name (a forgery), one Ada gave on
-/// another server, one she gave Cy, and one that ran out. My store for another server holds none
-/// of it.
+/// for her p1 is kept. Not kept: one signed by Cy in Ada's name (a forgery), one whose server
+/// address was changed after Ada signed it, one she gave Cy, and one that ran out. My store for
+/// another server holds none of it. (Since v3, 2026-11-21, which server an address is stays the
+/// relay's to judge: a permit naming another address is refused there, `permit_bad`.)
 /// Seen red 2026-10-12 with `judge_arrival` bypassed in `take_note` (the check replaced by `if
 /// false`): "a forged permit (signed by Cy in Ada's name) is not kept" failed, left 2, right 1.
 #[test]
@@ -217,7 +223,7 @@ fn a_received_permit_is_verified_and_kept_per_server() {
     let forged = Permit { issuer: ada.clone(), ..permit_by(&cy_seed, &cy, SERVER, "p3", &bo, SERIAL, t + DAY, t) };
     let rows: Vec<(&str, Permit)> = vec![
         ("a forged permit (signed by Cy in Ada's name) is not kept", forged),
-        ("a permit Ada gave on another server is not kept", permit_by(&ada_seed, &ada, "did:hum:AnotherServer1111111", "p4", &bo, SERIAL, t + DAY, t)),
+        ("a permit moved to another server address is not kept", Permit { aud: "elsewhere.example".into(), ..permit_by(&ada_seed, &ada, SERVER, "p4", &bo, SERIAL, t + DAY, t) }),
         ("a permit Ada gave Cy is not kept", permit_by(&ada_seed, &ada, SERVER, "p5", &cy, SERIAL, t + DAY, t)),
         ("a permit that ran out is not kept", permit_by(&ada_seed, &ada, SERVER, "p6", &bo, SERIAL, t - DAY, t - 10 * DAY)),
     ];
@@ -462,22 +468,21 @@ const FIXTURE: &str = "scripts/tests/fixtures/permit-note-v1.json";
 /// when it was minted and the DM's signed time.
 const FX_GIVER: u8 = 11;
 const FX_GRANTEE: u8 = 12;
-const FX_SERVER: u8 = 5;
 const FX_PLOT: &str = "p2";
 const FX_SERIAL: &str = "0f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const FX_MINTED: u64 = 1_760_000_000;
 const FX_DAYS: u64 = 30;
 const FX_DM_TS: u64 = 1_760_000_000_123;
 
-fn fx_server() -> String {
-    humanity_protocol::did::did_for_pubkey(&DilithiumKeypair::from_seed(&derive_dilithium_seed(&[FX_SERVER; 32])).public_key())
-}
+/// The server address the fixture's permit names (v3, 2026-11-21: the address the giver's app
+/// opened, no longer the server's did:hum).
+const FX_AUD: &str = "relay.example";
 
 /// The fixture's permit, rebuilt from its fixed inputs (ML-DSA signing here is deterministic).
 fn fx_permit() -> Permit {
     let (seed, giver) = identity(FX_GIVER);
     let (_, grantee) = identity(FX_GRANTEE);
-    permit_by(&seed, &giver, &fx_server(), FX_PLOT, &grantee, FX_SERIAL, FX_MINTED + FX_DAYS * DAY, FX_MINTED)
+    permit_by(&seed, &giver, FX_AUD, FX_PLOT, &grantee, FX_SERIAL, FX_MINTED + FX_DAYS * DAY, FX_MINTED)
 }
 
 /// WRITES scripts/tests/fixtures/permit-note-v1.json, the shared fixture lane 1E's DM library
@@ -497,22 +502,21 @@ fn write_the_permit_note_fixture() {
     let envelope = crate::net::dm_pq::seal_v2(&kyber(&grantee_seed), &inner).unwrap();
     let row = GivenPermit { to: grantee.clone(), plot: p.plot.clone(), serial: p.serial.clone(), expiry: p.expiry, at: FX_DM_TS, state: GivenState::TakenBack };
     let fx = json!({
-        "about": "One household permit as a sealed DM note (ship homes increment 5b, docs/design/ship-homes-increment-5b-plan.md 3.1 and amendment A1, 2026-10-12). Minted by the game's own builder (crates/humanity-protocol/src/pq_crypto.rs build_plot_permit; ML-DSA signing there is deterministic) from the BIP39 seeds [giver_master_byte; 32] (the plot's holder) and [grantee_master_byte; 32] (the friend), on the server whose did:hum: comes from the seed [server_master_byte; 32], at minted_at (Unix seconds), running out days later. `preimage` is the exact text signed; `permit` the permit object in the order its words are signed; `note_text` the DM text exactly as the game writes it (the marker, then the permit's compact JSON). `inner` is the signed inner DM the game builds around it (Dilithium3 over hum/dm/v2, padded as the game pads), signed at dm_ts (ms); `envelope` is that inner sealed by the game to the grantee's DM key (ML-KEM-768, BLAKE3 derive_key hum/dm-aes/v1, AES-256-GCM): open it with the keys from recipient_seed_hex. `take_back_note_text` is the note to oneself the game sends when it takes this permit back: it also starts with the permit marker, so a client that swallows every text starting with the marker swallows it too. Written by src/engine/household_tests.rs write_the_permit_note_fixture; checked by the_rigs_permit_note_fixture_is_the_games.",
+        "about": "One household permit as a sealed DM note (ship homes increment 5b, docs/design/ship-homes-increment-5b-plan.md 3.1 and amendment A1, 2026-10-12). Minted by the game's own builder (crates/humanity-protocol/src/pq_crypto.rs build_plot_permit; ML-DSA signing there is deterministic) from the BIP39 seeds [giver_master_byte; 32] (the plot's holder) and [grantee_master_byte; 32] (the friend), for the server address `aud` (the address the giver's app opened; permit v3), at minted_at (Unix seconds), running out days later. `preimage` is the exact text signed; `permit` the permit object in the order its words are signed; `note_text` the DM text exactly as the game writes it (the marker, then the permit's compact JSON). `inner` is the signed inner DM the game builds around it (Dilithium3 over hum/dm/v2, padded as the game pads), signed at dm_ts (ms); `envelope` is that inner sealed by the game to the grantee's DM key (ML-KEM-768, BLAKE3 derive_key hum/dm-aes/v1, AES-256-GCM): open it with the keys from recipient_seed_hex. `take_back_note_text` is the note to oneself the game sends when it takes this permit back: it also starts with the permit marker, so a client that swallows every text starting with the marker swallows it too. Written by src/engine/household_tests.rs write_the_permit_note_fixture; checked by the_rigs_permit_note_fixture_is_the_games.",
         "giver_master_byte": FX_GIVER,
         "grantee_master_byte": FX_GRANTEE,
-        "server_master_byte": FX_SERVER,
         "giver_seed_hex": hex::encode(&giver_seed),
         "recipient_seed_hex": hex::encode(&grantee_seed),
         "giver": giver,
         "grantee": grantee,
         "grantee_did": plot_owner_id(&grantee),
-        "server": fx_server(),
+        "aud": FX_AUD,
         "plot": FX_PLOT,
         "serial": FX_SERIAL,
         "minted_at": FX_MINTED,
         "days": FX_DAYS,
         "expiry": p.expiry,
-        "preimage": humanity_protocol::pq_crypto::plot_permit_preimage(&p.server, &p.plot, &p.grantee, &p.serial, p.expiry),
+        "preimage": humanity_protocol::pq_crypto::plot_permit_preimage(&p.aud, &p.plot, &p.grantee, &p.serial, p.expiry),
         "permit": p,
         "note_text": note,
         "dm_ts": FX_DM_TS,
@@ -540,14 +544,14 @@ fn the_rigs_permit_note_fixture_is_the_games() {
     let (giver_seed, giver) = identity(FX_GIVER);
     let (grantee_seed, grantee) = identity(FX_GRANTEE);
     assert_eq!(
-        (s("giver"), s("grantee"), s("grantee_did"), s("server")),
-        (giver.clone(), grantee.clone(), plot_owner_id(&grantee), fx_server()),
+        (s("giver"), s("grantee"), s("grantee_did"), s("aud")),
+        (giver.clone(), grantee.clone(), plot_owner_id(&grantee), FX_AUD.to_string()),
         "the keys and ids the seeds give"
     );
     assert_eq!((s("giver_seed_hex"), s("recipient_seed_hex")), (hex::encode(&giver_seed), hex::encode(&grantee_seed)));
     let p = fx_permit();
     assert_eq!(serde_json::from_value::<Permit>(fx["permit"].clone()).expect("a permit"), p, "the builder makes the fixture's permit");
-    assert_eq!(s("preimage"), humanity_protocol::pq_crypto::plot_permit_preimage(&p.server, &p.plot, &p.grantee, &p.serial, p.expiry));
+    assert_eq!(s("preimage"), humanity_protocol::pq_crypto::plot_permit_preimage(&p.aud, &p.plot, &p.grantee, &p.serial, p.expiry));
     assert_eq!(s("note_text"), crate::net::household::note_text(&p), "the note text is the game's");
     assert_eq!(crate::net::household::parse_note(&s("note_text")), Some(p.clone()), "and reads back as the permit");
 
@@ -556,7 +560,7 @@ fn the_rigs_permit_note_fixture_is_the_games() {
     assert_eq!(opened, s("inner"), "to the fixture's inner");
     let inner = crate::net::dm_pq::parse_verify_inner(&opened).expect("whose signature checks");
     assert_eq!((inner.from.as_str(), inner.to.as_str(), inner.ts, inner.text.as_str()), (giver.as_str(), grantee.as_str(), FX_DM_TS, s("note_text").as_str()));
-    assert_eq!(crate::net::household::judge_arrival(&p, &giver, Some(&fx_server()), &plot_owner_id(&grantee), FX_MINTED), Ok(()), "the grantee keeps it");
+    assert_eq!(crate::net::household::judge_arrival(&p, &giver, &plot_owner_id(&grantee), FX_MINTED), Ok(()), "the grantee keeps it");
     let row = GivenPermit { to: grantee.clone(), plot: p.plot.clone(), serial: p.serial.clone(), expiry: p.expiry, at: FX_DM_TS, state: GivenState::TakenBack };
     assert_eq!(s("take_back_note_text"), take_back_note_text(&[row]), "the take-back note is the game's");
     assert!(crate::net::household::is_note(&s("take_back_note_text")), "and starts with the permit marker");
@@ -846,7 +850,7 @@ fn a_parked_servers_permit_note_is_kept_in_that_servers_store() {
     parked.set_following(&ada, true);
     parked.set_follower(&ada, true);
     let t = now();
-    let p = permit_by(&ada_seed, &ada, server_b, "p4", &bo, SERIAL, t + 30 * DAY, t);
+    let p = permit_by(&ada_seed, &ada, "server-b.example", "p4", &bo, SERIAL, t + 30 * DAY, t);
     assert!(screens_dm_parked(&mut gs, &mut parked, &dm(&ada, &bo, &crate::net::household::note_text(&p))), "taken");
     assert_eq!(parked.permits_held().len(), 1, "kept in the parked server's store");
     assert!(gs.dm_store.as_ref().unwrap().permits_held().is_empty(), "not in the active one");

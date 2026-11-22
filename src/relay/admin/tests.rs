@@ -33,7 +33,7 @@ fn now_ms() -> u64 {
 
 /// A run request for `action` with `inputs`, signed by `p` the way both apps sign it.
 fn signed_run(p: &Person, action: &str, inputs: &str, ts: u64) -> RunRequest {
-    let sig = p.dil.sign(format!("{}\n{ts}", run_purpose(action, inputs)).as_bytes());
+    let sig = p.dil.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, &run_purpose(action, inputs), ts).as_bytes());
     RunRequest { key: p.key.clone(), timestamp: ts, sig: hex::encode(sig), action: action.into(), inputs: inputs.into(), confirm: None }
 }
 
@@ -437,8 +437,9 @@ fn a_secret_is_shown_by_its_host_and_its_last_characters() {
 // ── Federation, through the registry ──────────────────────────────────────────────────────────
 
 /// THE FEDERATION PANEL: add a peer, trust it, pause it (left out of what federation reads, kept
-/// in the panel with its trust), resume, federate a channel and stop, remove; the legacy
-/// /api/admin/federation route reaches the same functions. Seen red 2026-10-22 with the paused
+/// in the panel with its trust), resume, federate a channel and stop, remove. (The legacy
+/// /api/admin/federation route was deleted 2026-11-21: no client called it, and one signature over
+/// its single purpose could run any of its actions.) Seen red 2026-10-22 with the paused
 /// filter taken out of `list_federated_servers` (misc.rs): "a paused peer is not one federation
 /// reads"; and with federation.pause's line taken out of RUNNERS: "federation.pause is registered
 /// to run here but this relay has no runner for it", 500.
@@ -485,21 +486,14 @@ async fn the_federation_panel_the_whole_way() {
     assert!(v["data"]["peers"].as_array().unwrap().is_empty());
     assert_eq!(v["data"]["own_key"].as_str().map(|k| k.len()), Some(crate::relay::handlers::federation::SERVER_KEY_HEX_LEN), "this server's own key, to be added by");
 
-    // The legacy route reaches the same functions.
-    let ts = tick();
-    let sig = hex::encode(ada.dil.sign(format!("admin_federation\n{ts}").as_bytes()));
-    let req: crate::relay::api::AdminFederationRequest = serde_json::from_value(serde_json::json!({
-        "key": ada.key, "timestamp": ts, "sig": sig, "action": "add", "url": "https://b.example", "name": "Beta"
-    }))
-    .unwrap();
-    let res = crate::relay::api::post_admin_federation(State(st.clone()), Json(req)).await.unwrap();
-    assert_eq!(res.0["servers"][0]["name"], "Beta");
-
-    // THE LINK OBJECT (Federation Phases 2 and 3, `federation_log::peer_view`): both admin views
-    // carry it for every peer, and for a peer with a key it holds the flow state the panels show.
+    // THE LINK OBJECT (Federation Phases 2 and 3, `federation_log::peer_view`): the registry's view
+    // carries it for every peer, and for a peer with a key it holds the flow state the panels show.
     // Seen red 2026-10-24 with the "link" line taken out of the registry's view: "the registry's
     // federation view carries each peer's link".
-    assert!(res.0["servers"][0].get("link").is_some(), "POST /api/admin/federation carries each peer's link");
+    let beta = r#"{"url":"https://b.example","name":"Beta"}"#;
+    let (code, v) = run(&st, signed_run(&ada, "federation.add", beta, tick())).await;
+    assert_eq!(code, 200, "{v}");
+    assert!(v["data"]["peers"][0].get("link").is_some(), "the registry's federation view carries each peer's link: {v}");
     let by_key = serde_json::json!({ "key": "cd".repeat(1952), "name": "Home" }).to_string();
     let (code, v) = run(&st, signed_run(&ada, "federation.add_key", &by_key, tick())).await;
     assert_eq!(code, 200, "{v}");

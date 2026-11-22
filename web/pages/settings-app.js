@@ -2241,18 +2241,26 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
   // depends on `/chat/pq.js`; both must be loaded before this script.
   // Returns null when there's no plaintext identity backup in localStorage
   // (wrapped-only users have to sync via the chat client). Inc5c-tail.
-  async function vault_signSyncRequest() {
+  // The relay's method_purpose (2026-11-21): the method, and for a PUT a BLAKE3 hash of the blob,
+  // so a signed read is never a write and a signed write stores only this blob.
+  async function vault_signSyncRequest(method, blob) {
     if (typeof window.getPqSignedAuth !== 'function') {
       console.warn('Vault sync: pq-relay-auth.js not loaded');
       return null;
     }
-    return await window.getPqSignedAuth('vault_sync');
+    let purpose = 'vault_sync\n' + method;
+    if (typeof blob === 'string') {
+      const h = typeof window.pqBlake3 === 'function' ? await window.pqBlake3(new TextEncoder().encode(blob)) : null;
+      if (!h) return null;
+      purpose += '\n' + Array.from(h, (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    return await window.getPqSignedAuth(purpose);
   }
 
   async function vault_syncToCloud() {
     const stored = localStorage.getItem(VAULT_LS_KEY);
     if (!stored) { alert('No vault to sync.'); return; }
-    const auth = await vault_signSyncRequest();
+    const auth = await vault_signSyncRequest('PUT', stored);
     if (!auth) { alert('No Humanity identity found, vault sync requires a chat identity to authenticate.'); return; }
     const btn = document.getElementById('vault-sec-cloud-sync-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
@@ -2272,7 +2280,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
   window.vault_syncToCloud = vault_syncToCloud;
 
   async function vault_restoreFromCloud() {
-    const auth = await vault_signSyncRequest();
+    const auth = await vault_signSyncRequest('GET');
     if (!auth) { alert('No Humanity identity found, vault sync requires a chat identity to authenticate.'); return; }
     if (!await holdConfirm('Restore vault from cloud? Any entries not in the cloud backup will be lost unless you export first.', { seconds: 5 })) return;
     try {

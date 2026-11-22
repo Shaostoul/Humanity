@@ -4,7 +4,7 @@
  * The relay binds a socket to a person only after proof of the key (Inc3b,
  * src/relay/relay.rs). The page sends `identify` with the person's Dilithium3
  * public key, the relay replies `identify_challenge {nonce}`, and the page signs
- *   "hum/identify/v1\n" + nonce + "\n" + public_key_hex
+ *   "hum/identify/v2\n" + audience + "\n" + nonce + "\n" + public_key_hex
  * and returns `identify_response {sig_b64}`. Until that check passes the relay
  * drops every trade message on the socket without a reply, and closes the
  * socket after 30 seconds. Its `peer_list` is the sign the check passed.
@@ -35,25 +35,16 @@ let activeTrade = null; // currently viewed trade
 
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/** The exact bytes the relay verifies: format!("hum/identify/v1\n{}\n{}", nonce, public_key). */
-function tradeIdentifyPreimage(nonce, publicKeyHex) {
-  return new TextEncoder().encode('hum/identify/v1\n' + nonce + '\n' + publicKeyHex);
-}
-
-/** Standard base64 (what the relay's B64.decode expects), without spreading 3309 bytes into one call. */
-function tradeBytesToB64(bytes) {
-  let s = '';
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s);
-}
-
-/** The identify_response message answering the relay's challenge, or null if signing failed. */
-async function tradeIdentifyResponse(identity, nonce) {
+/**
+ * The identify_response answering the relay's challenge on the socket opened at `socketUrl`, or null
+ * if it could not be signed: pq.js pqIdentifyResponse, the sign-in signed over
+ * `hum/identify/v2\n{audience}\n{nonce}\n{key}` for the address this page opened, never one the
+ * server names (2026-11-21), and only for a nonce of a relay's shape.
+ */
+async function tradeIdentifyResponse(identity, nonce, socketUrl) {
   if (!identity || !identity.dilithiumSecret || !identity.dilithiumPublicHex || !nonce) return null;
-  if (typeof window.pqSignMessage !== 'function') return null;
-  const sig = await window.pqSignMessage(identity.dilithiumSecret, tradeIdentifyPreimage(nonce, identity.dilithiumPublicHex));
-  if (!sig) return null;
-  return { type: 'identify_response', sig_b64: tradeBytesToB64(sig) };
+  if (typeof window.pqIdentifyResponse !== 'function') return null;
+  return window.pqIdentifyResponse(identity.dilithiumSecret, identity.dilithiumPublicHex, socketUrl, nonce);
 }
 
 /** This browser's Dilithium3 identity, or null when Chat has not set one up here. */
@@ -165,7 +156,7 @@ async function ensureTradeWs() {
     // ── Sign-in phase: nothing else counts until the relay accepts the proof ──
     if (!tradeWsBound) {
       if (m.type === 'identify_challenge') {
-        tradeIdentifyResponse(id, m.nonce).then(function(resp) {
+        tradeIdentifyResponse(id, m.nonce, ws.url).then(function(resp) {
           if (!resp) { refuseTradeWs(ws, 'this page could not sign the server\'s sign-in check with your identity.'); return; }
           if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(resp));
         });
@@ -618,17 +609,15 @@ async function cancelTrade(tradeId) {
 // ── Order Book functions ──
 
 /**
- * Sign an order book request the way the relay checks it
- * (verify_dilithium_signature in src/relay/handlers/broadcast.rs): Dilithium3
- * over `content + "\n" + timestamp`, the signature in hex. Null when this page
- * is not signed in or signing failed.
+ * Sign an order book request the way the relay checks it (src/relay/signed_request.rs): a signed
+ * request over `content` as its purpose (pq.js pqSignRequest: hum/request/v2, the purpose, the
+ * time), the signature in hex. Null when this page is not signed in or signing failed.
  */
 async function tradeRestAuth(content) {
-  if (!tradeSignedIn() || !tradeIdentity || typeof window.pqSignMessage !== 'function') return null;
-  const timestamp = Date.now();
-  const sig = await window.pqSignMessage(tradeIdentity.dilithiumSecret, new TextEncoder().encode(content + '\n' + timestamp));
-  if (!sig) return null;
-  return { key: tradeIdentity.dilithiumPublicHex, timestamp: timestamp, signature: bytesToHex(sig) };
+  if (!tradeSignedIn() || !tradeIdentity || typeof window.pqSignRequest !== 'function') return null;
+  const signed = await window.pqSignRequest(tradeIdentity.dilithiumSecret, content);
+  if (!signed) return null;
+  return { key: tradeIdentity.dilithiumPublicHex, timestamp: signed.timestamp, signature: signed.sig };
 }
 
 const TRADE_NOT_SIGNED_IN = 'This page is not signed in to the server. Open Chat in this browser first.';
@@ -728,8 +717,9 @@ async function createSellOrder() {
   if (qty <= 0) { alert('Quantity must be positive.'); return; }
   if (price <= 0) { alert('Price must be positive.'); return; }
 
-  // The relay signs over format!("trade_order\n{}\n{}\n{}", item_type, quantity, price_per_unit).
-  var auth = await tradeRestAuth('trade_order\n' + itemType + '\n' + qty + '\n' + price);
+  // The relay's api_market.rs trade_order_purpose: every field the order carries (the item, its id,
+  // none here, the quantity, the price, the currency), so a signature is for exactly this order.
+  var auth = await tradeRestAuth('trade_order\n' + itemType + '\n\n' + qty + '\n' + price + '\n' + currency);
   if (!auth) { alert('Could not sign the request.'); return; }
 
   try {

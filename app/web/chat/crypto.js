@@ -866,6 +866,11 @@ async function attachPqIdentity() {
 async function pqSignChatMessage(content, timestamp) {
   try {
     if (!myDilithiumSecret || typeof window.pqSignMessage !== 'function') return null;
+    // A chat text that begins with a signing domain line ("hum/request/v2" then a newline) is never
+    // signed: its signature would be the bytes of a signed request, a report or a DM's inner
+    // signature (2026-11-20, pq.js pqIsReservedChatText). The relay refuses such a message too.
+    // A REQUEST is signed by pqSignMyRequest below, never here.
+    if (typeof window.pqIsReservedChatText !== 'function' || window.pqIsReservedChatText(content)) return null;
     const payload = `${content}\n${timestamp}`; // identical to signMessage()
     const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(payload));
     if (!sigBytes) return null;
@@ -874,6 +879,24 @@ async function pqSignChatMessage(content, timestamp) {
     return hex;
   } catch (e) {
     console.warn('pqSignChatMessage failed:', e && e.message);
+    return null;
+  }
+}
+
+/**
+ * Sign a REQUEST to the relay with my identity (an account export, a channel read, a group read, a
+ * files action, a push subscription): hex of the Dilithium3 signature over
+ * `hum/request/v2\n{audience}\n{purpose}\n{timestamp}` (pq.js pqSignRequest, the relay's signed_request.rs).
+ * Take `timestamp` from pqRequestTimestamp() so no two requests share one: the relay takes each
+ * signature once. Null when my identity is not ready.
+ */
+async function pqSignMyRequest(purpose, timestamp) {
+  try {
+    if (!myDilithiumSecret || typeof window.pqSignRequest !== 'function') return null;
+    const signed = await window.pqSignRequest(myDilithiumSecret, purpose, timestamp);
+    return signed ? signed.sig : null;
+  } catch (e) {
+    console.warn('pqSignMyRequest failed:', e && e.message);
     return null;
   }
 }
@@ -959,48 +982,50 @@ const CTL_ORG = '[[hum:org:v1]]';
 // (notifications rung 3, 2026-11-01), is in /shared/notify-rules.js (allowNoteText, allowNoteParse),
 // applied by chat-notify.js screenAllowNote and sealed the same way.
 
-// Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b).
-// The issuer gives the grantee a pass naming this server's did:hum, a random
-// serial (what a withdrawal names) and what the friend may do; the relay checks
-// it against its own facts and its withdrawal list, with no friends table. The
-// words and the JSON shape come from /shared/friend-pass.js (loaded first),
-// which is pinned to the relay's builder by scripts/tests/friend-pass.test.js.
-// `window.hosServerDid` is the server's did:hum, from its identify_challenge
-// (app.js); nothing is minted or accepted before it is known.
+// Friendship passes v3 (v2 2026-10-09, docs/design/blocking-and-safe-mode.md
+// 10b; v3 2026-11-21). The issuer gives the grantee a pass naming the address
+// this page opened (pq.js `pqAudience`, never the did:hum the server claims), a
+// random serial (what a withdrawal names) and what the friend may do; the relay
+// takes it only when that address is one of its own names, and checks it against
+// its own facts and its withdrawal list, with no friends table. The words and the
+// JSON shape come from /shared/friend-pass.js (loaded first), which is pinned to
+// the relay's builder by scripts/tests/friend-pass.test.js. Nothing is minted
+// before the server's identify_challenge (`window.hosServerDid`, app.js) says the
+// page is signed in: a changed identity voids the passes (chat-social.js).
 
 /**
  * Mint MY pass for `granteeHex` allowing `mayWords` (default: everything but
- * calls). Returns {cert, serial, may}, or null when the identity or the
- * server's did:hum is not ready.
+ * calls). Returns {cert, serial, may}, or null when the identity, the server's
+ * sign-in or the address this page opened is not ready.
  */
 async function pqBuildFriendCert(granteeHex, mayWords) {
-  const server = window.hosServerDid;
-  if (!myDilithiumSecret || !myDilithiumPublicHex || !server) return null;
-  if (![server, myDilithiumPublicHex, granteeHex].every(friendPassFieldOk)) return null;
+  const audience = window.pqAudience ? window.pqAudience() : null;
+  if (!myDilithiumSecret || !myDilithiumPublicHex || !window.hosServerDid || !passAudienceOk(audience)) return null;
+  if (![myDilithiumPublicHex, granteeHex].every(friendPassFieldOk)) return null;
   const may = friendPassMay(mayWords || FRIEND_PASS_DEFAULT_MAY);
   if (!may) return null;
   const serial = Array.from(crypto.getRandomValues(new Uint8Array(FRIEND_PASS_SERIAL_BYTES)))
     .map((b) => b.toString(16).padStart(2, '0')).join('');
-  const preimage = friendPassPreimage(server, myDilithiumPublicHex, granteeHex, serial, may);
+  const preimage = friendPassPreimage(audience, myDilithiumPublicHex, granteeHex, serial, may);
   const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(preimage));
   if (!sig) return null;
-  return { cert: friendPassJson(serial, may, btoa(String.fromCharCode(...sig))), serial, may };
+  return { cert: friendPassJson(audience, serial, may, btoa(String.fromCharCode(...sig))), serial, may };
 }
 
 /**
- * Check that `issuerHex` gave `granteeHex` this pass on this server. Returns
- * {serial, may} when it did, null otherwise. (Whether the issuer withdrew it is
- * the relay's to know; an issuer who unfollows us also tells us.)
+ * Check that `issuerHex` gave `granteeHex` this pass. Returns {aud, serial, may}
+ * when it did, null otherwise. Any server address the pass names: the relay
+ * that receives it is the judge of its own names. (Whether the issuer withdrew
+ * it is the relay's to know; an issuer who unfollows us also tells us.)
  */
 async function pqVerifyFriendCert(issuerHex, granteeHex, certJson) {
   try {
-    const server = window.hosServerDid;
     const pass = friendPassParse(certJson);
-    if (!pass || ![server, issuerHex, granteeHex].every(friendPassFieldOk)) return null;
+    if (!pass || ![issuerHex, granteeHex].every(friendPassFieldOk)) return null;
     const sig = Uint8Array.from(atob(pass.sig), (c) => c.charCodeAt(0));
-    const preimage = friendPassPreimage(server, issuerHex, granteeHex, pass.serial, pass.may);
+    const preimage = friendPassPreimage(pass.aud, issuerHex, granteeHex, pass.serial, pass.may);
     const ok = await window.pqVerifyMessage(_hexToBytes(issuerHex), new TextEncoder().encode(preimage), sig);
-    return ok ? { serial: pass.serial, may: pass.may } : null;
+    return ok ? { aud: pass.aud, serial: pass.serial, may: pass.may } : null;
   } catch { return null; }
 }
 

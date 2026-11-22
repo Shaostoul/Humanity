@@ -24,7 +24,7 @@ fn file(dir: &std::path::Path, id: &str, len: usize, seed: usize) -> (PathBuf, V
         piece: PIECE_SIZE,
         pieces: pieces_for(len as u64),
         hashes: hashes_digest(&hashes),
-        pass: FilePass { v: 1, id: id.into(), expiry: 4_000_000_000, sig: format!("sig-{id}") },
+        pass: FilePass { v: 2, aud: "relay.example".into(), id: id.into(), expiry: 4_000_000_000, sig: format!("sig-{id}") },
     };
     (path, bytes, offer)
 }

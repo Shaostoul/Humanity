@@ -46,6 +46,9 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+# The WHATWG URL parser, the one the desktop's HTTP clients (ureq, reqwest) and the browser send by:
+# signed_request::audience_of refuses a URL whose host it reads differently (2026-11-21, round 3, C3).
+url = "2"
 
 [dev-dependencies]
 # The core's test helpers (test_temp) and the permit ceiling its plot-permit test pins.

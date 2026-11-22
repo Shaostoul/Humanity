@@ -1747,8 +1747,12 @@ async function syncSystemProfile() {
   // Never my recovery phrase in a field I typed (step F, chat-warnings.js).
   if (typeof recoveryPhraseGuardStops === 'function'
       && await recoveryPhraseGuardStops(Object.values(saved).map((v) => (typeof v === 'string' ? v : JSON.stringify(v))), 'Your system profile was not sent.')) return;
-  const timestamp = Date.now();
-  const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
+  const timestamp = pqRequestTimestamp();
+  // A signed request naming the method and a BLAKE3 hash of the profile it stores (the relay's
+  // method_purpose, 2026-11-21), never a chat line's shape.
+  const profile = JSON.stringify(saved);
+  const hash = typeof pqBlake3 === 'function' ? await pqBlake3(new TextEncoder().encode(profile)) : null;
+  const sig = hash ? await pqSignMyRequest('system_profile\nPUT\n' + Array.from(hash, (b) => b.toString(16).padStart(2, '0')).join(''), timestamp) : null;
   if (!sig) { alert('Signing failed.'); return; }
 
   try {
@@ -1759,7 +1763,7 @@ async function syncSystemProfile() {
         key: myIdentity.publicKeyHex,
         timestamp,
         sig,
-        profile: JSON.stringify(saved),
+        profile,
       }),
     });
     if (!resp.ok) throw new Error(await resp.text());
@@ -1772,8 +1776,8 @@ async function syncSystemProfile() {
 /** Fetch system profile from the server (for cross-device restore). */
 async function fetchSystemProfile() {
   if (!myIdentity || !myIdentity.canSign) return null;
-  const timestamp = Date.now();
-  const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
+  const timestamp = pqRequestTimestamp();
+  const sig = await pqSignMyRequest('system_profile\nGET', timestamp); // a signed request (pq.js) naming the method
   if (!sig) return null;
   try {
     const params = new URLSearchParams({

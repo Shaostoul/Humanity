@@ -20,7 +20,8 @@ nothing here lands in a room people read. Allow about 20 minutes.
    a `link` object (the admin console's federation panel shows it): `sending.mode` should read
    `live` and `flow.state` `ok`. Until the panel shows it, the same data is in the answer to the
    panel's own request (the browser's developer tools, Network tab, the
-   `/api/admin/federation` request).
+   `/api/admin/actions/run` request for a `federation.*` action; the older
+   `/api/admin/federation` route was deleted 2026-11-21).
 3. **A test account** for the ban step, which has to be the SAME key on both servers: in a private
    browser window, join united-humanity.us's chat as `fedtest`, write down its recovery phrase,
    then open public.guide in the same private window and choose "Restore from recovery phrase".

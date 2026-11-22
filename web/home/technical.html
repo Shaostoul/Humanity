@@ -405,7 +405,7 @@ HumanityOS --headless   <span class="t-note"># server only, no window, listens o
             </tr>
             <tr>
               <td>Signing in</td>
-              <td>Two-phase identify. The server sends a nonce, the client signs <code>hum/identify/v1\n{nonce}\n{public key}</code>, and the server verifies before binding the socket. Claiming a key is not enough. <span class="t-st done">Shipped</span></td>
+              <td>Two-phase identify. The server sends a nonce, the client signs <code>hum/identify/v2\n{server address}\n{nonce}\n{public key}</code>, and the server verifies before binding the socket. Claiming a key is not enough. <span class="t-st done">Shipped</span></td>
             </tr>
             <tr>
               <td>Chat messages</td>

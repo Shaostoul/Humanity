@@ -121,6 +121,9 @@ async function loadPage(role, extra = {}) {
   ctx.window = ctx;
   ctx.window.hosServerDid = DID;
   ctx.window.pqSignMessage = async (secret, bytes) => m.ml_dsa65.sign(bytes, secret);
+  // The signed request's words and this page's server (pq.js), as the page has them (2026-11-22).
+  ctx.window.pqRequestPreimage = (audience, purpose, ts) => 'hum/request/v2\n' + audience + '\n' + purpose + '\n' + ts;
+  ctx.window.pqAudience = () => PAGE_SERVER;
   // A dynamic import() inside a vm script needs --experimental-vm-modules, which `node --test`
   // is not run with: the script's three `import('/shared/...')` calls are pointed at the same
   // files through a function of the page's (the only change made to the script).
@@ -247,6 +250,12 @@ async function sealPart(m, H, publicKey, context, plain) {
  * `held_<route>:<grant>:<id>:<part>:<offset>` (written out here, not taken from the page, so the
  * test holds the page to the protocol's format). A signature seen before is a replay, refused.
  */
+/** This page's server, the audience every held caller signs for since the signed requests (2026-11-22).
+ *  Seen red 2026-11-22 with the owner branch's `purpose\ntime` signature put back in callerHeaders:
+ *  "export opens the parts straight into the saved file" and "restore: every part fetched..." failed
+ *  (every part refused), the other five held. */
+const PAGE_SERVER = 'chat.example.org';
+
 function callerCheck(m, who) {
   const seen = new Set();
   return (opts, purpose) => {
@@ -255,7 +264,9 @@ function callerCheck(m, who) {
     const ts = String(h['x-hos-held-time'] || '');
     const sig = String(h['x-hos-held-sig'] || '');
     if (key !== who.key || !/^\d+$/.test(ts) || !/^[0-9a-f]+$/.test(sig) || seen.has(purpose + '\n' + ts)) return false;
-    if (!m.ml_dsa65.verify(Buffer.from(sig, 'hex'), enc.encode(purpose + '\n' + ts), who.dil.publicKey)) return false;
+    // The v2 signed request for this page's server (2026-11-22): a `purpose\ntime` signature, a chat
+    // line's shape, is refused, as the relay's signed_request.rs refuses it.
+    if (!m.ml_dsa65.verify(Buffer.from(sig, 'hex'), enc.encode('hum/request/v2\n' + PAGE_SERVER + '\n' + purpose + '\n' + ts), who.dil.publicKey)) return false;
     seen.add(purpose + '\n' + ts);
     return true;
   };

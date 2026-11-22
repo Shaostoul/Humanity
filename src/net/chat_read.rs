@@ -3,16 +3,19 @@
 //! every history read it makes. The relay's side is `src/relay/chat_access.rs`.
 //!
 //! The request is `POST <server>/api/messages` with `{key, timestamp, sig, channel, limit}`: `sig`
-//! is the Dilithium3 signature over `humanity_protocol::chat_access::read_purpose("messages",
-//! channel)`, then `\n` and the time in milliseconds. It goes in the body, never the address: a
+//! is a signed request for that server (`net::identity::pq_sign_request`: `hum/request/v2`, the
+//! server's address (2026-11-21: a read signed for one server is no good at another), then
+//! `humanity_protocol::chat_access::read_purpose("messages", channel)`, then the time in milliseconds),
+//! each at its own millisecond (`next_request_timestamp`), since the relay takes a signature once. It goes in the body, never the address: a
 //! Dilithium key and signature are about 10 KB, past what nginx accepts in an address (HTTP 414,
 //! the admin-stats lesson in gui/pages/relay_control.rs). Without a seed (no identity loaded) the
 //! app asks as a visitor would, with `GET`, and is answered only for an Anyone channel.
 
-/// The body of a signed history read of `channel`, at most `limit` messages, at `ts` (ms).
-pub fn signed_body(seed: &[u8], key: &str, channel: &str, limit: usize, ts: u64) -> String {
+/// The body of a signed history read of `channel` on the server at `base`, at most `limit`
+/// messages, at `ts` (ms).
+pub fn signed_body(base: &str, seed: &[u8], key: &str, channel: &str, limit: usize, ts: u64) -> String {
     let purpose = humanity_protocol::chat_access::read_purpose("messages", channel);
-    let sig = crate::net::identity::pq_sign_chat(seed, &purpose, ts);
+    let sig = crate::net::identity::pq_sign_request(seed, base, &purpose, ts);
     serde_json::json!({ "key": key, "timestamp": ts, "sig": sig, "channel": channel, "limit": limit }).to_string()
 }
 
@@ -23,8 +26,8 @@ pub fn fetch_history(agent: &ureq::Agent, base: &str, seed: Option<&[u8]>, key: 
     let url = format!("{base}/api/messages");
     let answer = match seed {
         Some(seed) if !key.is_empty() => {
-            let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis() as u64;
-            agent.post(&url).set("Content-Type", "application/json").send_string(&signed_body(seed, key, channel, limit, ts))
+            let ts = crate::net::identity::next_request_timestamp();
+            agent.post(&url).set("Content-Type", "application/json").send_string(&signed_body(base, seed, key, channel, limit, ts))
         }
         _ => agent.get(&url).query("limit", &limit.to_string()).query("channel", channel).call(),
     };
@@ -51,12 +54,12 @@ mod tests {
     fn the_signed_body_is_what_the_relay_checks() {
         let seed = [7u8; 32];
         let pq = crate::net::identity::derive_pq_identity(&seed).unwrap();
-        let body: serde_json::Value = serde_json::from_str(&signed_body(&seed, &pq.dilithium_hex, "lounge", 50, 1_000)).unwrap();
+        let body: serde_json::Value = serde_json::from_str(&signed_body("https://united-humanity.us", &seed, &pq.dilithium_hex, "lounge", 50, 1_000)).unwrap();
         assert_eq!(body["channel"], "lounge");
         assert_eq!(body["limit"], 50);
         let sig = hex::decode(body["sig"].as_str().unwrap()).unwrap();
         let pk = hex::decode(&pq.dilithium_hex).unwrap();
-        let signed = format!("{}\n1000", humanity_protocol::chat_access::read_purpose("messages", "lounge"));
+        let signed = humanity_protocol::signed_request::request_preimage("united-humanity.us", &humanity_protocol::chat_access::read_purpose("messages", "lounge"), 1000);
         assert!(humanity_protocol::pq_crypto::verify_dilithium(&pk, signed.as_bytes(), &sig).is_ok());
     }
 }

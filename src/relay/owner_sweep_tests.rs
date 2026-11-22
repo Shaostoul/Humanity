@@ -29,7 +29,6 @@ use std::time::Duration;
 use axum::extract::{Json, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message as WsMsg;
@@ -54,11 +53,14 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64
 }
 
-/// `purpose\ntimestamp` signed by the key of `[seed; 32]`, as every signed admin route reads it.
+/// A signed request for `purpose` by the key of `[seed; 32]`, as every signed route reads it since
+/// the signed requests were merged (2026-11-22): `hum/request/v2`, the audience (a route called
+/// straight from a test has no Host, so audience.rs `TEST_AUDIENCE`), the purpose, a time no other
+/// request in this run used (each signature is good once).
 fn signed(seed: u8, purpose: &str) -> (String, u64, String) {
     let (kp, key) = keypair(seed);
-    let ts = now_ms();
-    let sig = hex::encode(kp.sign(format!("{purpose}\n{ts}").as_bytes()));
+    let ts = crate::relay::signed_request::next_test_timestamp();
+    let sig = crate::relay::audience::test_request_sig(&kp, crate::relay::audience::TEST_AUDIENCE, purpose, ts);
     (key, ts, sig)
 }
 
@@ -139,12 +141,18 @@ fn the_owner_passes_every_rest_route_an_admin_passes() {
     };
     check("admin stats", stats(OWNER), stats(MEMBER), &[StatusCode::OK]);
 
-    // api.rs post_admin_federation (Admin role required), the read-only "list".
+    // Federation's read-only list, through the admin action registry (admin/mod.rs post_run, Admin
+    // role required): the older POST /api/admin/federation, which the owner branch swept, was
+    // deleted by the signed requests (one signature over its single purpose ran any of its
+    // actions); the registry's federation.list is the route that replaced it.
     let federation = |seed: u8| {
-        let (key, timestamp, sig) = signed(seed, "admin_federation");
-        let q: api::AdminFederationRequest =
-            serde_json::from_value(json!({ "key": key, "timestamp": timestamp, "sig": sig, "action": "list" })).unwrap();
-        code(rt.block_on(api::post_admin_federation(State(st.clone()), Json(q))))
+        let inputs = "{}";
+        let (key, timestamp, sig) = signed(seed, &crate::relay::admin::run_purpose("federation.list", inputs));
+        let q: crate::relay::admin::RunRequest = serde_json::from_value(
+            json!({ "key": key, "timestamp": timestamp, "sig": sig, "action": "federation.list", "inputs": inputs }),
+        )
+        .unwrap();
+        rt.block_on(crate::relay::admin::post_run(State(st.clone()), Json(q))).status()
     };
     check("federation peers", federation(OWNER), federation(MEMBER), &[StatusCode::OK]);
 
@@ -159,7 +167,7 @@ fn the_owner_passes_every_rest_route_an_admin_passes() {
     // api.rs update_bug_status (admins and moderators): a status the route does not know, so a
     // caller past the role check gets 400 and nothing is written.
     let status = |seed: u8| {
-        let (key, timestamp, sig) = signed(seed, "bug_status");
+        let (key, timestamp, sig) = signed(seed, "bug_status\n1\nnot-a-status");
         let q: api::UpdateBugRequest =
             serde_json::from_value(json!({ "status": "not-a-status", "key": key, "timestamp": timestamp, "sig": sig })).unwrap();
         code(rt.block_on(api::update_bug_status(State(st.clone()), Path(1), Json(q))))
@@ -169,7 +177,7 @@ fn the_owner_passes_every_rest_route_an_admin_passes() {
     // api_v2_agents.rs set_agent_override (Admin role required): a scope id the route refuses, so
     // a caller past the role check gets 400 and data/coordination/overrides.ron is never written.
     let agent = |seed: u8| {
-        let (key, timestamp, sig) = signed(seed, "agent_override");
+        let (key, timestamp, sig) = signed(seed, &crate::relay::api_v2_agents::override_purpose("not a scope", "off"));
         let q: crate::relay::api_v2_agents::OverrideRequest = serde_json::from_value(
             json!({ "scope_id": "not a scope", "status": "off", "key": key, "timestamp": timestamp, "sig": sig }),
         )
@@ -182,9 +190,7 @@ fn the_owner_passes_every_rest_route_an_admin_passes() {
     st.db.create_listing("lamp", &seller, "Sel", "Lamp", "A lamp", "home", "used", "5", "cash", "here").unwrap();
     let review = |seed: u8| {
         let id = st.db.create_review("lamp", &format!("reviewer-{seed}"), "Rev", 4, "fine").unwrap();
-        let (kp, key) = keypair(seed);
-        let timestamp = now_ms();
-        let sig = hex::encode(kp.sign(format!("review_delete\n{id}\n{timestamp}").as_bytes()));
+        let (key, timestamp, sig) = signed(seed, &format!("review_delete\n{id}"));
         let q: api::VaultSyncQuery = serde_json::from_value(json!({ "key": key, "timestamp": timestamp, "sig": sig })).unwrap();
         code(rt.block_on(api::delete_listing_review(State(st.clone()), Path(("lamp".to_string(), id)), Query(q))))
     };
@@ -225,7 +231,7 @@ fn the_owner_passes_every_rest_route_an_admin_passes() {
         st.db
             .with_conn(|c| c.execute("INSERT INTO user_uploads (public_key, filename, uploaded_at, shared) VALUES (?1, ?2, 0, 1)", [&seller, &name]))
             .unwrap();
-        let (key, timestamp, sig) = signed(seed, "delete_upload");
+        let (key, timestamp, sig) = signed(seed, &api::delete_upload_purpose(&name));
         let q: api::DeleteUploadBody = serde_json::from_value(json!({ "filename": name, "key": key, "timestamp": timestamp, "sig": sig })).unwrap();
         code(rt.block_on(api::delete_shared_upload(State(st.clone()), Json(q))))
     };
@@ -311,8 +317,10 @@ async fn sign_in(st: &Arc<RelayState>, port: u16, seed: u8, name: &str) -> Sock 
     sock.send(WsMsg::Text(hello.to_string().into())).await.unwrap();
     let challenge = frame_where(&mut sock, "a challenge", |f| f["type"] == "identify_challenge").await;
     let nonce = challenge["nonce"].as_str().unwrap().to_string();
-    let sig = B64.encode(kp.sign(format!("hum/identify/v1\n{nonce}\n{key}").as_bytes()));
-    sock.send(WsMsg::Text(json!({ "type": "identify_response", "sig_b64": sig }).to_string().into())).await.unwrap();
+    // The v2 sign-in (since the signed requests were merged, 2026-11-22): signed for the address
+    // this socket was opened to.
+    let proof = crate::relay::audience::test_identify_response(&kp, &format!("127.0.0.1:{port}"), &nonce, &key);
+    sock.send(WsMsg::Text(proof.to_string().into())).await.unwrap();
     frame_where(&mut sock, "signed in", |f| f["type"] == "peer_list" || f["type"] == "channel_list").await;
     st.db.with_conn(|c| c.execute("UPDATE registered_names SET registered_at = 0 WHERE public_key = ?1", [&key])).unwrap();
     sock

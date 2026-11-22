@@ -210,7 +210,7 @@ async fn authorize(state: &RelayState, headers: &HeaderMap, op: &str, name: &str
     if !ok {
         return Err(refuse(StatusCode::UNAUTHORIZED, "The signature does not match this request."));
     }
-    if !state.auth_nonce_fresh(&sender.public_key, &format!("backup_host:{op}:{name}"), ms) {
+    if !state.replay.first_use(&sender.public_key, "backup_host", ms, format!("{op}\n{name}").as_bytes()) {
         return Err(refuse(StatusCode::UNAUTHORIZED, "That request was already used."));
     }
     Ok((data_dir, sender))

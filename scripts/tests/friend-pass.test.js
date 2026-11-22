@@ -1,5 +1,7 @@
-// Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b): the web
-// builder says exactly what the relay checks.
+// Friendship passes v3 (v2 2026-10-09, docs/design/blocking-and-safe-mode.md 10b; v3 2026-11-21,
+// the address the app opened): the web builder says exactly what the relay checks. v3 red first:
+// with the audience check taken out of friendPassParse, "a did:hum for a server" failed (the
+// parser read a pass naming a did:hum).
 //
 // Run: node --test scripts/tests/friend-pass.test.js   (in `just rig-tests`)
 //
@@ -72,6 +74,7 @@ test("the parser refuses what the relay refuses, and reads a pass the relay mint
   const fixture = JSON.parse(fs.readFileSync(path.join(REPO, "crates", "humanity-protocol", "src", "pq_kat_friend_pass.json"), "utf8"));
   const pass = fp.friendPassParse(fixture.cert);
   assert.ok(pass, "the Rust-minted pass parses");
+  assert.equal(pass.aud, fixture.aud, "it names the address the issuer's app opened");
   assert.equal(pass.serial, fixture.serial);
   assert.equal(pass.may, fixture.may);
   const v = JSON.parse(fixture.cert);
@@ -82,10 +85,18 @@ test("the parser refuses what the relay refuses, and reads a pass the relay mint
   assert.equal(with_("may", "message,invite"), null, "out of order");
   assert.equal(with_("may", ""), null, "nothing allowed");
   assert.equal(with_("v", 1), null, "v1");
+  assert.equal(with_("v", 2), null, "v2 (it named the server's did:hum)");
+  assert.equal(with_("aud", "did:hum:4dQe1bVHyiHm1Vh8rWbx2F"), null, "a did:hum for a server");
+  assert.equal(with_("aud", "Relay.Example"), null, "a second spelling");
+  assert.equal(with_("aud", "relay.example."), null, "a trailing dot");
+  assert.equal(with_("aud", "relay.example:0443"), null, "a port with a leading zero");
+  assert.equal(with_("aud", ""), null, "no server");
+  assert.ok(with_("aud", "[::1]:3210") && with_("aud", "a-b.example:8443"), "addresses in their one spelling");
   assert.equal(fp.friendPassParse(v.sig), null, "a bare v1 signature");
   assert.equal(fp.friendPassParse("x".repeat(fp.FRIEND_PASS_MAX_LEN + 1)), null, "too long to read");
-  // What the web side sends parses back to itself (key order does not matter to either side).
-  assert.deepEqual(fp.friendPassParse(fp.friendPassJson(v.serial, v.may, v.sig)), { serial: v.serial, may: v.may, sig: v.sig });
+  // What the web side sends is the relay builder's text byte for byte, and parses back to itself.
+  assert.equal(fp.friendPassJson(v.aud, v.serial, v.may, v.sig), fixture.cert, "the web writes the pass as the relay's builder does");
+  assert.deepEqual(fp.friendPassParse(fp.friendPassJson(v.aud, v.serial, v.may, v.sig)), { aud: v.aud, serial: v.serial, may: v.may, sig: v.sig });
   assert.ok(fp.friendPassFieldOk("did:hum:x") && !fp.friendPassFieldOk("") && !fp.friendPassFieldOk("a\nb"));
 });
 

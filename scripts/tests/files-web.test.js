@@ -578,7 +578,9 @@ function fakeWebSocketClass(sockets) {
 // Seen red with identifyPreimage leaving out the nonce: "the relay accepts the sign-in / actual:
 // false"; and with takePeerList reading `token`: "the upload token from the person's own entry
 // / '' !== 'tok-9'". Round 2: seen red with the role_list branch taken out of onFrame: "the role
-// list is kept".
+// list is kept". Round 3 (2026-11-21, the sign-in names its server): seen red with relay-session.js
+// signing the old `hum/identify/v1\n{nonce}\n{key}`: "the relay accepts the sign-in / actual: false";
+// and with the nonce check taken out: "a challenge that is not a relay's is refused" (it was signed).
 test("10. the session signs in with a real Dilithium3 signature and takes its own token, role and settings", async () => {
   const n = await noble();
   const seed = new Uint8Array(32).fill(7);
@@ -602,12 +604,16 @@ test("10. the session signs in with a real Dilithium3 signature and takes its ow
   ws.open();
   assert.deepEqual(ws.sent, [{ type: "identify", public_key: identity.dilithiumPublicHex, display_name: "Shaostoul" }]);
   assert.equal(s.send({ type: "anything" }), false, "nothing else is sent before the relay accepts the sign-in");
-  ws.receive({ type: "identify_challenge", nonce: "n0nce" });
+  const nonce = "0123456789abcdef".repeat(4);
+  ws.receive({ type: "identify_challenge", nonce });
   await settle();
   const resp = ws.sent[1];
   assert.equal(resp.type, "identify_response");
-  const words = new TextEncoder().encode("hum/identify/v1\nn0nce\n" + identity.dilithiumPublicHex);
+  assert.equal(resp.audience, "united-humanity.us", "the sign-in names the address the page opened");
+  const words = new TextEncoder().encode("hum/identify/v2\nunited-humanity.us\n" + nonce + "\n" + identity.dilithiumPublicHex);
   assert.equal(n.ml_dsa65.verify(Buffer.from(resp.sig_b64, "base64"), words, kp.publicKey), true, "the relay accepts the sign-in");
+  const elsewhere = new TextEncoder().encode("hum/identify/v2\nother.example\n" + nonce + "\n" + identity.dilithiumPublicHex);
+  assert.equal(n.ml_dsa65.verify(Buffer.from(resp.sig_b64, "base64"), elsewhere, kp.publicKey), false, "and no other server would");
   assert.equal(s.state.uploadToken, "");
   ws.receive({ type: "peer_list", peers: [
     { public_key: "f0".repeat(32), role: "admin", upload_token: null },

@@ -257,26 +257,8 @@ pub async fn delete_shared_upload(
     State(state): State<Arc<RelayState>>,
     Json(body): Json<DeleteUploadBody>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-    let vk = body.key.clone();
-    let vsig = body.sig.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "delete_upload", vts, &vsig)
-    })
-    .await
-    .unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    // Fresh, signed as a request (never a chat line), used once (signed_request.rs).
+    crate::relay::signed_request::check(&state, &body.key, body.timestamp, &body.sig, &delete_upload_purpose(&body.filename), "delete_upload").await?;
 
     // Reject path tricks: the stored filename is a bare basename.
     let filename = body.filename.trim();
@@ -1793,33 +1775,13 @@ pub async fn vault_sync_put(
     state: State<Arc<RelayState>>,
     Json(body): Json<VaultSyncUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    // Reject requests older than 5 minutes to prevent replay attacks.
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let vk = body.key.clone();
-    let vsig = body.sig.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "vault_sync", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
-    // Anti-replay (audit 2026-06-12): reject a duplicate (key, purpose,
-    // timestamp) inside the freshness window so a captured signed PUT cannot be
-    // replayed to re-overwrite the vault.
-    if !state.auth_nonce_fresh(&body.key, "vault_sync", body.timestamp) {
-        return Err((StatusCode::CONFLICT, "Duplicate request rejected (replay).".into()));
-    }
+    // Fresh, signed as a request, used once (signed_request.rs): a captured signed PUT cannot be
+    // replayed to re-overwrite the vault (audit 2026-06-12), and the one "vault_sync" tag shared by
+    // PUT, GET and DELETE means a signature used for one is spent for the others.
+    crate::relay::signed_request::check(&state, &body.key, body.timestamp, &body.sig, &method_purpose("vault_sync", "PUT", Some(body.blob.as_bytes())), "vault_sync")
+        .await
+        .map_err(crate::relay::signed_request::SignedRefusal::plain_replay_conflict)?;
+    let now_ms = crate::relay::signed_request::now_ms();
 
     // Cap blob size at 512 KB to prevent abuse.
     if body.blob.len() > 512 * 1024 {
@@ -1844,29 +1806,9 @@ pub async fn vault_sync_get(
     state: State<Arc<RelayState>>,
     Query(q): Query<VaultSyncQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let vk = q.key.clone();
-    let vsig = q.sig.clone();
-    let vts = q.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "vault_sync", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
-    if !state.auth_nonce_fresh(&q.key, "vault_sync", q.timestamp) {
-        return Err((StatusCode::CONFLICT, "Duplicate request rejected (replay).".into()));
-    }
+    crate::relay::signed_request::check(&state, &q.key, q.timestamp, &q.sig, &method_purpose("vault_sync", "GET", None), "vault_sync")
+        .await
+        .map_err(crate::relay::signed_request::SignedRefusal::plain_replay_conflict)?;
 
     match state.db.get_vault_blob(&q.key) {
         Some((blob, updated_at)) => Ok(Json(serde_json::json!({ "blob": blob, "updated_at": updated_at }))),
@@ -1879,28 +1821,9 @@ pub async fn vault_sync_delete(
     state: State<Arc<RelayState>>,
     Json(body): Json<VaultSyncUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let vk = body.key.clone();
-    let vsig = body.sig.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "vault_sync", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
-    if !state.auth_nonce_fresh(&body.key, "vault_sync", body.timestamp) {
-        return Err((StatusCode::CONFLICT, "Duplicate request rejected (replay).".into()));
-    }
+    crate::relay::signed_request::check(&state, &body.key, body.timestamp, &body.sig, &method_purpose("vault_sync", "DELETE", None), "vault_sync")
+        .await
+        .map_err(crate::relay::signed_request::SignedRefusal::plain_replay_conflict)?;
     state.db.delete_vault_blob(&body.key)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
     Ok(Json(serde_json::json!({ "status": "deleted" })))
@@ -1935,26 +1858,9 @@ pub async fn system_profile_put(
     state: State<Arc<RelayState>>,
     Json(body): Json<SystemProfileUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let vk = body.key.clone();
-    let vsig = body.sig.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "system_profile", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    // Fresh, signed as a request, used once; one tag for PUT, GET and DELETE (signed_request.rs).
+    crate::relay::signed_request::check(&state, &body.key, body.timestamp, &body.sig, &method_purpose("system_profile", "PUT", Some(body.profile.as_bytes())), "system_profile").await?;
+    let now_ms = crate::relay::signed_request::now_ms();
 
     if body.profile.len() > 64 * 1024 {
         return Err((StatusCode::PAYLOAD_TOO_LARGE, "System profile exceeds 64 KB limit.".into()));
@@ -1971,26 +1877,7 @@ pub async fn system_profile_get(
     state: State<Arc<RelayState>>,
     Query(q): Query<SystemProfileQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let vk = q.key.clone();
-    let vsig = q.sig.clone();
-    let vts = q.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "system_profile", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    crate::relay::signed_request::check(&state, &q.key, q.timestamp, &q.sig, &method_purpose("system_profile", "GET", None), "system_profile").await?;
 
     match state.db.get_system_profile(&q.key) {
         Some((profile, updated_at)) => Ok(Json(serde_json::json!({ "profile": profile, "updated_at": updated_at }))),
@@ -2003,25 +1890,7 @@ pub async fn system_profile_delete(
     state: State<Arc<RelayState>>,
     Json(body): Json<SystemProfileUpload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let vk = body.key.clone();
-    let vsig = body.sig.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "system_profile", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    crate::relay::signed_request::check(&state, &body.key, body.timestamp, &body.sig, &method_purpose("system_profile", "DELETE", None), "system_profile").await?;
     state.db.delete_system_profile(&body.key)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
     Ok(Json(serde_json::json!({ "status": "deleted" })))
@@ -2427,27 +2296,18 @@ pub fn read_purpose(path: &str) -> String {
 }
 
 /// Whether `key` may use the data-file routes now, or the refusal to answer with: a key and a
-/// signature at all, a fresh timestamp (5 minutes), a Dilithium3 signature from `key` over
-/// `purpose` then `\n{timestamp}`, that timestamp not used before by that key for `tag`
-/// (`auth_nonce_fresh`), and the admin role for that key.
-async fn data_files_admin(state: &RelayState, key: &str, timestamp: u64, sig: &str, tag: &str, purpose: String) -> Result<(), axum::response::Response> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
+/// signature at all, a fresh timestamp (5 minutes), a Dilithium3 signature from `key` over the
+/// request `purpose` (`signed_request::check`), that timestamp not used before by that key for
+/// `tag`, and the admin role for that key.
+async fn data_files_admin(state: &RelayState, key: &str, timestamp: u64, sig: &str, tag: &'static str, purpose: String) -> Result<(), axum::response::Response> {
+    use crate::relay::signed_request::SignedRefusal;
     let refuse = |status: StatusCode, why: &str| (status, Json(serde_json::json!({ "error": why }))).into_response();
-    if key.is_empty() || sig.is_empty() {
-        return Err(refuse(StatusCode::UNAUTHORIZED, "Only this server's admins can open or change its data folder: sign in to the chat as an admin first."));
-    }
-    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    if now_ms.saturating_sub(timestamp) > 5 * 60 * 1000 || timestamp > now_ms + 60_000 {
-        return Err(refuse(StatusCode::BAD_REQUEST, "The request is too old or from the future: check this computer's clock and try again."));
-    }
-    let (vk, vsig) = (key.to_string(), sig.to_string());
-    // CPU-bound: off the async executor, failing closed if the check panics.
-    let sig_ok = tokio::task::spawn_blocking(move || verify_dilithium_signature(&vk, &purpose, timestamp, &vsig)).await.unwrap_or(false);
-    if !sig_ok {
-        return Err(refuse(StatusCode::UNAUTHORIZED, "The signature does not match this request."));
-    }
-    if !state.auth_nonce_fresh(key, tag, timestamp) {
-        return Err(refuse(StatusCode::UNAUTHORIZED, "That request was already used: try again."));
+    match crate::relay::signed_request::check(state, key, timestamp, sig, &purpose, tag).await {
+        Ok(()) => {}
+        Err(SignedRefusal::Unsigned) => {
+            return Err(refuse(StatusCode::UNAUTHORIZED, "Only this server's admins can open or change its data folder: sign in to the chat as an admin first."));
+        }
+        Err(other) => return Err(refuse(other.status(), &other.words())),
     }
     if !crate::relay::handlers::msg_handlers::is_admin_role(&state.db.get_role(key).unwrap_or_default()) {
         return Err(refuse(StatusCode::FORBIDDEN, "Only this server's admins can open or change its data folder."));
@@ -2701,28 +2561,8 @@ async fn admin_stats_inner(
     state: Arc<RelayState>,
     q: AdminStatsQuery,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    // Verify freshness (5 min window).
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-
-    // Verify Dilithium3 signature. CPU-bound — run off the async executor
-    // (fail-closed on panic → reject). Decision + 401 status unchanged.
-    let vk = q.key.clone();
-    let vsig = q.sig.clone();
-    let vts = q.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "admin_stats", vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    // Fresh, signed as a request, used once (signed_request.rs).
+    crate::relay::signed_request::check(&state, &q.key, q.timestamp, &q.sig, "admin_stats", "admin_stats").await?;
 
     // Check admin role (the owner's too).
     let role = state.db.get_role(&q.key).unwrap_or_default();
@@ -2823,149 +2663,6 @@ async fn admin_stats_inner(
         "continuous_backup": continuous_backup,
         // Per-address limits (ip_limit.rs): addresses tracked and held, requests refused by class.
         "ip_limits": state.ip_limits.summary(std::time::Instant::now()),
-    })))
-}
-
-/// Body for POST /api/admin/federation: the same signed-admin auth the stats
-/// endpoint uses, plus one action and its arguments.
-#[derive(Debug, Deserialize)]
-pub struct AdminFederationRequest {
-    pub key: String,
-    pub timestamp: u64,
-    pub sig: String,
-    /// "list" | "add" | "add_key" | "trust" | "recheck" | "pause" | "resume" | "remove".
-    pub action: String,
-    #[serde(default)]
-    pub url: Option<String>,
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub server_id: Option<String>,
-    #[serde(default)]
-    pub public_key: Option<String>,
-    #[serde(default)]
-    pub trust_tier: Option<i32>,
-}
-
-/// POST /api/admin/federation — add, trust, untrust and remove federation peers.
-///
-/// Federation peer management existed ONLY as chat slash commands
-/// (`/server-add`, `/server-add-key`, `/server-trust`, `/server-remove`). The
-/// native Server Settings page wraps those in a real panel, but the web admin
-/// page could only LIST peers, and anyone running this relay without our chat
-/// client had no way at all. That fails the project's GUI-first rule: every
-/// operator action must be reachable from inside an app, not just a terminal or
-/// a command line hidden in a chat box.
-///
-/// Auth is identical in shape to `/api/admin/stats` (Dilithium3 signature over
-/// `purpose\ntimestamp`, 5 minute freshness, admin role required) but signs a
-/// DIFFERENT purpose string, `admin_federation`, so a signature captured for
-/// read-only stats can never be replayed to mutate the peer registry.
-///
-/// Every action returns the full peer list afterwards, so a caller re-renders
-/// from the authoritative state instead of guessing what changed.
-pub async fn post_admin_federation(
-    State(state): State<Arc<RelayState>>,
-    Json(req): Json<AdminFederationRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(req.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-    let vk = req.key.clone();
-    let vsig = req.sig.clone();
-    let vts = req.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "admin_federation", vts, &vsig)
-    })
-    .await
-    .unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
-    let role = state.db.get_role(&req.key).unwrap_or_default();
-    if !is_admin_role(&role) {
-        return Err((StatusCode::FORBIDDEN, "Admin role required.".into()));
-    }
-
-    // One implementation (2026-10-22): each action is the registry's runner of the same name
-    // (src/relay/admin/federation.rs), so a peer added here, through POST /api/admin/actions/run
-    // or by the Federation panels is the same row with the same checks.
-    use crate::relay::admin::{federation as fed_admin, Caller, Inputs};
-    let mut inputs = serde_json::Map::new();
-    let mut put = |name: &str, value: Option<String>| {
-        if let Some(v) = value.filter(|v| !v.trim().is_empty()) {
-            inputs.insert(name.to_string(), serde_json::Value::String(v));
-        }
-    };
-    put("url", req.url.clone());
-    put("name", req.name.clone());
-    put("server_id", req.server_id.clone());
-    put("key", req.public_key.clone());
-    put("tier", req.trust_tier.map(|t| t.to_string()));
-    let (caller, inputs) = (Caller { key: req.key.clone(), role }, Inputs(inputs));
-    let st = state.clone();
-    let ran = match req.action.as_str() {
-        "list" => Ok(crate::relay::admin::Ran::said("Peer list.")),
-        "add" => fed_admin::add(st, caller, inputs).await,
-        "add_key" => fed_admin::add_key(st, caller, inputs).await,
-        "trust" => fed_admin::trust(st, caller, inputs).await,
-        "recheck" => fed_admin::recheck(st, caller, inputs).await,
-        "pause" => fed_admin::pause(st, caller, inputs).await,
-        "resume" => fed_admin::resume(st, caller, inputs).await,
-        "remove" => fed_admin::remove(st, caller, inputs).await,
-        other => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!("Unknown action '{other}'. Expected list, add, add_key, trust, recheck, pause, resume or remove."),
-            ))
-        }
-    };
-    // Every change goes in the admin log, by whichever door it came.
-    if req.action != "list" {
-        let (line, ok) = match &ran {
-            Ok(r) => (r.log.clone().unwrap_or_else(|| r.message.clone()), true),
-            Err(r) => (format!("Refused: {}", r.message), false),
-        };
-        let _ = state.db.admin_log_append(&req.key, &format!("federation.{}", req.action), &line, ok);
-    }
-    let message = match ran {
-        Ok(r) => r.message,
-        // An add of a peer already listed was always an answer here, not a failure.
-        Err(r) if r.status == StatusCode::CONFLICT => r.message,
-        Err(r) => return Err((r.status, r.message)),
-    };
-
-    let servers: Vec<serde_json::Value> = state
-        .db
-        .list_federated_servers_all()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|(s, paused)| {
-            serde_json::json!({
-                "server_id": s.server_id,
-                "name": s.name,
-                "url": s.url,
-                "trust_tier": s.trust_tier,
-                "accord_compliant": s.accord_compliant,
-                "status": s.status,
-                "last_seen": s.last_seen,
-                "added_at": s.added_at,
-                "paused": paused,
-                "link": crate::relay::handlers::federation_log::peer_view(&state, s.public_key.as_deref()),
-            })
-        })
-        .collect();
-
-    Ok(Json(serde_json::json!({
-        "ok": true,
-        "message": message,
-        "servers": servers,
     })))
 }
 
@@ -3207,7 +2904,7 @@ pub async fn post_account_export(
 ) -> Result<axum::response::Response, (StatusCode, String)> {
     use axum::response::IntoResponse;
 
-    verify_signed_actor(&req.key, req.timestamp, &req.sig, "account_export").await?;
+    crate::relay::signed_request::check(&state, &req.key, req.timestamp, &req.sig, "account_export", "account_export").await?;
 
     // One export per key per minute. Generous for a human pressing a button,
     // and it stops the endpoint from being a cheap way to make the relay do a
@@ -3254,45 +2951,6 @@ pub async fn post_account_export(
         body,
     )
         .into_response())
-}
-
-/// Prove a caller actually holds the key they claim, before any role or
-/// ownership decision is made from it.
-///
-/// Every identity-keyed endpoint in this file already does exactly this inline:
-/// a 5 minute freshness window, then a Dilithium3 verify of `purpose\ntimestamp`
-/// off the async executor (the verify is CPU-bound, and a panic inside it must
-/// fail CLOSED rather than pass). PATCH /api/bugs/{id} was written without it
-/// and simply believed the key in the request body, which is not a check at
-/// all: public keys are broadcast to every connected client.
-///
-/// Factored out here so the next endpoint gets the whole check by calling one
-/// function, instead of a sixth hand-rolled copy with one line missing.
-async fn verify_signed_actor(
-    key: &str,
-    timestamp: u64,
-    sig: &str,
-    purpose: &'static str,
-) -> Result<(), (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-    let (vk, vsig) = (key.to_string(), sig.to_string());
-    let ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, purpose, timestamp, &vsig)
-    })
-    .await
-    .unwrap_or(false);
-    if !ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
-    Ok(())
 }
 
 /// Request body for PATCH /api/bugs/{id}.
@@ -3382,7 +3040,7 @@ pub async fn bug_details(
     State(state): State<Arc<RelayState>>,
     Json(req): Json<BugDetailsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    verify_signed_actor(&req.key, req.timestamp, &req.sig, BUG_DETAILS_PURPOSE).await?;
+    crate::relay::signed_request::check(&state, &req.key, req.timestamp, &req.sig, BUG_DETAILS_PURPOSE, BUG_DETAILS_PURPOSE).await?;
     if !is_staff_role(&state.db.get_role(&req.key).unwrap_or_default()) {
         return Err((StatusCode::FORBIDDEN, "Only the admins and moderators see who sent each report.".into()));
     }
@@ -3456,7 +3114,7 @@ pub async fn update_bug_status(
     Json(req): Json<UpdateBugRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Prove the caller holds the key before believing anything about its role.
-    verify_signed_actor(&req.key, req.timestamp, &req.sig, "bug_status").await?;
+    crate::relay::signed_request::check(&state, &req.key, req.timestamp, &req.sig, &format!("bug_status\n{id}\n{}", req.status), "bug_status").await?;
 
     // An admin, the owner or a moderator: "moderator" counts beside "mod" because both strings
     // exist in this codebase and only one of them is ever written (is_staff_role).
@@ -3487,7 +3145,7 @@ pub async fn vote_bug(
     if req.voter_key.trim().is_empty() {
         return Err((StatusCode::BAD_REQUEST, "voter_key is required.".into()));
     }
-    verify_signed_actor(&req.voter_key, req.timestamp, &req.sig, "bug_vote").await?;
+    crate::relay::signed_request::check(&state, &req.voter_key, req.timestamp, &req.sig, &bug_vote_purpose(id), "bug_vote").await?;
 
     match state.db.vote_bug(id, &req.voter_key) {
         Ok((voted, count)) => Ok(Json(serde_json::json!({
@@ -3509,4 +3167,30 @@ mod reuse_switch_tests {
         assert!(!super::manifest_kept(false, true), "reuse off: hashed again");
         assert!(!super::manifest_kept(true, false), "stale: hashed again");
     }
+}
+
+// ── What the identity-keyed requests above are signed over (2026-11-21, D5 of the signed-requests
+// round 2): each names its target, so a signature for one thing is not good for another. Until then
+// the vault and the system profile signed one purpose for PUT, GET and DELETE with the body unsigned
+// (a captured read was a write of any blob), a bug vote named no bug, a status change no bug or
+// status, a file removal no file. The account export and the recovery withdraw and "not me" act on
+// the signer's own account alone, so the key that signs them is their target; with the audience
+// line (round 2, D1) they are good at this server alone, once.
+
+/// `{name}\n{method}`, then a BLAKE3 hash of the body when the request carries one.
+pub fn method_purpose(name: &str, method: &str, body: Option<&[u8]>) -> String {
+    match body {
+        Some(b) => format!("{name}\n{method}\n{}", crate::relay::signed_request::body_hash(b)),
+        None => format!("{name}\n{method}"),
+    }
+}
+
+/// A vote for bug `id`.
+pub fn bug_vote_purpose(id: i64) -> String {
+    format!("bug_vote\n{id}")
+}
+
+/// The removal of the shared file `filename` (as sent).
+pub fn delete_upload_purpose(filename: &str) -> String {
+    format!("delete_upload\n{filename}")
 }

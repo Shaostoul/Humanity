@@ -23,9 +23,11 @@ fn block<F: std::future::Future>(f: F) -> F::Output {
     tokio::runtime::Runtime::new().unwrap().block_on(f)
 }
 
-fn signed(dil: &DilithiumKeypair, key: &str) -> GroupReadRequest {
-    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-    GroupReadRequest { key: key.to_string(), timestamp: ts, sig: hex::encode(dil.sign(format!("{GROUP_READ_PURPOSE}\n{ts}").as_bytes())) }
+/// A read of `target` (the group or object read, or "mine"), signed as the apps sign it.
+fn signed(dil: &DilithiumKeypair, key: &str, target: &str) -> GroupReadRequest {
+    // Each read its own millisecond: the relay takes a signed request once (signed_request.rs).
+    let ts = crate::relay::signed_request::next_test_timestamp();
+    GroupReadRequest { key: key.to_string(), timestamp: ts, sig: hex::encode(dil.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, &crate::relay::api_v2_objects::group_read_purpose(target), ts).as_bytes())) }
 }
 
 /// The answer's status and its JSON body.
@@ -94,18 +96,21 @@ fn a_strangers_list_and_lookups_carry_nothing_of_a_group() {
 
     // A stranger's signed reads are refused, every one.
     let (bo, bo_key) = person(0x42);
-    assert_eq!(answer(block(read_object_signed(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key))))).0, StatusCode::FORBIDDEN);
-    assert_eq!(answer(block(group_member_keys(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key))))).0, StatusCode::FORBIDDEN);
-    assert_eq!(answer(block(group_messages(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key))))).0, StatusCode::FORBIDDEN);
-    assert_eq!(answer(block(group_epoch_key(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key))))).0, StatusCode::FORBIDDEN);
-    assert_eq!(answer(block(group_epoch_keys(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key))))).0, StatusCode::FORBIDDEN);
+    assert_eq!(answer(block(read_object_signed(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key, &gid))))).0, StatusCode::FORBIDDEN);
+    assert_eq!(answer(block(group_member_keys(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key, &gid))))).0, StatusCode::FORBIDDEN);
+    assert_eq!(answer(block(group_messages(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key, &gid))))).0, StatusCode::FORBIDDEN);
+    assert_eq!(answer(block(group_epoch_key(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key, &gid))))).0, StatusCode::FORBIDDEN);
+    assert_eq!(answer(block(group_epoch_keys(State(st.clone()), Path(gid.clone()), Json(signed(&bo, &bo_key, &gid))))).0, StatusCode::FORBIDDEN);
     // Asking for someone else's groups with their key and my signature fails the signature.
-    assert_eq!(answer(block(my_p2p_groups(State(st.clone()), Json(signed(&bo, &ada_key))))).0, StatusCode::UNAUTHORIZED);
-    let (_, bo_groups) = answer(block(my_p2p_groups(State(st.clone()), Json(signed(&bo, &bo_key)))));
+    assert_eq!(answer(block(my_p2p_groups(State(st.clone()), Json(signed(&bo, &ada_key, "mine"))))).0, StatusCode::UNAUTHORIZED);
+    let (_, bo_groups) = answer(block(my_p2p_groups(State(st.clone()), Json(signed(&bo, &bo_key, "mine")))));
     assert_eq!(bo_groups["groups"], serde_json::json!([]), "and my own list holds no group of Ada's");
     // A public object still reads signed or not.
     let post_id = answer(block(list_objects(State(st.clone()), Query(ListObjectsQuery { object_type: Some("post".into()), space_id: None, author_fp: None, since_received: None, limit: None })))).1[0]["object_id"].as_str().unwrap().to_string();
-    assert_eq!(answer(block(read_object_signed(State(st.clone()), Path(post_id.clone()), Json(signed(&bo, &bo_key))))).0, StatusCode::OK);
+    assert_eq!(answer(block(read_object_signed(State(st.clone()), Path(post_id.clone()), Json(signed(&bo, &bo_key, &post_id))))).0, StatusCode::OK);
+    // D5 (2026-11-21): a read names what it reads, so a read signed for one target reads no other.
+    // Red evidence: with the purpose naming no target (the round 1 shape), this answered 200.
+    assert_eq!(answer(block(read_object_signed(State(st.clone()), Path(post_id.clone()), Json(signed(&bo, &bo_key, &gid))))).0, StatusCode::UNAUTHORIZED, "a read signed for the group does not read another object");
     assert_eq!(answer(block(get_object_by_id(State(st.clone()), Path(post_id)))).0, StatusCode::OK);
 }
 
@@ -114,21 +119,21 @@ fn a_member_reads_their_group_signed() {
     let st = fresh();
     let (ada, ada_key) = person(0x41);
     let gid = setup(&st, &ada);
-    let (code, obj) = answer(block(read_object_signed(State(st.clone()), Path(gid.clone()), Json(signed(&ada, &ada_key)))));
+    let (code, obj) = answer(block(read_object_signed(State(st.clone()), Path(gid.clone()), Json(signed(&ada, &ada_key, &gid)))));
     assert_eq!(code, StatusCode::OK);
     assert_eq!(obj["object_type"], "group_v1");
-    let (code, groups) = answer(block(my_p2p_groups(State(st.clone()), Json(signed(&ada, &ada_key)))));
+    let (code, groups) = answer(block(my_p2p_groups(State(st.clone()), Json(signed(&ada, &ada_key, "mine")))));
     assert_eq!(code, StatusCode::OK);
     assert_eq!(groups["groups"][0]["name"], "Book club");
     assert_eq!(groups["groups"][0]["is_creator"], true);
-    let (code, members) = answer(block(group_member_keys(State(st.clone()), Path(gid.clone()), Json(signed(&ada, &ada_key)))));
+    let (code, members) = answer(block(group_member_keys(State(st.clone()), Path(gid.clone()), Json(signed(&ada, &ada_key, &gid)))));
     assert_eq!(code, StatusCode::OK);
     assert_eq!(members["members"].as_array().unwrap().len(), 1);
-    let (code, msgs) = answer(block(group_messages(State(st.clone()), Path(gid.clone()), Json(signed(&ada, &ada_key)))));
+    let (code, msgs) = answer(block(group_messages(State(st.clone()), Path(gid.clone()), Json(signed(&ada, &ada_key, &gid)))));
     assert_eq!(code, StatusCode::OK);
     assert_eq!(msgs["messages"].as_array().unwrap().len(), 1);
     // A signature too old is refused.
-    let mut stale = signed(&ada, &ada_key);
+    let mut stale = signed(&ada, &ada_key, &gid);
     stale.timestamp -= 10 * 60 * 1000;
     assert_eq!(answer(block(group_messages(State(st.clone()), Path(gid), Json(stale)))).0, StatusCode::BAD_REQUEST);
 }

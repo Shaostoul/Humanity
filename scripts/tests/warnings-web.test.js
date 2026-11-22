@@ -236,6 +236,9 @@ const ANN = "b2".repeat(32);
 const BEN = "c3".repeat(32);
 const CY = "d4".repeat(32);
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The address the page opened (pq.js `pqAudience`, stubbed here): what every pass names since v3
+// (2026-11-21), never the did:hum the server claims.
+const AUD = "chat.example";
 const MY_KYBER = "my-kyber";
 const kyberOf = (k) => "kyber-" + k.slice(0, 4);
 const GROUP = "g1";
@@ -418,6 +421,7 @@ async function loadChat(opts = {}) {
   ctx.addNotice = (text) => { notices.push(String(text)); };
   const key = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   ctx.getDmStoreKey = async () => opts.storeKey || key;
+  ctx.pqAudience = () => AUD;
   ctx.pqSignMessage = async (_secret, bytes) => new Uint8Array(bytes);
   ctx.pqVerifyMessage = async (_pk, bytes, sig) => Buffer.from(bytes).equals(Buffer.from(sig));
   ctx.pqDmSeal = async (pub, plaintext) => ({ ek_ct_b64: b64(pub), nonce_b64: "AAAA", ct_b64: b64(plaintext) });

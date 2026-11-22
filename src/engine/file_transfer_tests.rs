@@ -9,7 +9,10 @@ use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use serde_json::{json, Value};
 use std::sync::mpsc::Receiver;
 
-const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The server these tests' apps are on, by the address passes and permits name (C8, 2026-11-21:
+// a pass names the address the app opened; the DM store's identity, `set_pass_server`, takes it
+// too, any text standing for the server's did:hum there).
+const SERVER: &str = "relay.example";
 
 fn identity(n: u8) -> (Vec<u8>, String) {
     let seed = vec![n; 32];
@@ -37,7 +40,9 @@ fn app(n: u8, tag: &str, peer: &(Vec<u8>, String), peer_name: &str, peer_online:
     // of this test at once, one failed on 2026-10-22 reading its saved file ("The system cannot
     // find the path specified"), its folder apparently gone; the id rules that out.
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let nanos = format!("{}_{nanos}", std::process::id());
+    // A hyphen, not an underscore, between them: the address must be a host name the app can sign
+    // a file pass for (an underscore is no host name character, so `audience_of` gives none).
+    let nanos = format!("{}-{nanos}", std::process::id());
     gs.server_url = format!("https://{tag}-{nanos}.example");
     let mut store = DmStore::load(&seed, &key, &crate::gui::pages::chat::norm_server_url(&gs.server_url));
     store.set_pass_server(SERVER);
@@ -174,7 +179,7 @@ fn an_offer_goes_as_a_sealed_note_and_is_listed_not_shown() {
     let Some(fo::Note::Offer(offer)) = fo::parse_note(&inner.text) else { panic!("an offer note") };
     assert_eq!(open(&to_me[0], &sam.seed).text, inner.text, "the same note to my other devices");
     assert_eq!((offer.id.as_str(), offer.name.as_str(), offer.size, offer.pieces), (id.as_str(), "clip.mp4", 600_000, 3));
-    assert_eq!(fo::verify_file_pass(&sam.key, SERVER, &rae.key, &offer.pass, fo::now_secs()), Ok(()), "the pass checks");
+    assert_eq!(fo::verify_file_pass(&sam.key, &rae.key, &offer.pass, fo::now_secs()), Ok(()), "the pass checks");
     let r = rec(&sam, &id);
     assert!(r.outgoing && r.here && r.stage == Stage::Offered && r.path.ends_with("clip-600000.mp4"));
     assert_eq!(words(&sam, &id, "Rae"), "Waiting for Rae to accept");

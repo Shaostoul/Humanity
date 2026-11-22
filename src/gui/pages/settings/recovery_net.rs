@@ -134,14 +134,14 @@ fn keys_of(secret: &[u8]) -> (DilithiumKeypair, KyberKeypair, String) {
     (dil, kyber, did)
 }
 
-/// A request signed the way the relay's `check_signed` reads it: `purpose\ntimestamp`.
-fn signed(secret: &[u8], purpose: &str) -> serde_json::Value {
+/// A request for the server at `base`, signed the way the relay's `check_signed` reads it.
+fn signed(base: &str, secret: &[u8], purpose: &str) -> serde_json::Value {
     let (dil, _, _) = keys_of(secret);
-    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let ts = crate::net::identity::next_request_timestamp();
     serde_json::json!({
         "key": hex::encode(dil.public_key()),
         "timestamp": ts,
-        "sig": crate::net::identity::pq_sign_chat(secret, purpose, ts),
+        "sig": crate::net::identity::pq_sign_request(secret, base, purpose, ts),
     })
 }
 
@@ -270,7 +270,7 @@ pub fn send_setup(base: &str, secret: &[u8], people: Vec<Friend>, needed: usize)
 
 /// Take every piece off the server.
 pub fn withdraw(base: &str, secret: &[u8]) -> Result<String, String> {
-    let (code, v) = post(&format!("{base}/api/v2/recovery/withdraw"), &signed(secret, proto::WITHDRAW_PURPOSE))?;
+    let (code, v) = post(&format!("{base}/api/v2/recovery/withdraw"), &signed(base, secret, proto::WITHDRAW_PURPOSE))?;
     if code != 200 {
         return Err(said(&v, code));
     }
@@ -279,7 +279,7 @@ pub fn withdraw(base: &str, secret: &[u8]) -> Result<String, String> {
 
 /// Close every request for help that names my account ("that was not me").
 pub fn not_me(base: &str, secret: &[u8]) -> Result<String, String> {
-    let (code, v) = post(&format!("{base}/api/v2/recovery/not-me"), &signed(secret, proto::NOT_ME_PURPOSE))?;
+    let (code, v) = post(&format!("{base}/api/v2/recovery/not-me"), &signed(base, secret, proto::NOT_ME_PURPOSE))?;
     if code != 200 {
         return Err(said(&v, code));
     }

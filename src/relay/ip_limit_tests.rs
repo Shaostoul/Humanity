@@ -88,6 +88,26 @@ fn the_table_is_bounded_and_newcomers_share_one_bucket() {
     assert!(summary["overflowed"].as_u64().unwrap() >= 900);
 }
 
+/// THE OWNER'S DOOR NEVER SHARES THE OVERFLOW BUCKET (the review of signed requests round 7,
+/// 2026-11-22): a flood that fills the table with new addresses (50,000 IPv6 /64s) and empties the
+/// shared overflow bucket must not turn the owner's door away: its keys (audience.rs `door_key`)
+/// keep entries of their own even in a full table.
+///
+/// Seen red 2026-11-22 with the `is_owner_door_key` check taken out of `take`: the door's first
+/// request after the flood got Wait ("the owner's door is turned away by the flood's overflow").
+#[test]
+fn the_owners_door_keeps_its_own_entry_in_a_full_table() {
+    use crate::relay::audience::{door_key, Door};
+    let limits = IpLimits::with_cap(100);
+    let t0 = Instant::now();
+    for i in 0..1_000 {
+        let _ = limits.take(Class::Bot, &format!("10.0.{}.{}", i / 256, i % 256), false, t0);
+    }
+    assert!(matches!(limits.take(Class::Bot, "192.0.2.9", false, t0), Verdict::Wait(_)), "a newcomer shares the emptied overflow bucket");
+    let door = door_key("127.0.0.1".into(), Door::Owner);
+    assert_eq!(limits.take(Class::Bot, &door, false, t0), Verdict::Go, "the owner's door is turned away by the flood's overflow");
+}
+
 /// THE PROXY'S OWN ADDRESS (nginx without the header that names its client, or a local bot)
 /// gets ten times the class's allowance, since everyone it carries shares it.
 #[test]
@@ -219,20 +239,21 @@ async fn the_edge_charges_the_address_the_last_proxy_wrote() {
 /// `X-Forwarded-For: forwarded`; true when the relay refused it as one new account too many from
 /// that address (handlers/sign_ups.rs `NEW_IDENTITY_CAP_SENTENCE`).
 async fn sign_up_refused(base: &str, seed: u8, forwarded: &str) -> bool {
-    use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use futures::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message as WsMsg};
     let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&[seed; 32]));
     let pubkey = hex::encode(dil.public_key());
     let mut request = format!("{}/ws", base.replacen("http", "ws", 1)).into_client_request().unwrap();
     request.headers_mut().insert("x-forwarded-for", forwarded.parse().unwrap());
+    // A connection carrying a forwarding header is never this computer (H1, 2026-11-21:
+    // client_addr.rs `direct_peer`), so it signs in by the test relay's name any client may use.
+    request.headers_mut().insert("host", crate::relay::audience::TEST_AUDIENCE.parse().unwrap());
     let (mut sock, _) = tokio_tungstenite::connect_async(request).await.expect("connects to /ws");
     let identify = serde_json::json!({ "type": "identify", "public_key": pubkey, "display_name": format!("Newcomer{seed}") });
     sock.send(WsMsg::Text(identify.to_string().into())).await.unwrap();
     let challenge: serde_json::Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
     let nonce = challenge["nonce"].as_str().expect("a challenge").to_string();
-    let sig = B64.encode(dil.sign(format!("hum/identify/v1\n{nonce}\n{pubkey}").as_bytes()));
-    sock.send(WsMsg::Text(serde_json::json!({ "type": "identify_response", "sig_b64": sig }).to_string().into())).await.unwrap();
+    sock.send(WsMsg::Text(crate::relay::audience::test_identify_response(&dil, crate::relay::audience::TEST_AUDIENCE, &nonce, &pubkey).to_string().into())).await.unwrap();
     let refused = tokio::time::timeout(Duration::from_secs(10), async {
         while let Some(Ok(msg)) = sock.next().await {
             let Ok(text) = msg.into_text() else { continue };

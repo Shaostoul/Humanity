@@ -22,7 +22,7 @@ Define minimum transport-layer and protocol-layer protections:
 - Authenticated REST writes require a fresh timestamp in the signed preimage
   (freshness window, e.g. `vault_sync` requires <=5 min) rather than a nonce.
 - The WebSocket `identify` flow uses a server-issued one-time nonce challenge
-  (`hum/identify/v1\n{nonce}\n{pubkey}`, see CLAUDE.md's Inc3b entry) so a
+  (`hum/identify/v2\n{audience}\n{nonce}\n{pubkey}` since 2026-11-21, naming the server the app opened; docs/reference/cryptography.md, "Sign-in") so a
   captured `identify` cannot be replayed to impersonate the identity.
 
 ## Session token requirements (forward design, not implemented)

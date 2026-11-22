@@ -39,9 +39,9 @@ async fn post(st: &Arc<RelayState>, o: &humanity_protocol::object::Object) -> (u
     body(post_object(State(st.clone()), Json(sub)).await.into_response()).await
 }
 
-/// `purpose\ntimestamp` signed the way both apps sign it (`pq_sign_chat`, `getPqSignedAuth`).
+/// A signed request over `purpose`, the way both apps sign it (`pq_sign_request`, `getPqSignedAuth`).
 fn signed(p: &Person, purpose: &str, ts: u64) -> SignedBody {
-    let sig = p.dil.sign(format!("{purpose}\n{ts}").as_bytes());
+    let sig = p.dil.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, &purpose, ts).as_bytes());
     SignedBody { key: hex::encode(p.dil.public_key()), timestamp: ts, sig: hex::encode(sig) }
 }
 

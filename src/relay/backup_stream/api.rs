@@ -114,21 +114,17 @@ struct RemoveParams {
 
 /// POST /api/admin/backups
 pub async fn post_admin_backups(State(state): State<Arc<RelayState>>, Json(req): Json<Req>) -> Response {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-    if req.key.is_empty() || req.sig.is_empty() {
-        return answer(StatusCode::UNAUTHORIZED, false, "Only this server's admins can see or change its backups: sign in as an admin first.", None);
-    }
-    let now = crate::relay::storage::now_millis();
-    if now.saturating_sub(req.timestamp) > 5 * 60 * 1000 || req.timestamp > now + 60_000 {
-        return answer(StatusCode::BAD_REQUEST, false, "The request is too old or from the future: check this computer's clock.", None);
-    }
-    let (vk, vsig, words, ts) = (req.key.clone(), req.sig.clone(), purpose(&req.action, &req.params), req.timestamp);
-    let ok = tokio::task::spawn_blocking(move || verify_dilithium_signature(&vk, &words, ts, &vsig)).await.unwrap_or(false);
-    if !ok {
-        return answer(StatusCode::UNAUTHORIZED, false, "The signature does not match this request.", None);
-    }
-    if !state.auth_nonce_fresh(&req.key, "admin_backups", req.timestamp) {
-        return answer(StatusCode::UNAUTHORIZED, false, "That request was already used: try again.", None);
+    use crate::relay::signed_request::SignedRefusal;
+    // Fresh, signed as a request (never a chat line's shape), used once (signed_request.rs).
+    match crate::relay::signed_request::check(&state, &req.key, req.timestamp, &req.sig, &purpose(&req.action, &req.params), "admin_backups").await {
+        Ok(()) => {}
+        Err(SignedRefusal::Unsigned) => {
+            return answer(StatusCode::UNAUTHORIZED, false, "Only this server's admins can see or change its backups: sign in as an admin first.", None);
+        }
+        Err(SignedRefusal::Clock) => {
+            return answer(StatusCode::BAD_REQUEST, false, "The request is too old or from the future: check this computer's clock.", None);
+        }
+        Err(other) => return answer(other.status(), false, &other.words(), None),
     }
     let role = state.db.get_role(&req.key).unwrap_or_default();
     if !crate::relay::handlers::msg_handlers::is_admin_role(&role) {
@@ -175,7 +171,7 @@ pub async fn post_admin_backups(State(state): State<Arc<RelayState>>, Json(req):
             Err(e) => Err(format!("Those settings are not readable: {e}")),
         },
         "host_allow" => match serde_json::from_str::<AllowParams>(&req.params) {
-            Ok(p) if p.quota_gb > 0.0 && p.quota_gb <= 10_000.0 => host::allow(&data, &p.label, &p.public_key, (p.quota_gb * 1_073_741_824.0) as u64, now),
+            Ok(p) if p.quota_gb > 0.0 && p.quota_gb <= 10_000.0 => host::allow(&data, &p.label, &p.public_key, (p.quota_gb * 1_073_741_824.0) as u64, crate::relay::storage::now_millis()),
             Ok(_) => Err("Give the space in GB, more than 0.".into()),
             Err(e) => Err(format!("Those settings are not readable: {e}")),
         },

@@ -437,26 +437,33 @@ function ftPutAnswered(msg) {
 
 // ── The file pass ──
 
-/** Mint the pass for transfer `id` to `peer`: {v, id, expiry, sig}, or null when the identity or server is not ready. */
+/**
+ * Mint the pass for transfer `id` to `peer`: {v, aud, id, expiry, sig}, or null when the identity,
+ * the server's sign-in or the address this page opened is not ready. It names the address this page
+ * opened (pq.js `pqAudience`), never the did:hum the server claims (2026-11-21).
+ */
 async function ftMintPass(peer, id) {
   const F = ftApi();
-  const server = window.hosServerDid;
-  if (!F || !server || typeof myDilithiumSecret === 'undefined' || !myDilithiumSecret || !myKey) return null;
-  if (![server, myKey, peer, id].every(F.filePassFieldOk)) return null;
+  const audience = window.pqAudience ? window.pqAudience() : null;
+  if (!F || !window.hosServerDid || !F.filePassAudienceOk(audience)) return null;
+  if (typeof myDilithiumSecret === 'undefined' || !myDilithiumSecret || !myKey) return null;
+  if (![myKey, peer, id].every(F.filePassFieldOk)) return null;
   const expiry = F.filePassExpiry(ftNowSecs());
-  const words = F.filePassPreimage(server, myKey, peer, id, expiry);
+  const words = F.filePassPreimage(audience, myKey, peer, id, expiry);
   const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(words));
   if (!sig) return null;
-  return F.filePassObject(id, expiry, ftB64(sig));
+  return F.filePassObject(audience, id, expiry, ftB64(sig));
 }
 
-/** Did `issuer` give `grantee` this pass for its transfer on this server? */
+/**
+ * Did `issuer` give `grantee` this pass for its transfer? Over the server address it names: the relay
+ * that receives it is the judge of its own names.
+ */
 async function ftPassChecks(issuer, grantee, pass) {
   const F = ftApi();
-  const server = window.hosServerDid;
   try {
-    if (!F || !server || !pass || ![server, issuer, grantee].every(F.filePassFieldOk)) return false;
-    const words = F.filePassPreimage(server, issuer, grantee, pass.id, pass.expiry);
+    if (!F || !pass || !F.filePassAudienceOk(pass.aud) || ![issuer, grantee].every(F.filePassFieldOk)) return false;
+    const words = F.filePassPreimage(pass.aud, issuer, grantee, pass.id, pass.expiry);
     const sig = Uint8Array.from(atob(pass.sig), (c) => c.charCodeAt(0));
     return !!(await window.pqVerifyMessage(ftHexBytes(issuer), new TextEncoder().encode(words), sig));
   } catch (e) {

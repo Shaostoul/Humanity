@@ -25,7 +25,7 @@
 // A field kept for friends never leaves the server, signed or not.
 //
 // The words signed, as UTF-8:
-//   profile_v1\n{key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n
+//   hum/profile/v1\n{key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n
 //   {pronouns}\n{location}\n{website}\n{at}
 // `at` in decimal milliseconds. No field but the bio may hold a line break, so
 // the words split one way only. Nothing is trimmed or re-serialized: the links
@@ -45,8 +45,12 @@
 
   /** The fields a person may keep for friends. Must match the Rust list. */
   const FIELDS_FOR_FRIENDS = ['pronouns', 'location', 'website'];
-  /** The tag that opens the signed words. */
-  const COPY_TAG = 'profile_v1';
+  /**
+   * The domain line that opens the signed words (2026-11-21): a signing domain line like every
+   * other preimage's, so no chat message can be signed into a copy's words (the chat refuses a text
+   * that begins with one). Was 'profile_v1', outside the hum/ domains.
+   */
+  const COPY_TAG = 'hum/profile/v1';
   /** The longest bio, in characters. */
   const BIO_MAX_CHARS = 280;
   /** The longest name, in bytes (names are ASCII: letters, digits, `_` and `-`). */

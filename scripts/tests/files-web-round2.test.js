@@ -104,14 +104,20 @@ function loadPqRelayAuth(clock) {
     console: { warn() {}, log() {} },
     localStorage: { getItem: (k) => (k === "humanity_key_backup" ? JSON.stringify({ privateKeyPkcs8: Buffer.alloc(48, 5).toString("base64") }) : null) },
     atob: (s) => Buffer.from(s, "base64").toString("binary"),
-    TextEncoder, TextDecoder, Uint8Array,
+    TextEncoder, TextDecoder, Uint8Array, URL,
     Date: { now: clock },
     crypto: {},
+    // The page's own server, which every request it signs names (2026-11-21).
+    location: { protocol: "https:", host: "united-humanity.us" },
   };
   ctx.window = ctx;
   ctx.pqDeriveIdentity = async () => ({ dilithiumPublicHex: ME, dilithiumSecret: new Uint8Array(1) });
   ctx.pqSignMessage = async (_secret, bytes) => new Uint8Array(Buffer.from("sig:" + new TextDecoder().decode(bytes)));
   vm.createContext(ctx);
+  // pq.js's request half (its preimage, clock and signer), as every page loads pq.js before this file.
+  const pq = fs.readFileSync(path.join(WEB, "chat", "pq.js"), "utf8");
+  const start = pq.indexOf("const PQ_REQUEST_DOMAIN");
+  if (start >= 0) vm.runInContext(pq.slice(start, pq.indexOf("// Exposed globally", start)), ctx, { filename: "pq.js#requests" });
   vm.runInContext(fs.readFileSync(path.join(WEB, "shared", "pq-relay-auth.js"), "utf8"), ctx, { filename: "pq-relay-auth.js" });
   return ctx;
 }
@@ -124,7 +130,8 @@ test("A. no two signed requests from one page share a timestamp", async () => {
   assert.notEqual(a.timestamp, b.timestamp, "two signatures in the same millisecond never share a timestamp");
   const c = await auth.getPqSignedAuth("media_usage");
   assert.ok(c.timestamp > Math.max(a.timestamp, b.timestamp), "and never go back");
-  assert.equal(Buffer.from(a.sig, "hex").toString(), "sig:media_list\n" + a.timestamp, "each signed over its own timestamp");
+  // Signed as a request (pq.js pqRequestPreimage): the domain line, the server, the purpose, the time.
+  assert.equal(Buffer.from(a.sig, "hex").toString(), "sig:hum/request/v2\nunited-humanity.us\nmedia_list\n" + a.timestamp, "each signed over its own timestamp");
   // The clock moving on is used as it is.
   let now = 1760000000000;
   const later = loadPqRelayAuth(() => now);

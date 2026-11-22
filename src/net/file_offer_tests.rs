@@ -4,7 +4,10 @@
 use super::*;
 use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
-const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The server these tests' apps are on, by the address passes and permits name (C8, 2026-11-21:
+// a pass names the address the app opened; the DM store's identity, `set_pass_server`, takes it
+// too, any text standing for the server's did:hum there).
+const SERVER: &str = "relay.example";
 const ID: &str = "00112233445566778899aabbccddeeff";
 
 fn identity(n: u8) -> (Vec<u8>, String) {
@@ -23,21 +26,22 @@ fn spec_offer() -> Offer {
         piece: 262_144,
         pieces: 9_415,
         hashes: "cd".repeat(32),
-        pass: FilePass { v: 1, id: ID.into(), expiry: 1_760_000_000, sig: "c2ln".into() },
+        pass: FilePass { v: 2, aud: SERVER.into(), id: ID.into(), expiry: 1_760_000_000, sig: "c2ln".into() },
     }
 }
 
 /// THE BYTES BOTH APPS WRITE (spec, "the shapes, exact", parts 1 and 3), as the spec writes them
 /// (the shared fixture is checked in the next test): the offer is the marker then its fields in
 /// the spec's order with no spaces, the pass nested last
-/// as `{"v","id","expiry","sig"}`; the answer and cancel notes likewise; and the pass signs
-/// `hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}`.
+/// as `{"v","aud","id","expiry","sig"}`; the answer and cancel notes likewise; and the pass signs
+/// `hum/file-pass/v2\n{audience}\n{issuer}\n{grantee}\n{id}\n{expiry}` (v2, 2026-11-21: the address
+/// the sender's app opened).
 /// Seen red 2026-10-11 with `mime` moved after `blake3` in `Offer` (the field order the JSON is
 /// written in): "the offer note's text" failed, left `...,"blake3":"abab...","type":"video/mp4",...`.
 #[test]
 fn the_offer_note_and_pass_words_are_the_spec_s() {
     let want = format!(
-        "[[hum:offer:v1]]{{\"id\":\"{ID}\",\"name\":\"clip.mp4\",\"size\":2468000000,\"type\":\"video/mp4\",\"blake3\":\"{}\",\"piece\":262144,\"pieces\":9415,\"hashes\":\"{}\",\"pass\":{{\"v\":1,\"id\":\"{ID}\",\"expiry\":1760000000,\"sig\":\"c2ln\"}}}}",
+        "[[hum:offer:v1]]{{\"id\":\"{ID}\",\"name\":\"clip.mp4\",\"size\":2468000000,\"type\":\"video/mp4\",\"blake3\":\"{}\",\"piece\":262144,\"pieces\":9415,\"hashes\":\"{}\",\"pass\":{{\"v\":2,\"aud\":\"{SERVER}\",\"id\":\"{ID}\",\"expiry\":1760000000,\"sig\":\"c2ln\"}}}}",
         "ab".repeat(32),
         "cd".repeat(32)
     );
@@ -47,7 +51,7 @@ fn the_offer_note_and_pass_words_are_the_spec_s() {
     assert_eq!(OfferCancel { id: ID.into() }.text(), format!("[[hum:offer-cancel:v1]]{{\"id\":\"{ID}\"}}"));
     assert_eq!(
         file_pass_preimage(SERVER, "aa11", "bb22", ID, 1_760_000_000),
-        format!("hum/file-pass/v1\n{SERVER}\naa11\nbb22\n{ID}\n1760000000"),
+        format!("hum/file-pass/v2\n{SERVER}\naa11\nbb22\n{ID}\n1760000000"),
         "the pass's words"
     );
     assert_eq!(pieces_for(2_468_000_000), 9_415, "pieces = ceil(size / piece)");
@@ -70,12 +74,12 @@ fn the_shared_fixture_is_what_this_app_builds() {
     let (issuer_seed, issuer) = identity(n("issuer_master_byte") as u8);
     let (_g, grantee) = identity(n("grantee_master_byte") as u8);
     assert_eq!((issuer.as_str(), grantee.as_str()), (s("issuer").as_str(), s("grantee").as_str()), "the same keys from the same seeds");
-    let (server, id, expiry, minted) = (s("server"), s("id"), n("expiry"), n("minted_at"));
+    let (server, id, expiry, minted) = (s("aud"), s("id"), n("expiry"), n("minted_at"));
     assert_eq!(file_pass_preimage(&server, &issuer, &grantee, &id, expiry), s("preimage"), "the pass's words");
     let pass = mint_file_pass(&issuer_seed, &server, &issuer, &grantee, &id, expiry, minted).unwrap();
     assert_eq!(serde_json::to_string(&pass).unwrap(), s("pass_text"), "the pass, byte for byte");
     assert_eq!(serde_json::to_value(&pass).unwrap(), fx["pass"]);
-    assert_eq!(verify_file_pass(&issuer, &server, &grantee, &pass, minted), Ok(()));
+    assert_eq!(verify_file_pass(&issuer, &grantee, &pass, minted), Ok(()));
 
     let f = &fx["file"];
     let size = f["size"].as_u64().unwrap();
@@ -118,15 +122,19 @@ fn a_pass_checks_only_for_its_two_people_its_file_and_its_server() {
     let (_r_seed, receiver) = identity(42);
     let now = 1_760_000_000;
     let pass = mint_file_pass(&s_seed, SERVER, &sender, &receiver, ID, now + FILE_PASS_MAX_SECS, now).unwrap();
-    assert_eq!((pass.v, pass.id.as_str(), pass.expiry), (1, ID, now + FILE_PASS_MAX_SECS));
-    assert_eq!(verify_file_pass(&sender, SERVER, &receiver, &pass, now), Ok(()), "the right pass checks");
-    assert_eq!(verify_file_pass(&receiver, SERVER, &sender, &pass, now), Err(PassError::BadSignature), "the wrong way round");
-    assert_eq!(verify_file_pass(&sender, "did:hum:elsewhere", &receiver, &pass, now), Err(PassError::BadSignature), "another server");
+    assert_eq!((pass.v, pass.aud.as_str(), pass.id.as_str(), pass.expiry), (2, SERVER, ID, now + FILE_PASS_MAX_SECS));
+    assert_eq!(verify_file_pass(&sender, &receiver, &pass, now), Ok(()), "the right pass checks");
+    assert_eq!(verify_file_pass(&receiver, &sender, &pass, now), Err(PassError::BadSignature), "the wrong way round");
+    let moved = FilePass { aud: "elsewhere.example".into(), ..pass.clone() };
+    assert_eq!(verify_file_pass(&sender, &receiver, &moved, now), Err(PassError::BadSignature), "another server");
+    let as_v1 = FilePass { v: 1, ..pass.clone() };
+    assert_eq!(verify_file_pass(&sender, &receiver, &as_v1, now), Err(PassError::Malformed), "a v1 pass");
+    assert_eq!(mint_file_pass(&s_seed, "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", &sender, &receiver, ID, now + 60, now), Err(PassError::Malformed), "a did:hum is no address");
     let other_file = FilePass { id: "ff".repeat(16), ..pass.clone() };
-    assert_eq!(verify_file_pass(&sender, SERVER, &receiver, &other_file, now), Err(PassError::BadSignature), "another file");
-    assert_eq!(verify_file_pass(&sender, SERVER, &receiver, &pass, now + FILE_PASS_MAX_SECS), Err(PassError::Expired), "run out");
-    assert_eq!(verify_file_pass(&sender, SERVER, &receiver, &pass, now - FILE_PASS_CLOCK_SLACK_SECS), Ok(()), "a day of slack on the checker's clock");
-    assert_eq!(verify_file_pass(&sender, SERVER, &receiver, &pass, now - FILE_PASS_CLOCK_SLACK_SECS - 1), Err(PassError::TooLong));
+    assert_eq!(verify_file_pass(&sender, &receiver, &other_file, now), Err(PassError::BadSignature), "another file");
+    assert_eq!(verify_file_pass(&sender, &receiver, &pass, now + FILE_PASS_MAX_SECS), Err(PassError::Expired), "run out");
+    assert_eq!(verify_file_pass(&sender, &receiver, &pass, now - FILE_PASS_CLOCK_SLACK_SECS), Ok(()), "a day of slack on the checker's clock");
+    assert_eq!(verify_file_pass(&sender, &receiver, &pass, now - FILE_PASS_CLOCK_SLACK_SECS - 1), Err(PassError::TooLong));
     assert_eq!(mint_file_pass(&s_seed, SERVER, &sender, &receiver, ID, now + FILE_PASS_MAX_SECS + 1, now), Err(PassError::TooLong), "no slack when minting");
     assert_eq!(mint_file_pass(&s_seed, SERVER, &sender, &receiver, "not-an-id", now + 60, now), Err(PassError::Malformed));
 }
@@ -151,6 +159,11 @@ fn an_offer_reads_back_and_one_that_does_not_add_up_is_not_read() {
     assert_eq!(bad(&|b| b.blake3 = "AB".repeat(32)), None, "upper-case hex");
     assert_eq!(bad(&|b| b.hashes = "cd".repeat(31)), None, "a short digest");
     assert_eq!(bad(&|b| b.pass.id = "ff".repeat(16)), None, "a pass for another transfer");
+    // v2 (2026-11-21): a v1 pass, or one naming a did:hum where the address the sender's app opened
+    // belongs, is no pass. Seen red with `Offer::check` still asking for `v` 1: the spec offer
+    // itself did not read back (left None).
+    assert_eq!(bad(&|b| b.pass.v = 1), None, "a v1 pass");
+    assert_eq!(bad(&|b| b.pass.aud = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F".into()), None, "a pass naming a did:hum");
     assert_eq!(bad(&|b| { b.size = 0; b.pieces = 0; }), None, "nothing to send");
     assert_eq!(bad(&|b| { b.size = MAX_OFFER_BYTES + 1; b.pieces = pieces_for(b.size); }), None, "past the size held");
     assert_eq!(bad(&|b| b.name = String::new()), None, "no name");

@@ -12,7 +12,8 @@
 // subscription the server forgot never subscribed again (found by a critic, 2026-11-06).
 //
 // What it proves, with the real chat-ui.js requestNotifications / subscribeToPush, crypto.js
-// pqSignChatMessage, settings-app.js togglePushNotifications / unsubscribeFromPush and
+// pqSignMyRequest (over pq.js's request half: since 2026-11-20 a push request is a signed request,
+// hum/request/v2, the server's address, then the purpose, signed-request-v2.json), settings-app.js togglePushNotifications / unsubscribeFromPush and
 // shared/pq-relay-auth.js run in node:vm over a stand-in browser (service worker, push manager,
 // fetch, localStorage):
 //  1. Subscribe sends { key, endpoint, p256dh, auth, timestamp, sig }, and the bytes handed to the
@@ -103,7 +104,9 @@ function browser(opts = {}) {
   };
   const ctx = {
     console: { log() {}, warn() {} },
-    atob, btoa, TextEncoder, TextDecoder,
+    atob, btoa, TextEncoder, TextDecoder, URL,
+    // The page's own server, which every request it signs names (the fixture's audience).
+    location: { protocol: 'https:', host: FIXTURE.audience },
     navigator: { serviceWorker: { ready: Promise.resolve(reg) } },
     PushManager: function () {},
     Notification: { permission: 'granted' },
@@ -131,7 +134,7 @@ function browser(opts = {}) {
 
 /** The chat's push pieces, as one page load: its refusal words and once-a-load mark (when the
  *  file has them), requestNotifications, subscribeToPush, and the signer it calls, crypto.js
- *  pqSignChatMessage. */
+ *  pqSignMyRequest, over pq.js's request half. */
 function chatPage(opts) {
   const b = browser(opts);
   const ui = read('chat/chat-ui.js');
@@ -140,7 +143,8 @@ function chatPage(opts) {
   vm.runInContext(optional('var pushSentThisLoad = false;', '\n', ''), b.ctx, { filename: 'chat-ui.js#pushSentThisLoad' });
   vm.runInContext(slice(ui, 'function requestNotifications() {', '\n}\n'), b.ctx, { filename: 'chat-ui.js#requestNotifications' });
   vm.runInContext(slice(ui, 'function subscribeToPush() {', '\n}\n'), b.ctx, { filename: 'chat-ui.js#subscribeToPush' });
-  vm.runInContext(slice(read('chat/crypto.js'), 'async function pqSignChatMessage(', '\n}\n'), b.ctx, { filename: 'crypto.js#pqSignChatMessage' });
+  pqRequests(b);
+  vm.runInContext(slice(read('chat/crypto.js'), 'async function pqSignMyRequest(', '\n}\n'), b.ctx, { filename: 'crypto.js#pqSignMyRequest' });
   return b;
 }
 
@@ -152,8 +156,14 @@ function settingsPage(opts) {
     vm.runInContext(slice(app, 'async function unsubscribeFromPush(', '\n}\n'), b.ctx, { filename: 'settings-app.js#unsubscribeFromPush' });
   }
   vm.runInContext(slice(app, 'async function togglePushNotifications(', '\n}\n'), b.ctx, { filename: 'settings-app.js#togglePushNotifications' });
+  pqRequests(b);
   vm.runInContext(read('shared/pq-relay-auth.js'), b.ctx, { filename: 'pq-relay-auth.js' });
   return b;
+}
+
+/** pq.js's request half (the preimage, the clock, the signer), which every page loads. */
+function pqRequests(b) {
+  vm.runInContext(slice(read('chat/pq.js'), 'const PQ_REQUEST_DOMAIN', '// Exposed globally'), b.ctx, { filename: 'pq.js#requests' });
 }
 
 test('1. subscribe sends the signed shape, signed over the fixture\'s words', async () => {

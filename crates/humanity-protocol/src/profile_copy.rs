@@ -33,9 +33,13 @@ use super::pq_crypto::{derive_dilithium_seed, verify_dilithium, DilithiumKeypair
 /// map. Blank in the copy for other servers when kept.
 pub const FIELDS_FOR_FRIENDS: [&str; 3] = ["pronouns", "location", "website"];
 
-/// The tag that opens the signed words. Nothing was ever signed under it before this fix (no app
-/// signed a profile), so it stays and nothing needs a shim.
-pub const COPY_TAG: &str = "profile_v1";
+/// The domain line that opens the signed words (2026-11-21, D7 of the signed-requests round 2):
+/// `hum/profile/v1`, a signing domain line like every other preimage's, so no chat message can be
+/// signed into a profile copy's words (a chat text that begins with a domain line is never signed
+/// and is refused; crates/humanity-protocol/src/signed_request.rs `starts_with_signing_domain`).
+/// Until then the words opened with `profile_v1`, outside the `hum/` domains, so a chat line
+/// beginning `profile_v1` then a newline was signed in the very shape of a copy's words.
+pub const COPY_TAG: &str = "hum/profile/v1";
 
 /// The longest bio, in characters (after the relay's clean-up), the same on both apps and both
 /// servers. Was `msg_handlers::BIO_MAX_CHARS` until 2026-10-12.
@@ -180,7 +184,7 @@ fn field_of<'a>(c: &'a PublicCopy, field: &str) -> &'a str {
 // ── The words signed ──
 
 /// The words a copy's signature covers, as UTF-8 bytes:
-/// `profile_v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{at}`,
+/// `hum/profile/v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{at}`,
 /// `at` in decimal milliseconds. Not ambiguous: no field but the bio may hold a line break
 /// ([`within_limits`]), so the words split one way only (the last eight lines and the two after
 /// the tag are fixed; the bio is the rest). Was federation.rs `canonical_profile_message`.
@@ -330,8 +334,19 @@ mod pinned {
         let c: PublicCopy = serde_json::from_str(PINNED_COPY).expect("the pinned copy is JSON");
         assert_eq!(
             copy_text("ab12", &c, 1_760_000_000_001),
-            "profile_v1\nab12\nAnn\nΓεια!\nline two\nhttps://ann.example/a.png\n\n{\"github\":\"ann\",\"discord\":\"ann#1\"}\nshe/her\nLisbon\nhttps://ann.example\n1760000000001"
+            "hum/profile/v1\nab12\nAnn\nΓεια!\nline two\nhttps://ann.example/a.png\n\n{\"github\":\"ann\",\"discord\":\"ann#1\"}\nshe/her\nLisbon\nhttps://ann.example\n1760000000001"
         );
+    }
+
+    /// D7: a copy's words open with a signing domain line, so no chat text can be signed into them.
+    /// Red evidence (2026-11-21, with the old `profile_v1` tag): "a chat text produces a copy's
+    /// words" failed, the text `profile_v1\nab12\n...` being one the chat signs.
+    #[test]
+    fn no_chat_text_signs_a_copy() {
+        let c: PublicCopy = serde_json::from_str(PINNED_COPY).expect("the pinned copy is JSON");
+        let words = copy_text("ab12", &c, 1_760_000_000_001);
+        let chat_text = words.strip_suffix("\n1760000000001").expect("the time ends the words");
+        assert!(crate::signed_request::starts_with_signing_domain(chat_text), "a chat text produces a copy's words: {chat_text:?}");
     }
 }
 

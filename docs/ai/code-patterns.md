@@ -28,7 +28,7 @@ The `<script>` order in `web/chat/index.html` is load-bearing for an IIFE shell.
 
 ## REST routes
 
-`src/relay/mod.rs` is the only complete list (129 `.route(` calls on 2026-10-19, the whole `/api/v2/*` surface included). Before concluding an endpoint does not exist, grep it: `grep -n '\.route(' src/relay/mod.rs`. The partial copy that lived here was dropped on 2026-10-19: do not re-add it. Not obvious from the router: `/api/send` and `/api/vault/sync` are authenticated by a Dilithium3 signature (shape under Key patterns), and `/api/upload` is multipart and needs an upload token.
+`src/relay/mod.rs` is the only complete list (129 `.route(` calls on 2026-10-19, the whole `/api/v2/*` surface included). Before concluding an endpoint does not exist, grep it: `grep -n '\.route(' src/relay/mod.rs`. The partial copy that lived here was dropped on 2026-10-19: do not re-add it. Not obvious from the router: `/api/send` and `/api/vault/sync` are authenticated by a Dilithium3 signature (`/api/vault/sync` as a signed request: shape under Key patterns), and `/api/upload` is multipart and needs an upload token.
 
 ## Key patterns
 
@@ -40,11 +40,41 @@ myIdentity = { publicKeyHex, privateKey, publicKey, canSign }
 
 **Relay unicast**: `target: Option<String>` on message variant; broadcast loop `continue`s if target≠my_key
 
-**Authenticated API requests** (vault sync, system profile, push, admin stats):
-```js
-pqSignChatMessage("vault_sync\n" + timestamp)   // timestamp = Date.now()
-// Server: verify_dilithium_signature(&vk, "vault_sync", ...) + auth_nonce_fresh
+**Signed requests** (every identity-keyed request: vault sync, system profile, account export, bugs,
+admin actions, the Files page, channel and group reads, push, the market, live publish; since
+2026-11-20, naming their server since 2026-11-21). The bytes signed are
+`hum/request/v2\n{audience}\n{purpose}\n{timestamp}`, NEVER a chat message's `text\ntimestamp`: a
+request signed in the chat shape was a chat line, so posting `account_export` in chat handed out a
+credential. The AUDIENCE is the address the app sends the request to, so a server that receives a
+request cannot replay it at another server (the relay checks it against its own names,
+`src/relay/audience.rs`; it can still use it itself, once). Since round 3 (2026-11-21) a socket's
+signatures are checked against the `Arrival` its upgrade carried (`audience::Arrival::from_headers`,
+`signed_request::check_for`), a loopback or LAN name only from a client there, and a dev relay
+needs `HUMANITY_DEV_LOOPBACK_NAMES=1` to answer to 127.0.0.1. A test that builds its own router
+sets `state.own_names` (`OwnNames::loopback(addr)`). One helper per side, so no route or caller
+builds the bytes:
+```rust
+// Relay: well formed (a lowercase key, a purpose of at most 2,048 bytes), fresh (5 min old, 30 s
+// ahead, not before this run's start), for one of this relay's names (the request's Host), signed
+// as a request, used once. The tag is a &'static str: the route's fixed name, never request text.
+crate::relay::signed_request::check(&state, &key, ts, &sig, &purpose, "route_tag").await?;   // -> SignedRefusal
+// A socket passes the Host its upgrade carried: signed_request::check_for(&state, host, ...).
+// Desktop: a fresh millisecond, then the request signature for the server it goes to.
+let ts = crate::net::identity::next_request_timestamp();
+let sig = crate::net::identity::pq_sign_request(seed, &server_url, &purpose, ts);
 ```
+```js
+// Chat client (crypto.js): pqSignMyRequest(purpose, pqRequestTimestamp())
+// Standalone pages: getPqSignedAuth(purpose) -> { key, timestamp, sig }   (pq-relay-auth.js)
+// Any page with a secret of its own: pqSignRequest(secret, purpose) -> { timestamp, sig }   (pq.js)
+```
+The purpose names what the request acts on (`media_pick:{id}`, `push_unsubscribe\n{endpoint}`, the
+method and a BLAKE3 hash of any body: `api::method_purpose`), so a
+signature for one target is no use for another. `pqSignChatMessage` / `pq_sign_chat` are for chat
+messages alone, and refuse a text that begins with a signing domain line (`hum/<name>/v<n>` then a
+newline), which the relay refuses too. The twins are held to `scripts/tests/fixtures/signed-request-v1.json`;
+a new route gets a line in `src/relay/signed_request_tests.rs` (chat signature refused, real request
+accepted, the same request again refused).
 
 > There is no key-rotation route. It and its dual-signed certificate were
 > deleted in Inc5b (v0.265.0); the `key_rotations` table survives inert. This

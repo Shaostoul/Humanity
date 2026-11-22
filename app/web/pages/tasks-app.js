@@ -460,7 +460,7 @@ function closeModal() {
  * The relay binds a socket to a person only after proof of the key. The page
  * sends `identify` with the person's Dilithium3 public key, the relay replies
  * `identify_challenge {nonce}`, and the page signs
- *   "hum/identify/v1\n" + nonce + "\n" + public_key_hex
+ *   "hum/identify/v2\n" + audience + "\n" + nonce + "\n" + public_key_hex
  * and returns `identify_response {sig_b64}` (src/relay/relay.rs, Inc3b). Until
  * that check passes the relay drops every task message on the socket without
  * a reply, and closes the socket after 30 seconds.
@@ -477,25 +477,16 @@ let taskWsRetryMs = 5000;    // reconnect delay, doubles up to a minute while th
 let taskWsRetryTimer = null;
 let taskIdentity = null;     // { dilithiumPublicHex, dilithiumSecret } once derived
 
-/** The exact bytes the relay verifies: format!("hum/identify/v1\n{}\n{}", nonce, public_key). */
-function taskIdentifyPreimage(nonce, publicKeyHex) {
-  return new TextEncoder().encode('hum/identify/v1\n' + nonce + '\n' + publicKeyHex);
-}
-
-/** Standard base64 (what the relay's B64.decode expects), without spreading 3309 bytes into one call. */
-function taskBytesToB64(bytes) {
-  let s = '';
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s);
-}
-
-/** The identify_response message answering the relay's challenge, or null if signing failed. */
-async function taskIdentifyResponse(identity, nonce) {
+/**
+ * The identify_response answering the relay's challenge on the socket opened at `socketUrl`, or null
+ * if it could not be signed: pq.js pqIdentifyResponse, the sign-in signed over
+ * `hum/identify/v2\n{audience}\n{nonce}\n{key}` for the address this page opened, never one the
+ * server names (2026-11-21), and only for a nonce of a relay's shape.
+ */
+async function taskIdentifyResponse(identity, nonce, socketUrl) {
   if (!identity || !identity.dilithiumSecret || !identity.dilithiumPublicHex || !nonce) return null;
-  if (typeof window.pqSignMessage !== 'function') return null;
-  const sig = await window.pqSignMessage(identity.dilithiumSecret, taskIdentifyPreimage(nonce, identity.dilithiumPublicHex));
-  if (!sig) return null;
-  return { type: 'identify_response', sig_b64: taskBytesToB64(sig) };
+  if (typeof window.pqIdentifyResponse !== 'function') return null;
+  return window.pqIdentifyResponse(identity.dilithiumSecret, identity.dilithiumPublicHex, socketUrl, nonce);
 }
 
 /** This browser's Dilithium3 identity, or null when Chat has not set one up here. */
@@ -572,7 +563,7 @@ async function ensureTaskWs() {
       // ── Sign-in phase: nothing else counts until the relay accepts the proof ──
       if (!taskWsBound) {
         if (m.type === 'identify_challenge') {
-          taskIdentifyResponse(id, m.nonce).then(resp => {
+          taskIdentifyResponse(id, m.nonce, ws.url).then(resp => {
             if (!resp) { refuseTaskWs(ws, i18n.t('tasks.refused_sign_check')); return; }
             if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(resp));
           });

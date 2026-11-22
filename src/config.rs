@@ -537,12 +537,24 @@ pub struct AppConfig {
     pub host_node_db: String,
     #[serde(default)]
     pub host_node_name: String,
+    /// The hosted node's Public address field: the names people reach it by (comma-separated),
+    /// handed to the relay as PUBLIC_HOSTS (relay/audience.rs; signed requests round 3, C10).
+    #[serde(default)]
+    pub host_node_public: String,
     /// The node accepts connections from this computer only (it listens on
     /// 127.0.0.1 instead of every interface). Off by default: hosting is
     /// usually for other people on the same network. On, nothing else can
     /// reach it and Windows never asks about the firewall.
     #[serde(default)]
     pub host_node_local_only: bool,
+    /// The hosted node also answers on the local network beside its Public address (M1 of the
+    /// signed requests' round 5 review, 2026-11-21: off by default, since a forwarder on the network
+    /// that adds no header makes its visitors local). host_node.rs `node_public_hosts`.
+    #[serde(default)]
+    pub host_node_lan_too: bool,
+    /// The hosted node's computer is on a Tailscale network (L3, 2026-11-21): ON_TAILNET.
+    #[serde(default)]
+    pub host_node_tailnet: bool,
     /// Whether each server's channel list in the chat sidebar is folded, as the person chose it
     /// (normalized URL -> folded; one never chosen is folded unless it is the current server).
     /// Order itself persists via saved_servers.
@@ -1649,11 +1661,14 @@ impl AppConfig {
                 .iter()
                 .map(|s| SavedServer { name: s.name.clone(), url: s.url.clone() })
                 .collect(),
-            host_node_autostart: state.host_node_autostart,
-            host_node_port: state.host_node_port.clone(),
-            host_node_db: state.host_node_db.clone(),
-            host_node_name: state.host_node_name.clone(),
-            host_node_local_only: state.host_node_local_only,
+            host_node_autostart: state.host_node.autostart,
+            host_node_port: state.host_node.port.clone(),
+            host_node_db: state.host_node.db.clone(),
+            host_node_name: state.host_node.name.clone(),
+            host_node_public: state.host_node.public.clone(),
+            host_node_local_only: state.host_node.local_only,
+            host_node_lan_too: state.host_node.lan_too,
+            host_node_tailnet: state.host_node.tailnet,
             server_folds: state.chat_server_folds.iter().map(|(k, v)| (k.clone(), *v)).collect(),
             account_erased_on: state.account_erased_on.clone(),
             render_distance: state.settings.render_distance,
@@ -1889,11 +1904,14 @@ impl AppConfig {
                 });
             }
         }
-        state.host_node_autostart = self.host_node_autostart;
-        state.host_node_port = self.host_node_port.clone();
-        state.host_node_db = self.host_node_db.clone();
-        state.host_node_name = self.host_node_name.clone();
-        state.host_node_local_only = self.host_node_local_only;
+        state.host_node.autostart = self.host_node_autostart;
+        state.host_node.port = self.host_node_port.clone();
+        state.host_node.db = self.host_node_db.clone();
+        state.host_node.name = self.host_node_name.clone();
+        state.host_node.public = self.host_node_public.clone();
+        state.host_node.local_only = self.host_node_local_only;
+        state.host_node.lan_too = self.host_node_lan_too;
+        state.host_node.tailnet = self.host_node_tailnet;
         state.chat_server_folds = self.server_folds.iter().map(|(k, v)| (k.clone(), *v)).collect();
         state.account_erased_on = self.account_erased_on.clone();
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);

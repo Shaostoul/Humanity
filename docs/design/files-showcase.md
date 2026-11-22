@@ -1832,15 +1832,18 @@ past what a DM carries).
 app mints, for this one transfer, a Dilithium3 signature over
 
 ```text
-hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}
+hum/file-pass/v2\n{audience}\n{issuer}\n{grantee}\n{id}\n{expiry}
 ```
 
-`server` is the relay's own `did:hum:` (the one the friendship passes use, `Storage::server_did`,
-also in `identify_challenge` as `server_did`); `issuer` the sender's key, `grantee` the receiver's
-key (Dilithium hex, as everywhere); `id` the transfer's id (32 lowercase hex characters, 16 random
-bytes); `expiry` Unix seconds, at most 7 days ahead. Carried as
-`{"v":1,"id":"<id>","expiry":<n>,"sig":"<base64>"}`. The relay checks it STATELESSLY, rebuilding
-the words from its own DID and the two keys it knows from the frame (never the pass's claims), and
+`audience` is the address the sender's app opened to reach the server (`audience_of` of its socket
+URL, the website's `location.host`: the name a signed request carries; v2, 2026-11-21: v1 named the
+relay's `did:hum:`, which the apps learned from the server's own `identify_challenge`, so a server
+claiming another's identity collected passes good at that other server); `issuer` the sender's key,
+`grantee` the receiver's key (Dilithium hex, as everywhere); `id` the transfer's id (32 lowercase
+hex characters, 16 random bytes); `expiry` Unix seconds, at most 7 days ahead. Carried as
+`{"v":2,"aud":"<audience>","id":"<id>","expiry":<n>,"sig":"<base64>"}`. The relay checks it
+STATELESSLY: the audience must be one of its own names that the presenter may use, and the rest of
+the words are rebuilt from the two keys it knows from the frame (never the pass's claims); it
 accepts up to one day of clock slack past 7 days, as plot permits do. A pass says "the issuer wants
 the grantee to be able to reach them for this file"; it is good for nothing else.
 
@@ -1873,7 +1876,7 @@ the grantee to be able to reach them for this file"; it is good for nothing else
 [[hum:offer:v1]]{"id":"<32 hex>","name":"clip.mp4","size":2468000000,"type":"video/mp4",
                  "blake3":"<64 hex, the whole file>","piece":262144,"pieces":9415,
                  "hashes":"<64 hex, BLAKE3 of the piece hashes, each 32 raw bytes, in order>",
-                 "pass":{"v":1,"id":"<same id>","expiry":<n>,"sig":"<base64>"}}
+                 "pass":{"v":2,"aud":"<audience>","id":"<same id>","expiry":<n>,"sig":"<base64>"}}
 [[hum:offer-answer:v1]]{"id":"<32 hex>","accept":true|false}
 [[hum:offer-cancel:v1]]{"id":"<32 hex>"}
 ```
@@ -2324,8 +2327,9 @@ Node, and one chat script:
   last script to wrap the frame handler) and `messages.css`.
 
 **Part 1, the pass.** Minted for each transfer by the sender: Dilithium3 over
-`hum/file-pass/v1\n{server}\n{me}\n{them}\n{id}\n{expiry}`, the server's `did:hum:` from its
-`identify_challenge`, an end 7 days ahead. The receiver checks the signature (and that it has not
+`hum/file-pass/v2\n{audience}\n{me}\n{them}\n{id}\n{expiry}`, the audience the address the app
+opened (v2, 2026-11-21; v1 took the server's `did:hum:` from its `identify_challenge`), an end 7
+days ahead. The receiver checks the signature (and that it has not
 ended) before it shows anything; an offer whose pass does not check is dropped.
 
 **Part 2, credentials.** `{"type":"call_credentials","file":"<id>","peer":"<key>","file_pass":{...}}`,
@@ -2674,17 +2678,19 @@ The relay half of "Device-to-device big files: the shapes, exact", parts 1 and 2
 identity key,
 
 ```text
-hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}
+hum/file-pass/v2\n{audience}\n{issuer}\n{grantee}\n{id}\n{expiry}
 ```
 
-and carries `{"v":1,"id":"<id>","expiry":<n>,"sig":"<base64>"}`, an object in every frame (never
+and carries `{"v":2,"aud":"<audience>","id":"<id>","expiry":<n>,"sig":"<base64>"}`, an object in every frame (never
 a string holding JSON; a string is refused). `build_file_pass` writes exactly that text, keys in
 that order. `id` is 32 lowercase hex characters (`file_pass_id_ok`, `new_file_pass_id`); `expiry`
 is Unix seconds, more than now and at most `FILE_PASS_MAX_DAYS` (7) ahead when minted, and the
-check allows `FILE_PASS_CLOCK_SLACK_SECS` (one day) past that. `verify_file_pass(server, issuer,
-grantee, pass, now)` refuses, cheapest first: `Malformed` (not an object, `v` not 1, a missing
-field, an `expiry` that is not a whole number, a `sig` over 8,192 characters, an empty or
-line-broken server or key), `BadId`, `Expired`, `TooLong`, `BadSignature`. The minting refuses
+check allows `FILE_PASS_CLOCK_SLACK_SECS` (one day) past that. `verify_file_pass(issuer, grantee,
+pass, now)` refuses, cheapest first: `Malformed` (not an object, `v` not 2, a missing field, an
+`aud` not an address in its one spelling, an `expiry` that is not a whole number, a `sig` over
+8,192 characters, an empty or line-broken key), `BadId`, `Expired`, `TooLong`, `BadSignature`;
+whether `aud` is one of the relay's own names is asked first, by `file_pass_of`
+(relay/audience.rs `OwnNames::admit_pass`). The minting refuses
 whatever the check would.
 
 **Where the relay reads it**, always through `handlers/reach.rs` `file_pass_of(state, issuer,
@@ -2795,8 +2801,8 @@ the fixture copied unchanged from main). An offer this app does not read: a piec
 262,144, a piece count that is not `ceil(size / piece)`, a digest that is not 64 lowercase hex, a
 pass for another transfer, an empty file, or one over 256 GiB (`MAX_OFFER_BYTES`, a limit of this
 app's own, so the list of piece hashes it holds stays under 32 MB). The receiver checks an offer's
-pass on arrival (the server's did:hum, the sender, itself) and does not list one the relay would
-refuse. `question` is part 3's order: the protected setup leaves a non-friend's offer out; then
+pass on arrival (the address it names, the sender, itself) and does not list one whose signature
+the relay would refuse. `question` is part 3's order: the protected setup leaves a non-friend's offer out; then
 "Files in messages" ("Ann wants to send you a file. You accept files only from friends. Accept this
 one?"); only then "Ann wants to send you clip.mp4 (2.3 GB). Accept?". Nothing is sent for an offer
 left unanswered (an automatic decline would tell the sender when the receiver came online): when

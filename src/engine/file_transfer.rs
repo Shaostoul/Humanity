@@ -470,11 +470,12 @@ pub fn send_offer(gs: &mut GuiState, prep: &Preparing, ready: Prepared) -> bool 
         return fail(gs, why);
     }
     let me = gs.profile_public_key.clone();
-    let (Some(seed), Some(server)) = (gs.private_key_bytes.clone(), gs.dm_store.as_ref().and_then(|s| s.pass_server()).map(str::to_string)) else {
+    // The pass names the address this app opened (C8), never the server's own word for itself.
+    let (Some(seed), Some(audience)) = (gs.private_key_bytes.clone(), crate::engine::dm::pass_audience(gs)) else {
         return fail(gs, "this server has not finished signing you in yet.");
     };
     let now = fo::now_secs();
-    let Ok(pass) = fo::mint_file_pass(&seed, &server, &me, &prep.peer, &prep.id, now + fo::FILE_PASS_MAX_SECS, now) else {
+    let Ok(pass) = fo::mint_file_pass(&seed, &audience, &me, &prep.peer, &prep.id, now + fo::FILE_PASS_MAX_SECS, now) else {
         return fail(gs, "its pass could not be signed.");
     };
     let offer = Offer {
@@ -552,17 +553,16 @@ pub fn screens_dm_parked(gs: &GuiState, store: &mut DmStore, inner: &DmInner) ->
     true
 }
 
-/// Apply a note to one server's records: an offer's pass is checked against that server's did:hum,
-/// with its sender as issuer and this person as grantee.
+/// Apply a note to one server's records: an offer's pass is checked with its sender as issuer and
+/// this person as grantee, over the server address it names (the relay judges that address).
 pub fn apply_in(store: &mut DmStore, me: &str, inner: &DmInner) -> Applied {
     let Some(note) = fo::parse_note(&inner.text) else {
         log::info!("a file note that does not read was dropped");
         return Applied::Nothing;
     };
-    let server = store.pass_server().unwrap_or("").to_string();
     let now = fo::now_secs();
     let from = inner.from.clone();
-    let pass_ok = |o: &Offer| fo::verify_file_pass(&from, &server, me, &o.pass, now).is_ok();
+    let pass_ok = |o: &Offer| fo::verify_file_pass(&from, me, &o.pass, now).is_ok();
     fo::apply_note(store.file_offers_mut(), me, &inner.from, &inner.to, inner.ts, note, pass_ok)
 }
 

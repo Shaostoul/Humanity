@@ -230,7 +230,7 @@ part of the words. The words signed, as UTF-8 (`profile_copy::copy_text`, pinned
 `the_copy_text_is_pinned`), with `timestamp` in decimal milliseconds:
 
 ```
-profile_v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{timestamp}
+hum/profile/v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{timestamp}
 ```
 
 No field but the bio may hold a line break, so the words split one way only. A withdrawal has an

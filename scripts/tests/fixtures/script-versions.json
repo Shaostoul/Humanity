@@ -1,0 +1,795 @@
+{
+  "chat/app.js": {
+    "4": "git:72a1be992466",
+    "5": "git:d62b737ef771",
+    "6": "git:41f9a67c4c2d",
+    "7": "git:786ce77288c5",
+    "8": "git:0a9954d5aab6",
+    "9": "git:e5d2c35187fe",
+    "10": "git:81132f00e4b6",
+    "11": "git:69426b3abd1a",
+    "12": "git:5195db455b65",
+    "13": "git:9741e8fc67e3",
+    "14": "git:5f7730204b59",
+    "15": "git:fa3044b8913b",
+    "16": "git:969734b4a0ec",
+    "17": "git:c7c844b96c89",
+    "18": "git:71c4e24136bd",
+    "19": "git:b4fa3bd6dd01",
+    "20": "git:250e57e37d53",
+    "21": "git:40ce87fccb0c",
+    "22": "git:b751d2840e61",
+    "23": "git:7eb8b7f52378",
+    "24": "git:f14887f15ad3",
+    "25": "git:aeca812d3da6",
+    "26": "git:3375ebd04676",
+    "27": "git:4904e8610f51",
+    "28": "git:bb430c77f265",
+    "29": "git:8b03963b8719",
+    "30": "git:a69c1f64fa7b",
+    "31": "git:891805fd06b5",
+    "32": "git:95c99bfe16b3",
+    "33": "git:2f872f2bebbf",
+    "34": "git:e15466f87b72",
+    "35": "git:009606c77c55",
+    "36": "git:d5e103f25d44",
+    "37": "git:a5e9cf071da6",
+    "38": "git:1555bff85097",
+    "39": "git:f2165d2f6fe6",
+    "40": "git:5a62cf2aee91",
+    "42": "git:c6bed1e0b037",
+    "43": "git:dfbb60c8afba",
+    "20261121": "f7546985e9308192614f578732648ea0f7a415cbad9ab1defd12d5a955a0926c",
+    "20261122": "7ad775c919dbbf5f6f589541cab4594b17329695e60b1858273e4801dc5c8d31",
+    "20261123": "496bf805d36c337070a7f9d58983509282c7616d6c5062cc949201e0a7d402fb",
+    "20261125": "032d1b11778b7ef76b5c45f22be58ace451f8c9c7d3c6506830c83fbf1ed033c"
+  },
+  "chat/bip39-english.js": {
+    "1": "f4a7195ef9c55cafe95b165b8b94a87f73b6a3f2f4a050938bd8e3f5ca9dbd2e"
+  },
+  "chat/chat-dm-store.js": {
+    "1": "git:786ce77288c5",
+    "2": "git:9741e8fc67e3",
+    "3": "git:5f7730204b59",
+    "4": "git:fa3044b8913b",
+    "5": "git:969734b4a0ec",
+    "6": "git:c7c844b96c89",
+    "7": "git:250e57e37d53",
+    "8": "git:3918eda9cd79",
+    "9": "git:7eb8b7f52378",
+    "10": "git:f14887f15ad3",
+    "11": "git:3375ebd04676",
+    "12": "git:4c01c15db8c4",
+    "13": "git:4b19888181a5",
+    "14": "git:e15466f87b72",
+    "15": "2b1173850c882d804e30606b25dd6c14ec6593030aacc43a30f3c33b0648fb6f",
+    "20261122": "2640ac62033a811d50543a8b9b764d0d3036283d261d8564b4b852cf4e40cdbc"
+  },
+  "chat/chat-dms.js": {
+    "4": "git:72a1be992466",
+    "5": "git:786ce77288c5",
+    "6": "git:0a9954d5aab6",
+    "7": "git:5f7730204b59",
+    "8": "git:fa3044b8913b",
+    "9": "git:969734b4a0ec",
+    "10": "git:c7c844b96c89",
+    "11": "git:71c4e24136bd",
+    "12": "git:40ce87fccb0c",
+    "13": "git:7eb8b7f52378",
+    "14": "git:888a220fdbed",
+    "15": "git:3375ebd04676",
+    "16": "git:4c01c15db8c4",
+    "17": "git:4b19888181a5",
+    "18": "git:8b03963b8719",
+    "19": "git:a69c1f64fa7b",
+    "20": "git:891805fd06b5",
+    "21": "git:a7058ee135db",
+    "22": "git:e15466f87b72",
+    "23": "git:d5e103f25d44",
+    "24": "git:f2165d2f6fe6",
+    "25": "f7da1f944b92fcf98ec88b25c4febf86e3d03bbc95a0550e49bd6c9c86c19f03"
+  },
+  "chat/chat-file-transfer.js": {
+    "1": "git:4c01c15db8c4",
+    "2": "git:4b19888181a5",
+    "3": "git:18f36fe96425",
+    "4": "git:8b03963b8719",
+    "5": "git:a69c1f64fa7b",
+    "6": "git:c754f5762fac",
+    "7": "32ad3de2661a26a793b4e7c3987270e3e970a7b34bedcbc9e5545f6b87ca2595",
+    "20261122": "4a62f994022d7af210fd1c2a98d00378acd48243708522606b9f8446e6616983"
+  },
+  "chat/chat-files-card.js": {
+    "3": "git:c9343af70152",
+    "20261121": "447bbd913c4fb2df7f0ce02b04fd6fe766daede1a6a7a1fd80c534960ea0b316"
+  },
+  "chat/chat-fleet.js": {
+    "1": "8ed3c7640c9e70f3155d39def3c6daff77a1ae66e9fe17ca048902040bce126e"
+  },
+  "chat/chat-funding-admin.js": {
+    "1": "cd15847630f01c39ece5eb6823d9763458af25d5b8e4a62f688d59849f37306c"
+  },
+  "chat/chat-game-admin.js": {
+    "1": "git:4338fc39151e",
+    "2": "git:5195db455b65",
+    "3": "ad3ed1f2ebea5fbb4e93fa87e64c35dac33f25ab80a0a5807e3614415a7b9eba",
+    "4": "a0e779c149d192f7d416c5a90232af155b05f1e5c783287e57ccbe030f90ec9f",
+    "5": "988b6fed11f2fc5e0eb4046faf2421849ac69a6de92c55530240a6607a0e3e0d"
+  },
+  "chat/chat-groups-p2p.js": {
+    "1": "git:f29a80678447",
+    "2": "git:edbfe452d1b9",
+    "3": "git:305ced4e85f0",
+    "4": "git:d04305f570f7",
+    "5": "git:a22efef55623",
+    "6": "git:5aa831209948",
+    "7": "git:7ad2e61b3a80",
+    "8": "git:07d9d5f8cfb2",
+    "9": "git:ad75177ee45c",
+    "10": "git:c7c844b96c89",
+    "11": "git:71c4e24136bd",
+    "12": "git:250e57e37d53",
+    "13": "git:40ce87fccb0c",
+    "14": "git:b751d2840e61",
+    "15": "git:7eb8b7f52378",
+    "16": "git:f14887f15ad3",
+    "17": "git:3375ebd04676",
+    "18": "git:a7058ee135db",
+    "19": "git:e15466f87b72",
+    "20": "git:1555bff85097",
+    "21": "git:f2165d2f6fe6",
+    "20261121": "6d7b8892a703357b88724b92bb647875a8a84e48d18c53c6144a158c4f09cb9d",
+    "20261123": "9aa6022f9bb8f962652bb61b589b4388626cabf857589191d2e18d5efbaa2ab6"
+  },
+  "chat/chat-held.js": {
+    "1": "c2f34f787ad1e77fb77acb6f090e71b93ca469773f7667842456a4bdfaeb7e05",
+    "20261123": "26194159e5881148f73c7d85005d9b25a61ad4324049fd8739f2ccc0a356737b",
+    "20261125": "0c7602e594d59fb06fba47a5b15124dd193f2612a103615fb8f38fafae2fd0a9"
+  },
+  "chat/chat-home.js": {
+    "1": "a27d30e6474d088c5f75590da07c6f6bb7d3cf604dde877ad06662f88e57ebe7"
+  },
+  "chat/chat-key-cards.js": {
+    "1": "e9faa12a542f3905cbb5c2eb20686a77f71000b4da4131486e3885b3176bdbaf",
+    "20261123": "e5a39859211cd571c4a89971555396ba898481309dd47266f4367da4ad6648d7"
+  },
+  "chat/chat-live.js": {
+    "1": "9f6ed813bf0e2899af5b540cbd6129b28557a09a9b128be22309b75686061d66"
+  },
+  "chat/chat-media-card.js": {
+    "1": "git:891805fd06b5",
+    "2": "git:95c99bfe16b3",
+    "3": "git:bbe042d9b18b"
+  },
+  "chat/chat-messages.js": {
+    "4": "git:72a1be992466",
+    "5": "git:0a9954d5aab6",
+    "6": "git:fa3044b8913b",
+    "7": "git:c7c844b96c89",
+    "8": "git:71c4e24136bd",
+    "9": "git:40ce87fccb0c",
+    "10": "git:b751d2840e61",
+    "11": "git:7eb8b7f52378",
+    "12": "git:aeca812d3da6",
+    "13": "git:888a220fdbed",
+    "14": "git:3375ebd04676",
+    "15": "git:4c01c15db8c4",
+    "16": "git:4b19888181a5",
+    "17": "git:4904e8610f51",
+    "18": "git:8b03963b8719",
+    "19": "git:a69c1f64fa7b",
+    "21": "git:18f9bdcfab8d",
+    "22": "git:891805fd06b5",
+    "23": "git:95c99bfe16b3",
+    "24": "git:2f872f2bebbf",
+    "25": "git:a5e9cf071da6",
+    "26": "git:5a62cf2aee91",
+    "27": "git:c6bed1e0b037",
+    "28": "git:4d82831c5c94",
+    "29": "a745ce73957527a6068f92fac51f45fb2d3bc9878dfe2061aaeb56d951fb1180",
+    "30": "d4b31707798a5778392b59480e3fbf8be97fbc3be35ea4104b02196aab1c0d88"
+  },
+  "chat/chat-notify.js": {
+    "1": "git:51787d79506d",
+    "2": "git:009606c77c55",
+    "3": "git:d5e103f25d44",
+    "4": "git:f2165d2f6fe6",
+    "5": "git:c754f5762fac",
+    "6": "git:c6bed1e0b037",
+    "7": "d351e94886284c2b416441f3264c1d163a221d3e33290660af9ab51d521176b3"
+  },
+  "chat/chat-onboarding.js": {
+    "1": "git:72a1be992466",
+    "2": "a3b1110b26ea20e9703289a2143c6c5b1090906a89a1d6f9f610a8f45b132b47"
+  },
+  "chat/chat-owner.js": {
+    "5": "e551e09fba31b67951ccc285bce4a588788a1726a76238afbab0f847ea8b2658"
+  },
+  "chat/chat-p2p.js": {
+    "4": "git:72a1be992466",
+    "5": "git:a22efef55623",
+    "6": "git:93302b12ae4c",
+    "7": "git:786ce77288c5",
+    "8": "git:e5d2c35187fe",
+    "9": "git:9741e8fc67e3",
+    "10": "git:5f7730204b59",
+    "11": "git:fa3044b8913b",
+    "12": "git:ad75177ee45c",
+    "13": "git:c7c844b96c89",
+    "14": "git:250e57e37d53",
+    "15": "git:4c01c15db8c4",
+    "16": "git:4b19888181a5",
+    "17": "git:e15466f87b72",
+    "18": "git:e15466f87b72",
+    "19": "bbb3307bb3d05a4558274d9c9e259270b70a51056bddfa772a5c268d1bb8bd48"
+  },
+  "chat/chat-privacy.js": {
+    "1": "git:b32b168f9c60",
+    "2": "git:5f7730204b59",
+    "3": "git:fa3044b8913b",
+    "4": "git:969734b4a0ec",
+    "5": "git:ad75177ee45c",
+    "6": "git:c7c844b96c89",
+    "7": "git:98c9d31ce594",
+    "8": "git:71c4e24136bd",
+    "9": "git:250e57e37d53",
+    "10": "git:d12f12b5e77b",
+    "11": "git:7eb8b7f52378",
+    "12": "git:f14887f15ad3",
+    "13": "git:3375ebd04676",
+    "14": "git:4c01c15db8c4",
+    "15": "git:4b19888181a5",
+    "16": "git:e19114dafb3b",
+    "17": "git:020dcbc7200d",
+    "18": "git:e15466f87b72",
+    "19": "git:d5e103f25d44",
+    "20": "git:44b3ea9db5b3",
+    "21": "git:c6bed1e0b037",
+    "20261121": "e05645f97b1c75e5d9c124624abc681bd04767c5c856a3b6be40f6a8b18ef278",
+    "20261123": "9435134b56bbd1b4b64ecc3327ab3f3d818466aa10ec61f340ae896ca2aee546"
+  },
+  "chat/chat-profile.js": {
+    "4": "git:72a1be992466",
+    "5": "git:9741e8fc67e3",
+    "6": "git:fa3044b8913b",
+    "7": "git:c7c844b96c89",
+    "8": "git:f4518930b6b9",
+    "9": "git:3375ebd04676",
+    "10": "git:4b19888181a5",
+    "11": "git:ae650958d20c",
+    "12": "git:e19114dafb3b",
+    "13": "git:c754f5762fac",
+    "20261121": "e14fd628fc0268ea9d28959a2ef16c7e769fc3df7b7a6612829ad2623cccad28"
+  },
+  "chat/chat-protected.js": {
+    "1": "git:71c4e24136bd",
+    "2": "git:f4518930b6b9",
+    "3": "git:7eb8b7f52378",
+    "4": "7e5ce471cd18b4bc710290606aea5b8a007cf6715c7404e9636e217efd369cf0"
+  },
+  "chat/chat-reports.js": {
+    "1": "git:969734b4a0ec",
+    "2": "git:c7c844b96c89",
+    "3": "git:bb73b9798635",
+    "4": "git:250e57e37d53",
+    "5": "git:7eb8b7f52378",
+    "6": "git:aeca812d3da6",
+    "7": "6b00423d6bccb4d9f5dbfbe6a9758e06aefaf8f304e6d9e1bc221837d1f30859",
+    "8": "783058c70bc2f97b6a9235bd3197a5769ec321f5e465149efe99e7ab92bb9dff"
+  },
+  "chat/chat-social.js": {
+    "4": "git:72a1be992466",
+    "5": "git:edbfe452d1b9",
+    "6": "git:305ced4e85f0",
+    "7": "git:f8c11e5603e4",
+    "8": "git:07d9d5f8cfb2",
+    "9": "git:9741e8fc67e3",
+    "10": "git:5f7730204b59",
+    "11": "git:fa3044b8913b",
+    "12": "git:98c9d31ce594",
+    "13": "git:71c4e24136bd",
+    "14": "git:250e57e37d53",
+    "15": "git:7eb8b7f52378",
+    "16": "git:731d235a0388",
+    "17": "git:f14887f15ad3",
+    "18": "git:4c01c15db8c4",
+    "19": "git:4b19888181a5",
+    "20": "git:3994bc2a3e3f",
+    "21": "git:a16e87453135",
+    "22": "f4de293e724a3284ae4a0265a6f76cbb35768fc810a24007b9a11577564bd603",
+    "20261122": "5dfce45f4e836e01b6f3464fa0f7b221095cf30b975637347d4f83684582abb6",
+    "20261123": "c57feaa928055409f3b25a1e79a7a8a995e0abb8979c032265915166a7ef0551"
+  },
+  "chat/chat-ui.js": {
+    "4": "git:72a1be992466",
+    "5": "git:786ce77288c5",
+    "6": "git:5195db455b65",
+    "7": "git:5f7730204b59",
+    "8": "git:fa3044b8913b",
+    "9": "git:969734b4a0ec",
+    "10": "git:c7c844b96c89",
+    "11": "git:71c4e24136bd",
+    "12": "git:b4fa3bd6dd01",
+    "13": "git:40ce87fccb0c",
+    "14": "git:7eb8b7f52378",
+    "16": "git:e5dfbb7da2f2",
+    "17": "git:bb430c77f265",
+    "18": "git:6209826dc46f",
+    "19": "git:2f872f2bebbf",
+    "20": "git:e15466f87b72",
+    "21": "git:034be9685608",
+    "22": "git:51787d79506d",
+    "23": "git:009606c77c55",
+    "24": "git:d5e103f25d44",
+    "25": "git:a5e9cf071da6",
+    "26": "git:1555bff85097",
+    "27": "git:c754f5762fac",
+    "28": "git:ad519cc8932f",
+    "20261121": "976490a3d547766ebdb31e400618150ac43ee7837dd5108008b59c24561b352a",
+    "20261123": "d41d81ce5f81e3c391b9db53539bff8160973ab9f5fd56ae91b0f701576e361c"
+  },
+  "chat/chat-voice-calls.js": {
+    "1": "git:72a1be992466",
+    "2": "git:9741e8fc67e3",
+    "3": "git:fa3044b8913b",
+    "4": "git:ad75177ee45c",
+    "5": "git:e4c0d8b3d940",
+    "6": "git:4c01c15db8c4",
+    "7": "git:4b19888181a5",
+    "8": "git:e5dfbb7da2f2",
+    "9": "aac0b6bea9b1bd6ba497b798ae0c9839ffa8c59f929ddda6fd2c47d3ffec2c10",
+    "20261123": "551e4429295e84781f1ee14564901beacbcdc6c7e379d107fa9456cca64c99bd"
+  },
+  "chat/chat-voice-modal.js": {
+    "1": "git:03fbdbf3229c",
+    "2": "git:fa3044b8913b",
+    "3": "git:969734b4a0ec",
+    "4": "b80a818a55a7294a62e0409f4ea3bc339170ce5761aa34cb09d1a20855ad2243",
+    "5": "f555f5941c2857655378eb76baecd5648332c0e38477b3a03f3ed49cbc2f7792"
+  },
+  "chat/chat-voice-rooms.js": {
+    "1": "git:72a1be992466",
+    "2": "git:69426b3abd1a",
+    "3": "git:fa3044b8913b",
+    "4": "git:ad75177ee45c",
+    "5": "git:c7c844b96c89",
+    "6": "git:71c4e24136bd",
+    "7": "git:4c01c15db8c4",
+    "8": "git:4b19888181a5",
+    "9": "git:020dcbc7200d",
+    "10": "e48b22544bc38a5e3f15eceeb7e3a5e61ecb4830b527de58e33bd720218d5f43"
+  },
+  "chat/chat-voice-streaming.js": {
+    "1": "git:72a1be992466",
+    "2": "1e412b59438384adc6a703c8cd00b066459bbf59882abfb0c641228ec912d689"
+  },
+  "chat/chat-voice-webrtc.js": {
+    "1": "git:72a1be992466",
+    "2": "1fdf6cb907c5cf5a60f5330c076a1c6c58582ac91514f7533d64cce328252f8f"
+  },
+  "chat/chat-warnings.js": {
+    "1": "git:c7c844b96c89",
+    "2": "git:71c4e24136bd",
+    "3": "git:7eb8b7f52378",
+    "4": "git:8b03963b8719",
+    "5": "0011658ec3a69645378c874e002f0b7eaede1e662c596add447ecf56f9230225"
+  },
+  "chat/crypto.js": {
+    "4": "git:72a1be992466",
+    "5": "git:83089afb3917",
+    "6": "git:0a9954d5aab6",
+    "7": "git:e5d2c35187fe",
+    "8": "git:9741e8fc67e3",
+    "9": "git:5f7730204b59",
+    "10": "git:fa3044b8913b",
+    "11": "git:969734b4a0ec",
+    "12": "git:c7c844b96c89",
+    "13": "git:250e57e37d53",
+    "14": "git:3994bc2a3e3f",
+    "15": "git:e15466f87b72",
+    "16": "git:e15466f87b72",
+    "20261121": "66d444e5c37ef5b25e4c56b629a5834be432a01b94957b497e90d8a711682765",
+    "20261122": "7045d3130d8ab0eb63a1c4b711c71c27f19b9fd5a52be3a4586d50bc76337374"
+  },
+  "chat/pq.js": {
+    "1": "git:1432b588721a",
+    "2": "git:969734b4a0ec",
+    "20261121": "7464477b8af38245ff737ca1c81f5f364d351457fe152a6456f059c797bbb7ed",
+    "20261122": "b451e9e5684cd4aa71b561ae696578b56c4f0edf1b01b4c017712bd8ab9ad74e"
+  },
+  "chat/read.js": {
+    "1": "git:a5e9cf071da6",
+    "2": "b2d447c6987937d293ce72814fe61d6c6752d2447bdacac8266f5a9820b89641"
+  },
+  "chat/view/messageMenu.js": {
+    "1": "102bb9b7e08d82bd4f0c2714d1bc255ef70d8c0a2bb6b2f76521bdbe57bb868c"
+  },
+  "chat/view/messageRow.js": {
+    "1": "git:a75dcdf5b02b",
+    "2": "d4b32764031e66f155b4f384a55ff8cc0116465977303e1bdcd4662e57c06e8e"
+  },
+  "chat/view/pillPopup.js": {
+    "1": "git:2f872f2bebbf",
+    "2": "6d1d0e9d8ec28d528b2a3c95c5295e0d87a9bbd616740f5397f4b211c4ec64f7"
+  },
+  "chat/view/timestampPill.js": {
+    "1": "git:41e5ce2cd935",
+    "2": "git:2f872f2bebbf",
+    "3": "42494a9c830a574af089d38afe4c312a34843720226c361e51296153e35909b9"
+  },
+  "pages/admin-app.js": {
+    "2": "git:b0ca7500e6f4",
+    "3": "git:6209826dc46f",
+    "4": "ba1665fd8cdc40869cb377e078ab8cd96d1d88a9044f6bf34a6ee1e9d43433c9"
+  },
+  "pages/admin-console.js": {
+    "1": "git:18d88c8e8832",
+    "2": "12525f4f0364f572bca19e5a25c04b0c614245b09879168f5827405345b991d1"
+  },
+  "pages/apps-app.js": {
+    "1": "git:6609a78d8bd3",
+    "2": "f630cf921483b6436ff660f6634a0ccf84f1afc6121b0db0d6d22646e814a412"
+  },
+  "pages/backups-admin.js": {
+    "1": "9a5b0892367e63b634beda1ef88afe2b9c620b108bc98e62e25c6a7dd88193af"
+  },
+  "pages/bugs-app.js": {
+    "20261121": "036c8a08ed99ad97358910d7488fa25f7faa09e72d7b5584f9dc801e4307d730"
+  },
+  "pages/files-add.js": {
+    "3": "git:c9343af70152",
+    "4": "git:c6bed1e0b037",
+    "5": "git:4d82831c5c94",
+    "6": "a2975cc6ec21aefe31e04262b42daab95a97a21b0c8e78ffb27cb8527d2cf57b"
+  },
+  "pages/files-admin.js": {
+    "3": "c1257aecf24de5420e0e3523e3edee13dede4ae266310df2d1af23a0495ad70e"
+  },
+  "pages/files-app.js": {
+    "16": "git:c9343af70152",
+    "17": "git:523de7fe2bc9",
+    "18": "git:21bb126ac004",
+    "19": "git:638bbc85e765",
+    "20": "git:765c77e8b381",
+    "21": "git:e87c39fb11ef",
+    "22": "26e5bc7de79cca379391f0624e6552c2df7ce7d99e5b7dc86f8f31f19c41d6a8",
+    "20261122": "df3cde04eb1ab60a0962d7cabdd46ebd2e08f8a7e7df69f4da1657413f2002b7",
+    "20261123": "09ab5aa0d2b0b54042901e39d24e678da5117a2deb6648b6f465b1671c369474"
+  },
+  "pages/files-edit.js": {
+    "5": "git:c9343af70152",
+    "6": "e37757061561da6a6aad484f6935a56c9a693f63955c7e27ae753ae801cd7544"
+  },
+  "pages/files-folder.js": {
+    "1": "git:c9343af70152",
+    "2": "git:523de7fe2bc9",
+    "3": "git:21bb126ac004",
+    "4": "73c393198897454dc798119d7a139278ee6b70edb9c7a371ac6b6e705f8da701"
+  },
+  "pages/files-item.js": {
+    "8": "git:c9343af70152",
+    "9": "a0983ceff86dd2ed1cdfb3d9ad77250414242ae8523d53a1c6080b094dfba458"
+  },
+  "pages/files-panes.js": {
+    "1": "666f4b934de799124cdb29b10c443966b9de82ccb8fc243577273354deb5a2d1"
+  },
+  "pages/files-places.js": {
+    "2": "git:c9343af70152",
+    "3": "git:21bb126ac004",
+    "4": "git:638bbc85e765",
+    "5": "bfe1ccf8d0166f4fabdd1d2b6e1c081b07ab367b4c7322e9d7347cf64ebfa060"
+  },
+  "pages/files-shared.js": {
+    "1": "git:c9343af70152",
+    "2": "7c094cedaa20644e7f950b6652c0c78cbb023c66159b391f79941337418312d1"
+  },
+  "pages/files-sound.js": {
+    "1": "822ab7ebad0a8b977d2ec56a8c89655c8d6c04c330069f17c8b070a00ccc057d"
+  },
+  "pages/files-space.js": {
+    "1": "0fc72ea824e1c67d6bad7c832a1a29a8b4933d9153b0b4354f2b6835f1f972ad"
+  },
+  "pages/files-takedown.js": {
+    "1": "5c29254c5609b8278bdbb432d13896b6917091698762135078481e92458ea470"
+  },
+  "pages/files-upload.js": {
+    "4": "git:c9343af70152",
+    "5": "git:c6bed1e0b037",
+    "6": "0e0f76b4b58397b1a51a235d903261310d361008dfe228402319ff6cbd2ee4e2"
+  },
+  "pages/market-app.js": {
+    "1": "2f1b8e882ef9c23c878b37f8f4da31fe421f6e58993cd594abc3b2d38ebb1b1b"
+  },
+  "pages/media-add.js": {
+    "1": "git:18f9bdcfab8d",
+    "2": "git:891805fd06b5",
+    "3": "git:85c535278a61"
+  },
+  "pages/media-admin.js": {
+    "1": "git:efca43ba5b7e",
+    "2": "git:aeca812d3da6",
+    "3": "git:cd853034e491"
+  },
+  "pages/media-app.js": {
+    "1": "git:efca43ba5b7e",
+    "2": "git:aeca812d3da6",
+    "3": "git:888a220fdbed",
+    "4": "git:3375ebd04676",
+    "5": "git:cd853034e491",
+    "6": "git:3babe5aa2f26",
+    "7": "git:5c93c9cd0437",
+    "8": "git:dfdd427acf50",
+    "9": "git:a69c1f64fa7b",
+    "11": "git:18f9bdcfab8d",
+    "12": "git:891805fd06b5",
+    "13": "git:95c99bfe16b3",
+    "14": "git:bbe042d9b18b",
+    "15": "git:85c535278a61"
+  },
+  "pages/media-edit.js": {
+    "1": "git:3babe5aa2f26",
+    "2": "git:a69c1f64fa7b",
+    "3": "git:18f9bdcfab8d",
+    "4": "git:891805fd06b5",
+    "5": "git:85c535278a61"
+  },
+  "pages/media-item.js": {
+    "1": "git:3babe5aa2f26",
+    "2": "git:5c93c9cd0437",
+    "3": "git:dfdd427acf50",
+    "4": "git:8b03963b8719",
+    "5": "git:a69c1f64fa7b",
+    "6": "git:891805fd06b5",
+    "7": "git:bbe042d9b18b",
+    "8": "git:85c535278a61"
+  },
+  "pages/media-panes.js": {
+    "1": "git:85c535278a61"
+  },
+  "pages/media-sound.js": {
+    "1": "git:85c535278a61"
+  },
+  "pages/media-takedown.js": {
+    "1": "git:5c93c9cd0437"
+  },
+  "pages/media-upload.js": {
+    "1": "git:aeca812d3da6",
+    "2": "git:888a220fdbed",
+    "3": "git:3375ebd04676",
+    "4": "git:3babe5aa2f26"
+  },
+  "pages/recovery-app.js": {
+    "1": "git:3fc337bdd541",
+    "2": "a3fda1c03cae2843110dd748c0babb9256ee454297d4112add1539e3d6ad0826"
+  },
+  "pages/settings-app.js": {
+    "20261121": "8ec1c52066f9c82e03e7eef316adb3ba6bf829c403846601dffd2af343067e53",
+    "20261122": "f34b911175a684434f67e86ca537d148cdd06f5843c1c8fde5531d69e926206d",
+    "20261123": "9f4aadf1c68ff87055837e93fb6f2808aec22808d3335ea3c38bf11dbf83ba8c",
+    "20261124": "78cf075fd663348ea40a3421365b9c65f91c6a97bc5faff2c06d4cfd9cee4431"
+  },
+  "pages/settings-privacy.js": {
+    "1": "8ff1579d07438aa4292c627ddca351aaae065978e63f2762f8f1179a050cb305"
+  },
+  "pages/shared-files-upload.js": {
+    "1": "git:18f9bdcfab8d",
+    "2": "git:c9343af70152",
+    "3": "git:c6bed1e0b037",
+    "4": "git:4d82831c5c94",
+    "5": "a3ff22e9e30496e5e65abc7468f123b0a252afd4f0e9e6bf28defffd29025e33",
+    "6": "7f641985ca3026942652729628eaa4aa7f3b5c42da60940575653299985da039"
+  },
+  "pages/tasks-app.js": {
+    "20261121": "7ee96429b8547ba40a2bb50c0af92905d94ec4e9f108821693bcfe26c5800862"
+  },
+  "pages/tools-app.js": {
+    "2": "git:b16ef5b049a7"
+  },
+  "pages/trade-app.js": {
+    "2": "git:3918eda9cd79",
+    "20261121": "c14f4955461f3411fb22891bd5bd187f3472dddec78283090fec2bb2d69d7f23"
+  },
+  "shared/admin-actions.js": {
+    "1": "8e4503bba0dcd75e2ffa20ac1ccf0d7f964c12488e66965e29622efef29039a6"
+  },
+  "shared/admin-erase.js": {
+    "1": "git:b4fa3bd6dd01",
+    "2": "git:7eb8b7f52378",
+    "3": "77d9848535ea6e9356ea661174a0a5830b7f7be20e2e9ec8415b215620e9baa5"
+  },
+  "shared/blake3.js": {
+    "1": "git:4c01c15db8c4",
+    "2": "3d2c6ff06274d7baf7e666ff864855f0d05b74043d8b63e9e22e851b63545467"
+  },
+  "shared/block.js": {
+    "1": "git:96dfeee2ac03",
+    "2": "c872579362ed876c9264346c188a15851cc2a30dfe12a7405ea9b9689756c27a"
+  },
+  "shared/call-connection.js": {
+    "1": "eb4c9a17fbf854e8123243caf8541a48a43c2f7d41acb033bb92f945d6c390d8"
+  },
+  "shared/chat-access.js": {
+    "1": "git:a5e9cf071da6",
+    "2": "3e9fa313652ea4cfbb13b3424884f8c68c03c36d09b686687d112199a92673d0"
+  },
+  "shared/chat-links.js": {
+    "1": "4c99556c974157d3cf5abfb3fa305a3e335d87415dbf6d7eba71c392e1cc5ed0"
+  },
+  "shared/drop-overlay.js": {
+    "2": "c12624b520a723c2106482e17a30945f2c2b44edc9b87a5f31b52043505b5aae"
+  },
+  "shared/emoji.js": {
+    "1": "git:774d865940e3",
+    "2": "0d94523799bf5dcf6361218daa83e958dcb07dced67a8187acc2e74de74c5605"
+  },
+  "shared/events.js": {
+    "1": "acb63fa60b3bc468f26c705e1156b674e881a1b36b98509541c02926a8636eaf"
+  },
+  "shared/file-risk.js": {
+    "1": "git:8b03963b8719",
+    "2": "b7a17587b59f78f93f9a6fcb26e561e70904c0429b86731e6465a4194dc7967b"
+  },
+  "shared/file-transfer.js": {
+    "1": "git:4c01c15db8c4",
+    "2": "git:4b19888181a5",
+    "3": "b11b30694029607d0af9142ae56f0da2e180b3058acbfc1b4bbdc030f859119c",
+    "20261122": "d7af73179d1ad7fe066e4a6b0ae629c294da68484622d0ee6c20e810f73db076"
+  },
+  "shared/files-in-messages.js": {
+    "1": "git:3375ebd04676",
+    "2": "376525cc07ddaa73ab984ea9ff9c7378c7eb4427363496d75b4c642c8228b2ea"
+  },
+  "shared/friend-pass.js": {
+    "1": "569823d2576634fab6dcd5b54346af7fac48af2a3a4fd52ba971bf172a8b96c2",
+    "20261122": "8590f0fbd0f0fd82f6d56cd423d9a53c5a09f7ebe2e081bcaba082bdd6606850"
+  },
+  "shared/group-report.js": {
+    "1": "git:250e57e37d53",
+    "2": "075a12f6bb53a01fcd4429904aaa8d1d5ea267a8a73892025cbe244d0359a521"
+  },
+  "shared/hold-confirm.js": {
+    "1": "95bccd65a21b0b43f99c059e2f511e17282a654608fc6a6d735d38ef68cccca5"
+  },
+  "shared/how-it-works.js": {
+    "1": "7d6fc173cac19d5ac86ac72479a85c93d25b30c24d836b3e7b6bd8e584d0780f"
+  },
+  "shared/icons.js": {
+    "1": "d1831a1c4aac442ae8778fd411f3b93326e720d2a60cd334be6ae856ddb7e99d"
+  },
+  "shared/kept-files.js": {
+    "1": "3c9008fad75aa9d57f424860530e977dbb1729b389e3af9cced62dcb43b2135b"
+  },
+  "shared/key-card.js": {
+    "1": "339ea2c7177e226c408c7e3f263784e0ae6e386a32534415cef0e8e7c4306e3d",
+    "20261123": "138ad18f3bcce8740d2de202713f1b399846e6b9d350985d7bffba364a249397"
+  },
+  "shared/mine-tasks.js": {
+    "1": "45d941fde132811e2fa538d7f91b8618edbfa71ddafa4db88c636c88595303cf"
+  },
+  "shared/model-inspect.js": {
+    "1": "119a0f36ecc575c09bd7c710c1a2faa14b7b97294c08017156199112820fea67"
+  },
+  "shared/model-view.js": {
+    "1": "git:dfdd427acf50",
+    "2": "3cc9bf11c503513fe19e04371ed2fdbb102741eb7943b96d86700ac1db1d6d5e"
+  },
+  "shared/notify-rules.js": {
+    "1": "git:51787d79506d",
+    "2": "git:d5e103f25d44",
+    "3": "f83cba1376d852b69f7c83dc67aaf28748f2ead81d841dde3db2ef3651672aef"
+  },
+  "shared/over-limit.js": {
+    "1": "24c461be479faf9273a9dc112ce60764a9b16b86d32cf8544ee250fe15042c94"
+  },
+  "shared/own-fingerprint.js": {
+    "2": "d11be0fb85042616e94847d20e22016fbc3c59ff038451912d35f3ec0c196fd7"
+  },
+  "shared/person-controls.js": {
+    "1": "653624a71da17d6e2c8baba97738d6ce09481afd066e52d388944d8dee357a2a"
+  },
+  "shared/phrase-cover.js": {
+    "1": "9607f10c2e738a779c2010446c71a7893cf4896baf32b2f4bf74a968a63cb9f7"
+  },
+  "shared/pq-relay-auth.js": {
+    "1": "git:62f4c4a79fba",
+    "2": "git:3918eda9cd79",
+    "3": "git:aeca812d3da6",
+    "4": "git:18f9bdcfab8d",
+    "5": "git:3fc337bdd541",
+    "6": "git:4ef35d96d49b",
+    "20261121": "8d9cec75fe2c628bf1b5e8cb4ab0b76428d8d830100507b4c103c04b415d1d01"
+  },
+  "shared/privacy-tiers.js": {
+    "1": "f2e9594a2e9a7181ac3c4db29318a0231ab079379122345be6e8f9df10196593"
+  },
+  "shared/profile-changes.js": {
+    "1": "git:6cf66f32dda6",
+    "2": "27360b6596eaac8d112d3d1b541077b8909f0d7fa0e6da2bb09897d444bc5ec8"
+  },
+  "shared/profile-copy.js": {
+    "1": "git:ae650958d20c",
+    "20261121": "5f4a1320d2f3fa15ee98562663bf2c3d1bedb48c5e225b1834458c8e351144a2"
+  },
+  "shared/protected.js": {
+    "1": "git:71c4e24136bd",
+    "2": "git:f4518930b6b9",
+    "3": "git:7eb8b7f52378",
+    "4": "git:8b03963b8719",
+    "5": "e4da372a2dcb729dc9d85e5f9ee1ad517d4d87ce0f1b38ff30fec1b0666e8cc0"
+  },
+  "shared/qrcode.js": {
+    "4": "18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780"
+  },
+  "shared/reach.js": {
+    "1": "git:5f7730204b59",
+    "2": "git:98c9d31ce594",
+    "3": "git:d12f12b5e77b",
+    "4": "0d23c8aee8e21750e76b2fb86b5ccf6c35412b327f6b34323f4de942700a9fdd"
+  },
+  "shared/relay-session.js": {
+    "1": "git:efca43ba5b7e",
+    "2": "git:aeca812d3da6",
+    "3": "git:c6bed1e0b037",
+    "20261121": "591801570e385196d1055a52feb1ae68c6eebb4b012da2d4e34878d90251a33e",
+    "20261123": "7547cfda1cb4e204e9db1b5e1a2c55e1e072eadd42ef5ad60566f4c702a08b38"
+  },
+  "shared/report.js": {
+    "1": "git:969734b4a0ec",
+    "2": "git:bb73b9798635",
+    "3": "git:aeca812d3da6",
+    "4": "ca408ad52a0c71b99f8c6e570bbcd075b962d1f8c84a47718c4bd637dd35b69a"
+  },
+  "shared/roles.js": {
+    "1": "7238a445cedc035a91be424895ca7fc5c51ecc63e2b32d995ffaba690d6f5087"
+  },
+  "shared/self-mail.js": {
+    "1": "a4300087cf66941b846480a0063ad296f521b0b3dd5338323390e371358d0749"
+  },
+  "shared/server-strip.js": {
+    "1": "56b19201b22ec77771dbd1e4973b56f4de35416c8287af02b187dfc24be9f8c2"
+  },
+  "shared/settings.js": {
+    "3": "git:72a1be992466",
+    "4": "git:fa3044b8913b",
+    "5": "5e429310f7c1068e5cd1f415be25f4dff6cd352826d46e60916164ac76fb75d4"
+  },
+  "shared/shell.js": {
+    "3": "git:72a1be992466",
+    "4": "git:b0ca7500e6f4",
+    "5": "39588c523ea040ffb631cecc152dbc06fac3f43e9ea5f0618a77ac8cb32f0e89",
+    "20261122": "edec1957976ee3dd7b08b82bd4c1a0111a7f45c0812800bd20aa27c09716aa69",
+    "20261124": "cf975024c6619c16dd358d3cd568575061dad62c95f5aee87b3ef71bec381904"
+  },
+  "shared/sound-levels.js": {
+    "1": "d202f31ff9ae152034805feebdd277ba35a2bf34a2d8576197a40e7f453cbaf7"
+  },
+  "shared/strip-metadata.js": {
+    "1": "git:3375ebd04676",
+    "2": "fdac34b05203469c88f913759902a7b9aa081a1df3dce437a3a0ff85d969aab2"
+  },
+  "shared/upload-clean.js": {
+    "1": "git:3375ebd04676",
+    "2": "git:c6bed1e0b037",
+    "3": "d0a3a951f4ecfac4d9f66de85fc2ec23fbc1e940a463262d06df7f64aee5874a"
+  },
+  "shared/upload-window.js": {
+    "1": "git:18f9bdcfab8d",
+    "2": "git:891805fd06b5",
+    "3": "git:95c99bfe16b3",
+    "4": "2b529f4e2f97034fe05b50701f69bb9417fef438627e0305a3713bd214eddfa1"
+  },
+  "shared/video-dock.js": {
+    "1": "cf844164d83e1bbd02d79fd2c1df1b05380a197be03580d52ccb656da236539e"
+  },
+  "shared/video-poster.js": {
+    "1": "96f017a76b5b229ea715d7b4c549f1245bab91cb6db38a5264e8585c27948917"
+  },
+  "shared/video-volume.js": {
+    "1": "ce99b88cc5947bf54547c26c2967c54b87ba63f8678cf3da9b90c7c15d7840dc"
+  },
+  "shared/warnings.js": {
+    "1": "git:c7c844b96c89",
+    "2": "git:342cbe17029a",
+    "3": "d73f7dce349d456a44eb5d989a050e4036f27661fe4163177d954616742a4ff7"
+  }
+}

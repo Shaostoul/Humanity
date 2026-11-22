@@ -22,7 +22,7 @@ fn file(len: usize) -> (Vec<u8>, Offer, Vec<[u8; 32]>) {
         piece: PIECE_SIZE,
         pieces: pieces_for(len as u64),
         hashes: hashes_digest(&hashes),
-        pass: FilePass { v: 1, id: ID.into(), expiry: 1, sig: "x".into() },
+        pass: FilePass { v: 2, aud: "relay.example".into(), id: ID.into(), expiry: 1, sig: "x".into() },
     };
     (bytes, offer, hashes)
 }

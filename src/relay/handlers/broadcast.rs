@@ -106,9 +106,11 @@ pub fn verify_ed25519_signature(public_key_hex: &str, content: &str, timestamp: 
     verifying_key.verify(message.as_bytes(), &signature).is_ok()
 }
 
-/// PQ Increment 2: verify a Dilithium3 (ML-DSA-65) signature over the
-/// SAME preimage the Ed25519 path uses (`content\ntimestamp`). Soft —
-/// callers log the result; Ed25519 stays authoritative until Inc 3.
+/// Verify a Dilithium3 (ML-DSA-65) signature over `content\ntimestamp`: a CHAT
+/// MESSAGE's shape, and the words servers sign to each other (federation). Never
+/// a person's REQUEST: those are signed over `hum/request/v2\n{audience}\n{purpose}\n{timestamp}`
+/// and checked by `crate::relay::signed_request` (2026-11-20), because a request
+/// signed in this shape was a chat line, and a chat line was a credential.
 /// `dilithium_pub_hex` = 1952-byte ML-DSA-65 key hex (from
 /// registered_names.dilithium_public); `sig_hex` = 3309-byte sig hex.
 pub fn verify_dilithium_signature(dilithium_pub_hex: &str, content: &str, timestamp: u64, sig_hex: &str) -> bool {

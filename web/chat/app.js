@@ -1042,9 +1042,10 @@ async function copyChannelLink(id) {
 // signing key is ready, it asks as a visitor would, with GET, answered for an Anyone channel only.
 async function chatRead(what, channel, params) {
   const q = Object.assign({ channel: channel }, params || {});
-  const ts = Date.now();
+  // A signed request (pq.js: hum/request/v2, the server's address, the purpose, the time), each at its own millisecond.
+  const ts = (typeof pqRequestTimestamp === 'function') ? pqRequestTimestamp() : Date.now();
   const A = window.HosChatAccess;
-  const sig = (myKey && A && typeof pqSignChatMessage === 'function') ? await pqSignChatMessage(A.readPurpose(what, channel), ts) : null;
+  const sig = (myKey && A && typeof pqSignMyRequest === 'function') ? await pqSignMyRequest(A.readPurpose(what, channel), ts) : null;
   if (sig) {
     return fetch('/api/' + what, {
       method: 'POST',
@@ -1559,27 +1560,27 @@ async function handleMessage(msg) {
       // identify_response, only then does the relay bind the socket to
       // our claimed key. Closes HIGH-2 (identity spoofing).
       try {
-        // The server's own did:hum: what every friendship pass given or held
-        // here names (crypto.js pqBuildFriendCert / pqVerifyFriendCert).
+        // The server's own did:hum. Passes are given once it is known, and a
+        // changed one voids them (chat-social.js); since v3 (2026-11-21) no pass
+        // names it: a pass names the address this page opened (crypto.js).
         window.hosServerDid = msg.server_did || null;
         const nonce = msg.nonce || '';
-        if (!nonce || !myDilithiumSecret || typeof window.pqSignMessage !== 'function') {
+        if (!nonce || !myDilithiumSecret || typeof window.pqIdentifyResponse !== 'function') {
           console.error('identify_challenge: missing nonce or PQ identity not ready');
           break;
         }
-        const preimage = new TextEncoder().encode(
-          'hum/identify/v1\n' + nonce + '\n' + myKey
-        );
-        // pqSignMessage returns Uint8Array (3309 bytes for ML-DSA-65).
-        Promise.resolve(window.pqSignMessage(myDilithiumSecret, preimage))
-          .then(sigBytes => {
-            if (!sigBytes) {
-              console.error('identify_challenge: signing returned null');
+        // Signed for the address THIS socket opened (pq.js pqIdentifyResponse: hum/identify/v2,
+        // the audience, the nonce, the key), never one the server names: a server passing another
+        // server's challenge through gets nothing that server takes (2026-11-21).
+        const sock = ws;
+        Promise.resolve(window.pqIdentifyResponse(myDilithiumSecret, myKey, sock && sock.url, nonce))
+          .then(resp => {
+            if (!resp) {
+              console.error('identify_challenge: not signed (not a relay\'s challenge, or no address)');
               return;
             }
-            const sig_b64 = btoa(String.fromCharCode(...sigBytes));
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'identify_response', sig_b64 }));
+            if (sock && sock === ws && sock.readyState === WebSocket.OPEN) {
+              sock.send(JSON.stringify(resp));
             }
           })
           .catch(e => console.error('identify_challenge sign failed:', e && e.message));

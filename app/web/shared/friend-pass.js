@@ -1,15 +1,19 @@
 // ── friend-pass.js ────────────────────────────────────────────────────────
-// Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b):
+// Friendship passes v3 (v2 2026-10-09, docs/design/blocking-and-safe-mode.md 10b; v3 2026-11-21):
 // the words a pass signs and the shape it travels in, shared by the chat
 // client (web/chat/crypto.js mints and checks with it) and by Node, where
 // scripts/tests/friend-pass.test.js and scripts/pq-kat.mjs hold it to the
 // relay's own builder (crates/humanity-protocol/src/pq_crypto.rs `friend_cert_preimage`).
 //
-//   preimage = "hum/friend/v2\n{server}\n{issuer}\n{grantee}\n{serial}\n{may}"
-//   cert     = {"v":2,"serial":"...","may":"...","sig":"<base64 Dilithium3>"}
+//   preimage = "hum/friend/v3\n{audience}\n{issuer}\n{grantee}\n{serial}\n{may}"
+//   cert     = {"aud":"...","may":"...","serial":"...","sig":"<base64 Dilithium3>","v":3}
 //
-// server: the did:hum of the server it is given on (its identify_challenge
-// says); serial: 16 random bytes, lowercase hex, which a withdrawal names;
+// audience: the address this page opened to reach the server (pq.js
+// pqAudience, the name a signed request carries), never the did:hum the
+// server's identify_challenge claims: a server claiming another's identity
+// collected v2 passes good at that other server. The relay takes the pass only
+// when the audience is one of its own names; serial: 16 random bytes,
+// lowercase hex, which a withdrawal names;
 // may: what the friend may do, the sorted, comma-joined, de-duplicated subset
 // of FRIEND_PASS_KINDS. No end date: a pass ends when one of the two ends it.
 //
@@ -22,8 +26,8 @@
 (function (root) {
   'use strict';
 
-  const FRIEND_PASS_DOMAIN = 'hum/friend/v2';
-  const FRIEND_PASS_VERSION = 2;
+  const FRIEND_PASS_DOMAIN = 'hum/friend/v3';
+  const FRIEND_PASS_VERSION = 3;
   // Sorted: this order is the canonical one. Must match the Rust list.
   const FRIEND_PASS_KINDS = ['call', 'invite', 'message', 'trade', 'voice_message'];
   // What two new friends give each other: everything but calls (calls come
@@ -50,8 +54,32 @@
   }
 
   /** The words an issuer signs. Byte for byte the relay's `friend_cert_preimage`. */
-  function friendPassPreimage(server, issuer, grantee, serial, may) {
-    return `${FRIEND_PASS_DOMAIN}\n${server}\n${issuer}\n${grantee}\n${serial}\n${may}`;
+  function friendPassPreimage(audience, issuer, grantee, serial, may) {
+    return `${FRIEND_PASS_DOMAIN}\n${audience}\n${issuer}\n${grantee}\n${serial}\n${may}`;
+  }
+
+  /**
+   * Is `a` a server address in its one spelling (the relay's `pass_audience_ok`,
+   * `canonical_audience` giving it back unchanged): a lowercase host name of
+   * letters, digits, `.` and `-` (no leading `.` or `-`, no trailing `.`, no
+   * `..`), or a bracketed IPv6 address, then optionally `:` and a port from 1 to
+   * 65535. A did:hum is not one. Shared by the file pass and the household
+   * permit's readers.
+   */
+  function passAudienceOk(a) {
+    if (typeof a !== 'string' || a.length === 0 || a.length > 262) return false;
+    const m = /^(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::(\d{1,5}))?$/.exec(a);
+    if (!m) return false;
+    const host = m[1];
+    if (!host.startsWith('[')) {
+      if (host.length > 253 || /^[.-]/.test(host) || host.endsWith('.') || host.includes('..')) return false;
+    }
+    if (m[2] !== undefined) {
+      const port = Number(m[2]);
+      // One spelling: no leading zero (the relay writes the port back as a number).
+      if (!(port >= 1 && port <= 65535) || String(port) !== m[2]) return false;
+    }
+    return true;
   }
 
   /** An id fit to sign: not empty, no line break. */
@@ -60,23 +88,24 @@
   }
 
   /**
-   * Read a pass's JSON without checking its signature: {serial, may, sig}, or
-   * null when it is not a v2 pass in canonical form (the relay refuses the same).
+   * Read a pass's JSON without checking its signature: {aud, serial, may, sig},
+   * or null when it is not a v3 pass in canonical form (the relay refuses the same).
    */
   function friendPassParse(certJson) {
     if (typeof certJson !== 'string' || certJson.length > FRIEND_PASS_MAX_LEN) return null;
     let v;
     try { v = JSON.parse(certJson); } catch { return null; }
     if (!v || v.v !== FRIEND_PASS_VERSION) return null;
-    if (typeof v.serial !== 'string' || typeof v.may !== 'string' || typeof v.sig !== 'string') return null;
+    if (typeof v.aud !== 'string' || typeof v.serial !== 'string' || typeof v.may !== 'string' || typeof v.sig !== 'string') return null;
+    if (!passAudienceOk(v.aud)) return null;
     if (!friendPassSerialOk(v.serial)) return null;
     if (friendPassMay(v.may.split(',')) !== v.may) return null;
-    return { serial: v.serial, may: v.may, sig: v.sig };
+    return { aud: v.aud, serial: v.serial, may: v.may, sig: v.sig };
   }
 
-  /** The JSON a pass travels in. */
-  function friendPassJson(serial, may, sigB64) {
-    return JSON.stringify({ v: FRIEND_PASS_VERSION, serial, may, sig: sigB64 });
+  /** The JSON a pass travels in: keys sorted, as the relay's builder writes them. */
+  function friendPassJson(aud, serial, may, sigB64) {
+    return JSON.stringify({ aud, may, serial, sig: sigB64, v: FRIEND_PASS_VERSION });
   }
 
   // ── The choice for each friend (10n, 2026-10-10) ──
@@ -163,7 +192,7 @@
   const api = {
     FRIEND_PASS_DOMAIN, FRIEND_PASS_VERSION, FRIEND_PASS_KINDS, FRIEND_PASS_DEFAULT_MAY,
     FRIEND_PASS_SERIAL_BYTES, FRIEND_PASS_MAX_LEN,
-    friendPassMay, friendPassSerialOk, friendPassPreimage, friendPassFieldOk, friendPassParse, friendPassJson,
+    friendPassMay, friendPassSerialOk, friendPassPreimage, friendPassFieldOk, friendPassParse, friendPassJson, passAudienceOk,
     CTL_CHOICE, CHOICE_KEY_RE, isChoiceNoteText, choiceNoteText, choiceNoteParse, choiceNoteFromSelf, choiceWins,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;

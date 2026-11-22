@@ -414,8 +414,9 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                             Err(e) => log::warn!("our own friendship pass echoed unreadable ({e:?}); ignored"),
                         }
                     } else {
-                        let server = store.pass_server().unwrap_or("").to_string();
-                        match humanity_protocol::pq_crypto::verify_friend_cert(&server, &inner.from, &me, cert) {
+                        // Any server address the pass names: the relay that receives it is the
+                        // judge of its own names (pq_crypto.rs `verify_friend_cert`).
+                        match humanity_protocol::pq_crypto::verify_friend_cert(&inner.from, &me, cert) {
                             Ok(_) => {
                                 store.store_cert_from(&inner.from, cert);
                                 // Their pass gets us past their gate now: the refusal notice in
@@ -591,9 +592,31 @@ pub(crate) fn send_held(gui_state: &mut GuiState, peer: &str, mut theirs: serde_
     true
 }
 
+/// The server address every pass, file pass and household permit minted here names (C8 of the
+/// signed-requests round 3, 2026-11-21): the address this app opened to reach the server
+/// (`audience_of` the URL the DM store is kept for, the one its socket dials and its sign-in signs
+/// for), never a name or identity the server sent: a pass named by the did:hum the server's
+/// `identify_challenge` claimed was collected by a server claiming another's identity, good at
+/// that other server. One exception, this computer's own running home node reached by one of its
+/// local names (loopback, or its LAN address): a loopback name is taken only from this computer
+/// (relay/audience.rs), so a friend elsewhere could never present the pass, and the LAN address
+/// would tell every friend where the household's network is (L3, 2026-11-21). The pass names the
+/// node's first public address instead, and with none no pass is made there (None, as with no
+/// server; host_node.rs `own_node_pass_name`, and the Host a node page says why).
+pub(crate) fn pass_audience(gui_state: &GuiState) -> Option<String> {
+    use crate::gui::pages::host_node::{own_node_pass_name, OwnNodePass};
+    let opened = humanity_protocol::signed_request::audience_of(&crate::gui::pages::chat::norm_server_url(gui_state.dial_address()?))?;
+    match own_node_pass_name(&opened, &gui_state.host_node.public) {
+        OwnNodePass::NotOwnNode => Some(opened),
+        OwnNodePass::Name(name) => Some(name),
+        OwnNodePass::NoPass => None,
+    }
+}
+
 /// Sign MY pass for `peer` on this server allowing `may`, under a fresh serial: the pass JSON,
 /// and the record to keep once it has gone out. Nothing is recorded here. None until the server's
-/// identity is known (its `identify_challenge`), or while the identity is locked.
+/// identity is known (its `identify_challenge`: a changed identity voids the passes, DmStore
+/// `set_pass_server`), with no server address, or while the identity is locked.
 pub(crate) fn mint_pass(gui_state: &GuiState, peer: &str, may: &[&str]) -> Option<(String, SentPass)> {
     use humanity_protocol::pq_crypto::{build_friend_cert, new_friend_cert_serial, FriendMay};
     // Step G: with the protected setup on, a pass goes only to a friend the PIN holder let be one
@@ -602,12 +625,13 @@ pub(crate) fn mint_pass(gui_state: &GuiState, peer: &str, may: &[&str]) -> Optio
     if !crate::engine::protected::pass_allowed(gui_state, peer) {
         return None;
     }
-    let server = gui_state.dm_store.as_ref()?.pass_server()?;
+    gui_state.dm_store.as_ref()?.pass_server()?;
+    let audience = pass_audience(gui_state)?;
     let seed = gui_state.private_key_bytes.as_ref()?;
     let serial = new_friend_cert_serial()?;
     // The minting step lives with its check in relay::core::pq_crypto, so both feature sets can
     // reach it (the relay's own tests mint passes too).
-    match build_friend_cert(seed, server, &gui_state.profile_public_key, peer, &serial, may) {
+    match build_friend_cert(seed, &audience, &gui_state.profile_public_key, peer, &serial, may) {
         Ok(cert) => Some((cert, SentPass { serial, may: FriendMay::from_words(may.iter().copied()).ok()?.wire() })),
         Err(e) => {
             log::warn!("friendship pass not minted: {e:?}");
@@ -952,7 +976,8 @@ mod pass_tests {
         DmInner { from: from.into(), to: to.into(), ts: 1, text: text.into(), sig_b64: format!("{from}{to}{text}"), cert }
     }
 
-    /// A pass from a friend is kept only when it names this server and us; their unfollow drops
+    /// A pass from a friend is kept only when it is theirs and names us, over the server address
+    /// it was signed for (which server that is stays the relay's to judge, v3); their unfollow drops
     /// it; the echo of a pass we gave from our other device records its serial; our own unfollow
     /// (from another device) withdraws what we gave, waiting for the relay to confirm. A dc_offer
     /// to a friend carries their pass; anything else goes out untouched.
@@ -963,7 +988,7 @@ mod pass_tests {
         let (my_seed, me) = identity(81);
         let (ben_seed, ben) = identity(82);
         let (_cy_seed, cy) = identity(83);
-        let server = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+        let server = "relay.example";
         let mut gs = GuiState::default();
         gs.profile_public_key = me.clone();
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
@@ -974,8 +999,10 @@ mod pass_tests {
         let pass_from = |seed: &[u8], issuer: &str, srv: &str| build_friend_cert(seed, srv, issuer, &me, serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
         let held = |gs: &GuiState| gs.dm_store.as_ref().unwrap().cert_for(&ben).map(str::to_string);
 
-        ingest_control(&mut gs, &inner(&ben, &me, dm_pq::CTL_FRIEND_CERT, Some(pass_from(&ben_seed, &ben, "did:hum:elsewhere"))));
-        assert_eq!(held(&gs), None, "a pass given on another server is not kept");
+        let mut moved: serde_json::Value = serde_json::from_str(&pass_from(&ben_seed, &ben, server)).unwrap();
+        moved["aud"] = "elsewhere.example".into();
+        ingest_control(&mut gs, &inner(&ben, &me, dm_pq::CTL_FRIEND_CERT, Some(moved.to_string())));
+        assert_eq!(held(&gs), None, "a pass moved to another server address after signing is not kept");
         let good = pass_from(&ben_seed, &ben, server);
         ingest_control(&mut gs, &inner(&ben, &me, dm_pq::CTL_FRIEND_CERT, Some(good.clone())));
         assert_eq!(held(&gs), Some(good.clone()), "a good pass is kept");

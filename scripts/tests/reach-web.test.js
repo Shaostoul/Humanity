@@ -208,6 +208,9 @@ const ANN = "b2".repeat(32);
 const BEN = "c3".repeat(32);
 const CY = "d4".repeat(32);
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The address the page opened (pq.js `pqAudience`, stubbed here): what every pass names since v3
+// (2026-11-21), never the did:hum the server claims.
+const AUD = "chat.example";
 const CTL_FOLLOW = "[[hum:follow]]";
 const CTL_FRIEND_CERT = "[[hum:friend-cert]]";
 const MY_KYBER = "my-kyber";
@@ -322,6 +325,7 @@ async function loadChat() {
   // The stand-in primitives (see the top of this file).
   const key = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   ctx.getDmStoreKey = async () => key;
+  ctx.pqAudience = () => AUD;
   ctx.pqSignMessage = async (_secret, bytes) => new Uint8Array(bytes);
   ctx.pqVerifyMessage = async (_pk, bytes, sig) => Buffer.from(bytes).equals(Buffer.from(sig));
   ctx.pqDmSeal = async (pub, plaintext) => ({ ek_ct_b64: b64(pub), nonce_b64: "AAAA", ct_b64: b64(plaintext) });
@@ -375,9 +379,13 @@ function dmEnvelope(from, text, ts = 1760000000000) {
 function chose(store, peer, may, at = 1) {
   assert.ok(store.applyChoiceNote(peer, may, at) || store.choiceMay(peer) === may, `the choice for ${peer.slice(0, 4)} is ${may}`);
 }
-// A pass `issuer` gave `grantee` on `server` (the stand-in signature is the signed words).
-function passFrom(issuer, grantee = ME, server = SERVER, serial = "0123456789abcdef0123456789abcdef", may = "invite,message,trade,voice_message") {
-  return fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(server, issuer, grantee, serial, may)));
+// A pass `issuer` gave `grantee` at the server address `aud` (the stand-in signature is the signed words).
+function passFrom(issuer, grantee = ME, aud = AUD, serial = "0123456789abcdef0123456789abcdef", may = "invite,message,trade,voice_message") {
+  return fp.friendPassJson(aud, serial, may, b64(fp.friendPassPreimage(aud, issuer, grantee, serial, may)));
+}
+// The same pass with its server address changed after it was signed.
+function moved(pass) {
+  return JSON.stringify({ ...JSON.parse(pass), aud: "elsewhere.example" });
 }
 // A contact request from `from` claiming `name`, carrying `pass`.
 function requestEnvelope(from, name, pass, ts) {
@@ -576,7 +584,7 @@ test("a contact request goes out as a signed DM, flagged, carrying my name and m
   const pass = fp.friendPassParse(req.pass);
   assert.ok(pass, "and a v2 pass");
   assert.equal(pass.may, "invite,message,trade,voice_message", "with the default may: no calls");
-  assert.equal(unb64(pass.sig), fp.friendPassPreimage(SERVER, ME, ANN, pass.serial, pass.may), "given by me to them on this server");
+  assert.equal(unb64(pass.sig), fp.friendPassPreimage(AUD, ME, ANN, pass.serial, pass.may), "given by me to them for the address this page opened");
 
   assert.deepEqual(store.certsSent[ANN], [{ serial: pass.serial, may: pass.may }], "they now hold my pass, so their reply gets in");
   assert.ok(store.following.has(ANN), "and I follow them, so their Accept completes the friendship");
@@ -605,7 +613,7 @@ test("receiving a request; a DM my settings refuse; Accept and Ignore", async ()
   // Contact requests: the pass must be Ben's, for me, on this server; the name shown is the member list's.
   const bensPass = passFrom(BEN);
   await handle({ type: "dm_new", id: 3, content: requestEnvelope(BEN, "Admin_Team", passFrom(BEN, ANN)) });
-  await handle({ type: "dm_new", id: 4, content: requestEnvelope(BEN, "Admin_Team", passFrom(BEN, ME, "did:hum:elsewhere")) });
+  await handle({ type: "dm_new", id: 4, content: requestEnvelope(BEN, "Admin_Team", moved(passFrom(BEN))) });
   await handle({ type: "dm_new", id: 5, content: requestEnvelope(BEN, "Admin_Team", passFrom(ANN)) });
   await settle();
   assert.deepEqual(store.contactRequestList().map((r) => r.key), [CY], "a request whose pass does not check is dropped");
@@ -642,7 +650,7 @@ test("receiving a request; a DM my settings refuse; Accept and Ignore", async ()
   assert.deepEqual(store.contactRequestList(), []);
 
   // My own request, echoed from another of my devices: the pass I gave is recorded.
-  const mine = passFrom(ME, CY, SERVER, "fedcba9876543210fedcba9876543210");
+  const mine = passFrom(ME, CY, AUD, "fedcba9876543210fedcba9876543210");
   const echo = JSON.stringify({ v: 2, ek_ct_b64: b64(MY_KYBER), nonce_b64: "AAAA", ct_b64: b64(JSON.stringify({
     v: 2, from: ME, to: CY, ts: 5, text: reach.contactRequestText("Me_1", mine),
     sig: b64(`hum/dm/v2\n${ME}\n${CY}\n5\n${reach.contactRequestText("Me_1", mine)}`),
@@ -1042,7 +1050,7 @@ test("10n N4: an echo of my own pass is only a pass: it stands unless beyond my 
   const OLD = "00112233445566778899aabbccddeeff";
   const LESS = "ffeeddccbbaa99887766554433221100";
   const MORE = "0f0e0d0c0b0a09080706050403020100";
-  const certOf = (serial, may) => fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(SERVER, ME, ANN, serial, may)));
+  const certOf = (serial, may) => fp.friendPassJson(AUD, serial, may, b64(fp.friendPassPreimage(AUD, ME, ANN, serial, may)));
   const revoked = () => sock.sent.filter((m) => m.type === "cert_revoke").map((m) => m.serial);
   store.recordPassSent(ANN, OLD, DEFAULT_MAY); // no choice made: the choice is the defaults
 
@@ -1410,7 +1418,7 @@ test("10m R3: a pass my other device withdrew is not replaced with the defaults"
   assert.equal(row().updating, false);
   // Its pass, echoed: it carries the choice, so it stands, and nothing more is owed.
   const NEW = "ffeeddccbbaa99887766554433221100";
-  const cert = fp.friendPassJson(NEW, may, b64(fp.friendPassPreimage(SERVER, ME, BEN, NEW, may)));
+  const cert = fp.friendPassJson(AUD, NEW, may, b64(fp.friendPassPreimage(AUD, ME, BEN, NEW, may)));
   await handle({ type: "dm_new", id: 71, content: selfEnvelope(BEN, CTL_FRIEND_CERT, cert, 1760000006000) });
   await settle();
   assert.deepEqual(store.certsSent[BEN], [{ serial: NEW, may }], "its pass stands");

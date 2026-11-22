@@ -481,13 +481,15 @@ pub const GROUP_READ_PURPOSE: &str = "p2p_group_read";
 /// to one of its members, so every read is a POST whose body carries this person's key, the time
 /// and a Dilithium3 signature over `p2p_group_read\n<time>` (in the body: a key and a signature in
 /// an address would pass nginx's 8 KB limit on a request line).
-fn group_read(url: &str, seed: &[u8]) -> Result<ureq::Response, ureq::Error> {
+/// `target` is the group or object read, or "mine" for one's own groups (the relay's
+/// `group_read_purpose`, 2026-11-21: a signature to read one group reads no other).
+fn group_read(url: &str, target: &str, seed: &[u8]) -> Result<ureq::Response, ureq::Error> {
     let key = derive_pq_identity(seed).map(|i| i.dilithium_hex).unwrap_or_default();
-    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let ts = crate::net::identity::next_request_timestamp();
     let body = serde_json::json!({
         "key": key,
         "timestamp": ts,
-        "sig": crate::net::identity::pq_sign_chat(seed, GROUP_READ_PURPOSE, ts),
+        "sig": crate::net::identity::pq_sign_request(seed, url, &format!("{GROUP_READ_PURPOSE}\n{target}"), ts),
     });
     ureq::post(url).set("Content-Type", "application/json").send_string(&body.to_string())
 }
@@ -504,7 +506,7 @@ pub fn fetch_signed_object(
         server_url.trim_end_matches('/'),
         urlencoded(object_id),
     );
-    match group_read(&url, seed) {
+    match group_read(&url, object_id, seed) {
         Ok(resp) => {
             if resp.status() != 200 {
                 return Err(format!("GET {url}: HTTP {}", resp.status()));
@@ -531,7 +533,7 @@ pub fn fetch_group_epoch_payload(
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = match group_read(&url, seed) {
+    let resp = match group_read(&url, group_id, seed) {
         Ok(r) => r,
         Err(ureq::Error::Status(404, _)) => return Ok(None),
         Err(e) => return Err(format!("GET {url}: {e}")),
@@ -585,7 +587,7 @@ fn fetch_group_messages_raw(server_url: &str, seed: &[u8], group_id: &str) -> Re
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
+    let resp = group_read(&url, group_id, seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }
@@ -622,7 +624,7 @@ fn fetch_group_messages_raw(server_url: &str, seed: &[u8], group_id: &str) -> Re
 /// signature checked there over the object's own bytes.
 pub fn fetch_group_message_objects(server_url: &str, seed: &[u8], group_id: &str) -> Result<Vec<serde_json::Value>, String> {
     let url = format!("{}/api/v2/groups/{}/messages", server_url.trim_end_matches('/'), urlencoded(group_id));
-    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
+    let resp = group_read(&url, group_id, seed).map_err(|e| format!("POST {url}: {e}"))?;
     let body = resp.into_string().map_err(|e| format!("read: {e}"))?;
     let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("json: {e}"))?;
     Ok(v.get("messages").and_then(|x| x.as_array()).cloned().unwrap_or_default())
@@ -794,7 +796,7 @@ pub fn fetch_group_members(
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
+    let resp = group_read(&url, group_id, seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }
@@ -1002,7 +1004,7 @@ pub fn fetch_all_epoch_keys(
         server_url.trim_end_matches('/'),
         urlencoded(group_id),
     );
-    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
+    let resp = group_read(&url, group_id, seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }
@@ -1061,7 +1063,7 @@ pub struct P2pGroupInfo {
 /// to render P2P groups in the native left panel.
 pub fn fetch_p2p_groups(server_url: &str, seed: &[u8]) -> Result<Vec<P2pGroupInfo>, String> {
     let url = format!("{}/api/v2/groups", server_url.trim_end_matches('/'));
-    let resp = group_read(&url, seed).map_err(|e| format!("POST {url}: {e}"))?;
+    let resp = group_read(&url, "mine", seed).map_err(|e| format!("POST {url}: {e}"))?;
     if resp.status() != 200 {
         return Err(format!("GET {url}: HTTP {}", resp.status()));
     }

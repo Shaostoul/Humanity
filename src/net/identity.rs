@@ -116,11 +116,78 @@ pub fn derive_pq_identity(seed32: &[u8]) -> Result<PqIdentity, String> {
 }
 
 /// Dilithium3 chat signature (hex) over `content\ntimestamp` — the EXACT
-/// preimage the web client signs and the relay verifies (Inc3).
+/// preimage the web client signs and the relay verifies (Inc3). For CHAT
+/// MESSAGES only: a request to a relay is signed by [`pq_sign_request`].
+///
+/// A chat text that begins with a signing domain line (`hum/<name>/v<n>` then a
+/// newline) is never signed: an empty string comes back, and the relay refuses
+/// such a message anyway. Signing it would make the chat signature the very
+/// bytes of a signed request, a report or a DM's inner signature (2026-11-20,
+/// `humanity_protocol::signed_request`).
 pub fn pq_sign_chat(seed32: &[u8], content: &str, timestamp: u64) -> String {
+    if humanity_protocol::signed_request::starts_with_signing_domain(content) {
+        return String::new();
+    }
     let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
     let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
     hex::encode(dil.sign(format!("{content}\n{timestamp}").as_bytes()))
+}
+
+/// Dilithium3 signature (hex) for a REQUEST to the relay at `server_url` (an
+/// account export, a bug's details, a file edit, an admin action, a channel
+/// read): over `hum/request/v2\n{audience}\n{purpose}\n{timestamp}`
+/// (`humanity_protocol::signed_request::request_preimage`), the shape the
+/// relay's `signed_request::check` verifies and no chat message can produce.
+/// The audience is `server_url`'s own address (`audience_of`, 2026-11-21): the
+/// URL the request is sent to, never a name anyone else gave, so a request made
+/// for one server is never good at another. Empty when `server_url` names no
+/// address (the relay refuses an unsigned request). The relay takes each
+/// signature once, so `timestamp` must differ per request (the callers take a
+/// fresh millisecond each time).
+pub fn pq_sign_request(seed32: &[u8], server_url: &str, purpose: &str, timestamp: u64) -> String {
+    let Some(audience) = humanity_protocol::signed_request::audience_of(server_url) else { return String::new() };
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
+    let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    hex::encode(dil.sign(humanity_protocol::signed_request::request_preimage(&audience, purpose, timestamp).as_bytes()))
+}
+
+/// The answer to a relay's identify challenge, as the JSON text to send back on the socket opened at
+/// `opened_url` (2026-11-21): `{"type":"identify_response","sig_b64":..,"audience":..}`, the
+/// Dilithium3 signature over `hum/identify/v2\n{audience}\n{nonce}\n{public_key}`
+/// (`humanity_protocol::signed_request::identify_preimage`). The audience comes ONLY from the URL
+/// this app opened, never from the challenge, so a server that passes another server's challenge
+/// through gets a proof naming itself, which the other server refuses. Refused (with the words to
+/// show) when the nonce is not a relay's (64 lowercase hex characters: nothing else is signed as a
+/// sign-in) or the URL names no address.
+pub fn identify_response(seed32: &[u8], opened_url: &str, nonce: &str, public_key: &str) -> Result<String, &'static str> {
+    if !humanity_protocol::signed_request::is_identify_nonce(nonce) {
+        return Err("The server's sign-in challenge is not one this app signs.");
+    }
+    let Some(audience) = humanity_protocol::signed_request::audience_of(opened_url) else {
+        return Err("This app cannot tell which address it connected to, so it signs no sign-in there.");
+    };
+    let preimage = humanity_protocol::signed_request::identify_preimage(&audience, nonce, public_key);
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let sig_b64 = B64.encode(pq_sign_raw(seed32, preimage.as_bytes()));
+    Ok(serde_json::json!({ "type": "identify_response", "sig_b64": sig_b64, "audience": audience }).to_string())
+}
+
+/// The time a request is signed at, Unix milliseconds: the next millisecond after the last one
+/// this app handed out, so two requests started together (a Refresh and a More, two group reads)
+/// never share one. The relay takes each (key, purpose, time) once, so a shared time would be
+/// refused as a replay. The one clock every desktop request signs by.
+pub fn next_request_timestamp() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static LAST: AtomicU64 = AtomicU64::new(0);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let mut prev = LAST.load(Ordering::SeqCst);
+    loop {
+        let next = now.max(prev + 1);
+        match LAST.compare_exchange(prev, next, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => return next,
+            Err(seen) => prev = seen,
+        }
+    }
 }
 
 /// The Dilithium3 keypair itself, for signing full Humanity Network OBJECTS
@@ -133,10 +200,8 @@ pub fn pq_object_keypair(seed32: &[u8]) -> humanity_protocol::pq_crypto::Dilithi
     humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed)
 }
 
-/// Raw-bytes Dilithium3 signature (Vec<u8>, 3309 bytes). Used by Inc3b
-/// identify-challenge response, where the preimage is a domain-separated
-/// string ("hum/identify/v1\n" + nonce + "\n" + pubkey) — not chat's
-/// `content\ntimestamp` shape. Caller base64-encodes for the wire.
+/// Raw-bytes Dilithium3 signature (Vec<u8>, 3309 bytes) over domain-separated bytes (a sign-in's,
+/// [`identify_response`]), never chat's `content\ntimestamp` shape. Caller base64-encodes.
 pub fn pq_sign_raw(seed32: &[u8], message: &[u8]) -> Vec<u8> {
     let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
     let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
@@ -402,6 +467,81 @@ mod tests {
         // Signature preimage matches the web/relay contract.
         let sig = pq_sign_chat(&seed, "hi", 123);
         assert_eq!(sig.len(), 3309 * 2, "ML-DSA-65 sig hex");
+    }
+
+    /// The desktop's request signature verifies over the request preimage (the very check the relay's
+    /// `signed_request::verify` makes, reached here through the protocol crate under both), and a
+    /// chat signature over the bare purpose is not (2026-11-20). Red evidence (2026-11-21): with
+    /// `pq_sign_request` signing the old `{purpose}\n{timestamp}`, "the relay takes the desktop's
+    /// request" failed; with the chat guard removed from `pq_sign_chat`, "a chat text holding a
+    /// domain line is never signed" failed (left: a 6,618-character signature, right: "").
+    #[test]
+    fn requests_are_signed_apart_from_chat() {
+        let seed = [7u8; 32];
+        let key = derive_pq_identity(&seed).unwrap().dilithium_hex;
+        let ts = 1_800_000_000_000u64;
+        let req = pq_sign_request(&seed, "https://united-humanity.us", "account_export", ts);
+        let verifies_for = |aud: &str, sig_hex: &str| {
+            let preimage = humanity_protocol::signed_request::request_preimage(aud, "account_export", ts);
+            humanity_protocol::pq_crypto::verify_dilithium(&hex::decode(&key).unwrap(), preimage.as_bytes(), &hex::decode(sig_hex).unwrap()).is_ok()
+        };
+        let verifies = |sig_hex: &str| verifies_for("united-humanity.us", sig_hex);
+        assert!(verifies(&req), "the relay takes the desktop's request");
+        // D1 (2026-11-21): signed for the server it is sent to, and for no other. Red evidence: with
+        // `pq_sign_request` signing a fixed audience, "not good at another server" failed.
+        assert!(!verifies_for("other.example", &req), "not good at another server");
+        assert_eq!(pq_sign_request(&seed, "https://", "account_export", ts), "", "no address, no signature");
+        let chat = pq_sign_chat(&seed, "account_export", ts);
+        assert!(!verifies(&chat), "a chat line is no request");
+        let forged_text = humanity_protocol::signed_request::request_preimage("united-humanity.us", "account_export", ts);
+        let forged_text = forged_text.strip_suffix(&format!("\n{ts}")).unwrap();
+        assert_eq!(pq_sign_chat(&seed, forged_text, ts), "", "a chat text holding a domain line is never signed");
+    }
+
+    /// D1 (2026-11-21): the desktop signs a sign-in only for the address it opened. A server that
+    /// passes another server's challenge through to this app gets a proof naming ITSELF, which the
+    /// other server refuses; a nonce that is not a relay's is not signed at all. Red evidence (the
+    /// v1 shape, no audience): the proof for a.example verified as a proof for b.example.
+    #[test]
+    fn a_sign_in_names_the_address_this_app_opened() {
+        let seed = [7u8; 32];
+        let key = derive_pq_identity(&seed).unwrap().dilithium_hex;
+        let nonce = "0123456789abcdef".repeat(4);
+        let text = identify_response(&seed, "wss://a.example/ws", &nonce, &key).expect("a relay's nonce is signed");
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["type"], "identify_response");
+        assert_eq!(v["audience"], "a.example", "the audience is the address opened, nothing the server said");
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        let sig = B64.decode(v["sig_b64"].as_str().unwrap()).unwrap();
+        let pk = hex::decode(&key).unwrap();
+        let proves_for = |aud: &str| {
+            let words = humanity_protocol::signed_request::identify_preimage(aud, &nonce, &key);
+            humanity_protocol::pq_crypto::verify_dilithium(&pk, words.as_bytes(), &sig).is_ok()
+        };
+        assert!(proves_for("a.example"), "good at the server it opened");
+        assert!(!proves_for("b.example"), "a server passing b.example's challenge through gets nothing b.example takes");
+        assert!(identify_response(&seed, "wss://a.example/ws", &format!("{}\nb.example", humanity_core::text::prefix(&nonce, 50)), &key).is_err(), "not a relay's nonce");
+        assert!(identify_response(&seed, "wss://a.example/ws", &nonce.to_ascii_uppercase(), &key).is_err());
+        assert!(identify_response(&seed, "not a url at all", &nonce, &key).is_err(), "no address, no sign-in");
+    }
+
+    /// C3 (2026-11-21, signed requests round 3): a URL the hand reading and the sender (ureq, by
+    /// the WHATWG URL parser) read as two servers signs nothing. Red evidence (2026-11-21, before
+    /// `audience_of` read the URL with `url::Url` too): "the backslash URL is refused" failed, the
+    /// request signed for victim.example while ureq sent it to evil.example.
+    #[test]
+    fn a_url_two_parsers_read_differently_signs_nothing() {
+        let seed = [7u8; 32];
+        let key = derive_pq_identity(&seed).unwrap().dilithium_hex;
+        let nonce = "0123456789abcdef".repeat(4);
+        let tricky = "https://evil.example\\@victim.example/";
+        assert_eq!(url::Url::parse(tricky).unwrap().host_str(), Some("evil.example"), "where the request would go");
+        assert_eq!(pq_sign_request(&seed, tricky, "account_export", 1), "", "the backslash URL is refused");
+        assert!(identify_response(&seed, "wss://evil.example\\@victim.example/ws", &nonce, &key).is_err());
+        for odd in ["http://127.1:3210/", "http://[0:0:0:0:0:0:0:1]:3210/", "https://example.org./"] {
+            assert_eq!(pq_sign_request(&seed, odd, "account_export", 1), "", "{odd}");
+        }
+        assert!(!pq_sign_request(&seed, "https://victim.example/", "account_export", 1).is_empty());
     }
 
     #[test]

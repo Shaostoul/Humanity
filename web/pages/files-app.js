@@ -427,7 +427,9 @@
     pick: (id) => 'media_pick:' + id,
     feature: (id, to) => 'media_feature:' + id + ':' + to,
     keep: (id, on) => 'media_keep:' + id + ':' + (on ? 'on' : 'off'),
-    suggest: () => 'media_suggest',
+    // A suggestion names its name and note, each hashed (BLAKE3 hex; signed requests round 3, C7):
+    // the relay's files.rs suggest_purpose.
+    suggest: (nameHex, noteHex) => 'media_suggest:' + nameHex + ':' + noteHex,
     suggestions: () => 'media_suggestions',
     decide: (id, accept) => 'media_suggestions:' + id + ':' + (accept ? 'accept' : 'decline'),
     categories: (hashHex) => 'media_categories:' + hashHex,
@@ -2080,9 +2082,16 @@
       s.error = '';
       renderSuggest();
       try {
-        const auth = await env.sign(purposes.suggest());
+        const name = (s.name || '').trim();
+        const note = (s.note || '').trim();
+        const hexOf = async (text) => {
+          const d = typeof env.blake3 === 'function' ? await env.blake3(new TextEncoder().encode(text)) : null;
+          return d && d.length === 32 ? Array.from(d, (b) => b.toString(16).padStart(2, '0')).join('') : null;
+        };
+        const [nameHex, noteHex] = [await hexOf(name), await hexOf(note)];
+        const auth = nameHex && noteHex ? await env.sign(purposes.suggest(nameHex, noteHex)) : null;
         if (!auth) throw new Error(FILES_WORDS.cannotSign);
-        await answerOf(await env.fetch('/api/files/suggest', jsonPost(Object.assign({ name: (s.name || '').trim(), note: (s.note || '').trim() }, auth))));
+        await answerOf(await env.fetch('/api/files/suggest', jsonPost(Object.assign({ name, note }, auth))));
         st.suggest = null;
         renderSuggest();
         say(FILES_WORDS.suggestSent);

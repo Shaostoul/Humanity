@@ -1,0 +1,200 @@
+{
+  "about": "The bytes a person's key signs FOR A SERVER (2026-11-20; the audience line 2026-11-21). A REQUEST is signed over the domain line, the audience, the purpose and the time in milliseconds, joined by a newline; a SIGN-IN (the answer to a relay's identify challenge) over the identify domain line, the audience, the relay's nonce and the person's key. The audience is the address the app connected to: its host name, lowercase, and its port when that is not the scheme's default (audiences: the URL an app opened and the audience it signs for, null when none; since round 3 an app reads the URL twice, by hand and by the WHATWG URL parser it sends with, and signs nothing when the two differ: a backslash, a trailing dot, an IPv4 or IPv6 address written any but its one canonical way). Chat messages are signed over text then a newline then the time, so a chat text that starts with a signing domain line (hum/<name>/v<n> then a newline) is refused by every chat signer and by the relay: chat_refused must be refused and chat_allowed must not. Held to by crates/humanity-protocol/src/signed_request.rs (request_preimage, identify_preimage, audience_of, starts_with_signing_domain), src/relay/signed_request.rs, src/net/identity.rs, and the website's web/chat/pq.js (pqRequestPreimage, pqIdentifyPreimage, pqAudienceOf, pqIsReservedChatText) through scripts/tests/signed-request-web.test.js.",
+  "domain": "hum/request/v2",
+  "identify_domain": "hum/identify/v2",
+  "requests": [
+    {
+      "audience": "united-humanity.us",
+      "purpose": "account_export",
+      "timestamp": 1800000000000,
+      "preimage": "hum/request/v2\nunited-humanity.us\naccount_export\n1800000000000"
+    },
+    {
+      "audience": "united-humanity.us",
+      "purpose": "bug_vote\n42\nup",
+      "timestamp": 1800000000001,
+      "preimage": "hum/request/v2\nunited-humanity.us\nbug_vote\n42\nup\n1800000000001"
+    },
+    {
+      "audience": "chat.united-humanity.us",
+      "purpose": "chat_read\nmessages\ngeneral",
+      "timestamp": 1800000000002,
+      "preimage": "hum/request/v2\nchat.united-humanity.us\nchat_read\nmessages\ngeneral\n1800000000002"
+    },
+    {
+      "audience": "127.0.0.1:3210",
+      "purpose": "push_unsubscribe\nhttps://fcm.googleapis.com/fcm/send/dQw4w9WgXcQ",
+      "timestamp": 1800000000003,
+      "preimage": "hum/request/v2\n127.0.0.1:3210\npush_unsubscribe\nhttps://fcm.googleapis.com/fcm/send/dQw4w9WgXcQ\n1800000000003"
+    },
+    {
+      "audience": "[::1]:3210",
+      "purpose": "media_pick:42",
+      "timestamp": 7,
+      "preimage": "hum/request/v2\n[::1]:3210\nmedia_pick:42\n7"
+    }
+  ],
+  "identify": [
+    {
+      "audience": "united-humanity.us",
+      "nonce": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "key": "ab12",
+      "preimage": "hum/identify/v2\nunited-humanity.us\n0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nab12"
+    },
+    {
+      "audience": "127.0.0.1:3210",
+      "nonce": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "key": "ab12",
+      "preimage": "hum/identify/v2\n127.0.0.1:3210\n0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nab12"
+    }
+  ],
+  "audiences": [
+    {
+      "url": "https://united-humanity.us",
+      "audience": "united-humanity.us"
+    },
+    {
+      "url": "https://United-Humanity.US/ws",
+      "audience": "united-humanity.us"
+    },
+    {
+      "url": "wss://united-humanity.us:443/ws",
+      "audience": "united-humanity.us"
+    },
+    {
+      "url": "https://united-humanity.us:443/ws",
+      "audience": "united-humanity.us"
+    },
+    {
+      "url": "wss://chat.united-humanity.us/ws?x=1",
+      "audience": "chat.united-humanity.us"
+    },
+    {
+      "url": "http://127.0.0.1:3210",
+      "audience": "127.0.0.1:3210"
+    },
+    {
+      "url": "ws://localhost:3210/ws",
+      "audience": "localhost:3210"
+    },
+    {
+      "url": "http://example.org:80/api",
+      "audience": "example.org"
+    },
+    {
+      "url": "https://example.org:8443/api",
+      "audience": "example.org:8443"
+    },
+    {
+      "url": "http://[::1]:3210/ws",
+      "audience": "[::1]:3210"
+    },
+    {
+      "url": "https://user@example.org/x",
+      "audience": "example.org"
+    },
+    {
+      "url": "example.org:3210",
+      "audience": "example.org:3210"
+    },
+    {
+      "url": "https://",
+      "audience": null
+    },
+    {
+      "url": "https://exa mple.org/",
+      "audience": null
+    },
+    {
+      "url": "https://example.org:0/",
+      "audience": null
+    },
+    {
+      "url": "https://example.org:70000/",
+      "audience": null
+    },
+    {
+      "url": "https://example.org:/",
+      "audience": null
+    },
+    {
+      "url": "https://.example.org/",
+      "audience": null
+    },
+    {
+      "url": "https://evil.example\\@victim.example/",
+      "audience": null
+    },
+    {
+      "url": "https://evil.example\\@victim.example:8443/x",
+      "audience": null
+    },
+    {
+      "url": "https://example.org./",
+      "audience": null
+    },
+    {
+      "url": "http://127.1:3210/",
+      "audience": null
+    },
+    {
+      "url": "http://0x7f.0.0.1:3210/",
+      "audience": null
+    },
+    {
+      "url": "http://2130706433:3210/",
+      "audience": null
+    },
+    {
+      "url": "http://127.000.000.001:3210/",
+      "audience": null
+    },
+    {
+      "url": "http://[0:0:0:0:0:0:0:1]:3210/",
+      "audience": null
+    },
+    {
+      "url": "http://[::FFFF:127.0.0.1]/",
+      "audience": null
+    },
+    {
+      "url": "http://[2001:DB8::1]:8080/x",
+      "audience": "[2001:db8::1]:8080"
+    },
+    {
+      "url": "http://[2001:db8::1]:8080/x",
+      "audience": "[2001:db8::1]:8080"
+    },
+    {
+      "url": "https://exa%6Dple.org/",
+      "audience": null
+    },
+    {
+      "url": "https://exa\tmple.org/",
+      "audience": null
+    }
+  ],
+  "chat_refused": [
+    "hum/request/v2\naccount_export",
+    "hum/request/v2\n",
+    "hum/report/v1\nsomeone\nsomething",
+    "hum/dm/v2\na\nb\n1\nhello",
+    "hum/file-pass/v12\nx",
+    "hum/upload-keep/v1\nk"
+  ],
+  "chat_allowed": [
+    "account_export",
+    "bug_vote",
+    "hello there",
+    "hum/request/v2",
+    "see hum/request/v2\naccount_export",
+    " hum/request/v2\naccount_export",
+    "hum/request/v2\r\naccount_export",
+    "hum/Request/v2\naccount_export",
+    "hum/request/2\naccount_export",
+    "hum/request/v\naccount_export",
+    "hum//v1\naccount_export",
+    "hum/request\naccount_export",
+    "humming along"
+  ]
+}

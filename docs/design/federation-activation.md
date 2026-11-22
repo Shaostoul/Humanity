@@ -99,7 +99,7 @@ Over the allowance a frame **waits for its turn** (the read pump sleeps, so the 
 
 ### What the admins see
 
-Each peer row of `POST /api/admin/federation` (every action) and of the admin stats' `federation` list carries a read-only `link` object, for the web admin page's federation panel and the native Server Settings panel:
+Each peer row of the registry's `federation.*` actions (`POST /api/admin/actions/run`; the older `POST /api/admin/federation` was deleted 2026-11-21) and of the admin stats' `federation` list carries a read-only `link` object, for the web admin page's federation panel and the native Server Settings panel:
 
 ```json
 "link": {

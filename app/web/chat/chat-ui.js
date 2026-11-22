@@ -332,7 +332,7 @@ var PUSH_REFUSED_WORDS = {
 
 // Subscribe to WebPush via the relay's VAPID key. The request is signed over everything the
 // server keeps (BUG-255): `push_subscribe\n{endpoint}\n{p256dh}\n{auth}` then `\n{timestamp}`
-// (pqSignChatMessage), so a captured request cannot be replayed with another endpoint. The words
+// (pqSignMyRequest, a signed request), so a captured request cannot be replayed with another endpoint. The words
 // are pinned in scripts/tests/fixtures/push-signing-v1.json (scripts/tests/push-subscribe-web.test.js).
 function subscribeToPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
@@ -367,9 +367,10 @@ function subscribeToPush() {
       var keys = sub.toJSON().keys;
       // Signed so the server knows whose subscription this is, and that this endpoint and these
       // keys are the ones that person gave (full-PQ: Dilithium3).
-      var ts = Date.now();
+      // A signed request (pq.js: hum/request/v2, the server's address, the purpose, the time), never a chat line's shape.
+      var ts = pqRequestTimestamp();
       var purpose = 'push_subscribe\n' + sub.endpoint + '\n' + keys.p256dh + '\n' + keys.auth;
-      return pqSignChatMessage(purpose, ts).then(function(sig) {
+      return pqSignMyRequest(purpose, ts).then(function(sig) {
         if (!sig) return null;
         return fetch('/api/push/subscribe', {
           method: 'POST',

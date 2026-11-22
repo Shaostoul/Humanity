@@ -8,6 +8,7 @@
 // signature checked (the route as it was). What each test said then is at the test.
 
 use super::*;
+use crate::relay::signed_request::now_ms;
 use crate::relay::outbound::OutboundGuard;
 use crate::relay::storage::Storage;
 use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
@@ -27,7 +28,7 @@ fn key_of(p: &DilithiumKeypair) -> String {
 }
 
 fn sign(p: &DilithiumKeypair, purpose: &str, ts: u64) -> String {
-    hex::encode(p.sign(format!("{purpose}\n{ts}").as_bytes()))
+    hex::encode(p.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, &purpose, ts).as_bytes()))
 }
 
 fn ip(s: &str) -> IpAddr {
@@ -218,8 +219,8 @@ fn the_signed_words_are_the_fixtures() {
     let f: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let (endpoint, p256dh, auth) = (f["endpoint"].as_str().unwrap(), f["p256dh"].as_str().unwrap(), f["auth"].as_str().unwrap());
     let ts = f["timestamp"].as_u64().unwrap();
-    assert_eq!(format!("{}\n{ts}", subscribe_purpose(endpoint, p256dh, auth)), f["subscribe_preimage"].as_str().unwrap());
-    assert_eq!(format!("{}\n{ts}", unsubscribe_purpose(endpoint)), f["unsubscribe_preimage"].as_str().unwrap());
+    assert_eq!(crate::relay::signed_request::request_preimage(f["audience"].as_str().unwrap(), &subscribe_purpose(endpoint, p256dh, auth), ts), f["subscribe_preimage"].as_str().unwrap());
+    assert_eq!(crate::relay::signed_request::request_preimage(f["audience"].as_str().unwrap(), &unsubscribe_purpose(endpoint), ts), f["unsubscribe_preimage"].as_str().unwrap());
     assert!(crate::relay::outbound::url_shape(endpoint, crate::relay::outbound::Schemes::HttpsOnly).is_ok(), "the fixture's endpoint is one a push may go to");
     assert!(keys_ok(p256dh, auth));
 }

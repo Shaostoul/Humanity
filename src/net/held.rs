@@ -536,17 +536,22 @@ impl Caller {
         Caller { key: key.to_string(), seed: seed.to_vec() }
     }
 
-    /// The three headers proving this caller for `purpose`, signed now (a time later than any
-    /// earlier request's, so a retried request is never taken for a replay).
-    pub fn headers(&self, purpose: &str) -> [(&'static str, String); 3] {
+    /// The three headers proving this caller for `purpose` at the server `opened` (the URL the
+    /// request goes to), signed now (a time later than any earlier request's, so a retried request
+    /// is never taken for a replay). The signature is the signed requests' (net/identity.rs
+    /// `pq_sign_request`: `hum/request/v2`, the server's address, the purpose, the time; merged
+    /// 2026-11-22), so it is good at that server alone and no chat line can equal it; until then
+    /// it was `purpose\ntime`, a chat line's shape (the owner branch's review, S6).
+    pub fn headers(&self, opened: &str, purpose: &str) -> [(&'static str, String); 3] {
         use humanity_protocol::held_seal::{CALLER_KEY, CALLER_SIG, CALLER_TIME};
         let ts = next_ms();
-        [(CALLER_KEY, self.key.clone()), (CALLER_TIME, ts.to_string()), (CALLER_SIG, crate::net::identity::pq_sign_chat(&self.seed, purpose, ts))]
+        [(CALLER_KEY, self.key.clone()), (CALLER_TIME, ts.to_string()), (CALLER_SIG, crate::net::identity::pq_sign_request(&self.seed, opened, purpose, ts))]
     }
 
-    /// `req` signed for `purpose`.
+    /// `req` signed for `purpose`, at the server its URL names.
     pub fn sign(&self, req: ureq::Request, purpose: &str) -> ureq::Request {
-        self.headers(purpose).iter().fold(req, |r, (k, v)| r.set(k, v))
+        let opened = req.url().to_string();
+        self.headers(&opened, purpose).iter().fold(req, |r, (k, v)| r.set(k, v))
     }
 }
 

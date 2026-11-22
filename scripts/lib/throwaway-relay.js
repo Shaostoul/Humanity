@@ -212,6 +212,10 @@ function relayEnv(port, dbPath, extra = null) {
     PORT: String(port),
     DATABASE_PATH: dbPath,
     BIND_ADDRESS: LOOPBACK_BIND,
+    // The dev and test switch that gives the relay its loopback names (src/relay/audience.rs,
+    // 2026-11-21): without it a relay answers to no 127.0.0.1 address, so the game's sign-in here
+    // would be refused.
+    HUMANITY_DEV_LOOPBACK_NAMES: "1",
     TURN_BIND: LOOPBACK_BIND,
     TURN_PORT: "0",
     HUMANITY_NO_FOCUS: "1",

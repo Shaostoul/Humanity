@@ -675,10 +675,11 @@
    */
   async function chatSign(purpose) {
     const key = chatKey();
-    if (typeof pqSignChatMessage !== 'function' || !key) return null;
+    if (typeof pqSignMyRequest !== 'function' || !key) return null;
     const timestamp = Math.max(Date.now(), lastSigned + 1);
     lastSigned = timestamp;
-    const sig = await pqSignChatMessage(purpose, timestamp);
+    // A signed request (pq.js: hum/request/v2, the server's address, the purpose, the time), never a chat line's shape.
+    const sig = await pqSignMyRequest(purpose, timestamp);
     // Signed by the identity unlocked when it was asked: answered only if it is still the one.
     return sig && chatKey() === key ? { key, timestamp, sig } : null;
   }

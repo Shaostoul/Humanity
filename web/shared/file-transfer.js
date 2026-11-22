@@ -44,8 +44,10 @@
   const RECEIVE_MAX = 262144 + HEADER_BYTES; // a browser caps a message near 256 KiB; anything larger is not ours
 
   // ── The file pass (section 1) ──
-  const FILE_PASS_DOMAIN = 'hum/file-pass/v1';
-  const FILE_PASS_VERSION = 1;
+  // v2 (2026-11-21): the pass names the address the sender's page opened (`aud`), never the
+  // did:hum the server claims; the relay takes it only when that address is one of its names.
+  const FILE_PASS_DOMAIN = 'hum/file-pass/v2';
+  const FILE_PASS_VERSION = 2;
   const FILE_PASS_MAX_SECS = 7 * 24 * 3600;   // at most 7 days ahead
   const FILE_PASS_CLOCK_SLACK_SECS = 24 * 3600; // the relay allows one day past that
 
@@ -102,13 +104,28 @@
   }
 
   /** The words a pass signs. Byte for byte the relay's (section 1). */
-  function filePassPreimage(server, issuer, grantee, id, expiry) {
-    return `${FILE_PASS_DOMAIN}\n${server}\n${issuer}\n${grantee}\n${id}\n${expiry}`;
+  function filePassPreimage(audience, issuer, grantee, id, expiry) {
+    return `${FILE_PASS_DOMAIN}\n${audience}\n${issuer}\n${grantee}\n${id}\n${expiry}`;
   }
 
-  /** The pass as it travels, its fields in this order: {"v":1,"id":...,"expiry":...,"sig":...}. */
-  function filePassObject(id, expiry, sigB64) {
-    return { v: FILE_PASS_VERSION, id, expiry, sig: sigB64 };
+  /**
+   * Is `a` a server address in its one spelling: the relay's `pass_audience_ok`, the same rule as
+   * friend-pass.js `passAudienceOk` (this file loads on its own under Node, so it keeps a copy;
+   * scripts/tests/file-transfer-web.test.js holds the two to the same cases).
+   */
+  function filePassAudienceOk(a) {
+    if (typeof a !== 'string' || a.length === 0 || a.length > 262) return false;
+    const m = /^(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::(\d{1,5}))?$/.exec(a);
+    if (!m) return false;
+    const host = m[1];
+    if (!host.startsWith('[') && (host.length > 253 || /^[.-]/.test(host) || host.endsWith('.') || host.includes('..'))) return false;
+    if (m[2] !== undefined && (!(Number(m[2]) >= 1 && Number(m[2]) <= 65535) || String(Number(m[2])) !== m[2])) return false;
+    return true;
+  }
+
+  /** The pass as it travels, its fields in this order: {"v":2,"aud":...,"id":...,"expiry":...,"sig":...}. */
+  function filePassObject(aud, id, expiry, sigB64) {
+    return { v: FILE_PASS_VERSION, aud, id, expiry, sig: sigB64 };
   }
 
   /** Read a pass (an object, or its JSON text) without checking its signature: the pass, or null. */
@@ -119,10 +136,10 @@
       try { v = JSON.parse(v); } catch (e) { return null; }
     }
     if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
-    if (v.v !== FILE_PASS_VERSION || !idOk(v.id)) return null;
+    if (v.v !== FILE_PASS_VERSION || !idOk(v.id) || !filePassAudienceOk(v.aud)) return null;
     if (!isInt(v.expiry) || v.expiry <= 0) return null;
     if (typeof v.sig !== 'string' || v.sig.length === 0 || v.sig.length > 16384 || !SIG_RE.test(v.sig)) return null;
-    return filePassObject(v.id, v.expiry, v.sig);
+    return filePassObject(v.aud, v.id, v.expiry, v.sig);
   }
 
   /** A pass's end, `secs` from now (at most 7 days), in Unix seconds. */
@@ -993,7 +1010,7 @@
     FILE_PASS_DOMAIN, FILE_PASS_VERSION, FILE_PASS_MAX_SECS, FILE_PASS_CLOCK_SLACK_SECS,
     CTL_OFFER, CTL_OFFER_ANSWER, CTL_OFFER_CANCEL, CHANNEL_PREFIX, WORDS,
     idOk, hex64Ok, newId, toHex, piecesFor, pieceLength,
-    filePassFieldOk, filePassPreimage, filePassObject, filePassParse, filePassExpiry, filePassTimeOk,
+    filePassFieldOk, filePassAudienceOk, filePassPreimage, filePassObject, filePassParse, filePassExpiry, filePassTimeOk,
     isFileNoteText, offerChecked, offerNoteText, offerNoteParse, answerNoteText, answerNoteParse,
     cancelNoteText, cancelNoteParse, channelLabel, channelLabelId,
     pieceMessage, readPieceMessage, asBytes, readPiece, hashFile, sizeWords, limitWords,

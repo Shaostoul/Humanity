@@ -113,9 +113,9 @@ fn send(p: &mut Panel, state: &GuiState, action: &str, params: String, busy: &st
             if key.is_empty() {
                 return Err("No identity loaded: sign in first.".into());
             }
-            let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis() as u64;
+            let ts = crate::net::identity::next_request_timestamp();
             // The relay's own function for the words, so the two can never differ.
-            let sig = crate::net::identity::pq_sign_chat(&seed, &crate::relay::backup_stream::api::purpose(&action, &params), ts);
+            let sig = crate::net::identity::pq_sign_request(&seed, &base, &crate::relay::backup_stream::api::purpose(&action, &params), ts);
             let body = serde_json::json!({ "key": key, "timestamp": ts, "sig": sig, "action": action, "params": params }).to_string();
             let text = match ureq::post(&format!("{base}/api/admin/backups")).set("Content-Type", "application/json").send_string(&body) {
                 Ok(r) => r.into_string().map_err(|e| format!("read: {e}"))?,

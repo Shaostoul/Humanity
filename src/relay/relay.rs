@@ -285,13 +285,13 @@ pub struct RelayState {
     /// high-impact. Legit use is ~1 per deploy, so a generous global cap bounds
     /// the blast radius without affecting normal operation.
     pub announce_rate: std::sync::Mutex<Vec<Instant>>,
-    /// Audit 2026-06-12: anti-replay for signed REST auth requests (vault sync
-    /// etc.). The signature proves key ownership over "purpose\ntimestamp", but
-    /// within the 5-min freshness window a captured request could be replayed
-    /// (e.g. to re-overwrite a vault). We record each (key, purpose, timestamp)
-    /// that verifies, and reject a second sighting. Map: short id -> first-seen
-    /// Instant; pruned to the window on access + size-capped.
-    pub seen_auth_nonces: std::sync::Mutex<HashMap<String, Instant>>,
+    /// Each signed request accepted, so it is good once (replay_memory.rs: fixed-size entries,
+    /// bounded, oldest forgotten first; signed_request.rs `check` records them).
+    pub replay: crate::relay::replay_memory::ReplayMemory,
+    /// The addresses this relay answers to: every signature made for it names one (audience.rs).
+    pub own_names: std::sync::OnceLock<crate::relay::audience::OwnNames>,
+    /// When this run started: a request signed before it is refused (D6, signed_request.rs).
+    pub started_at: crate::relay::signed_request::StartedAt,
     /// The one-time owner claim code (2026-11-20, handlers/owner.rs): Some only while no key holds
     /// the owner role; printed to the server's log and written beside the DB, never sent to a client.
     pub claim_code: RwLock<Option<String>>,
@@ -353,35 +353,6 @@ impl RelayState {
             return clock();
         }
         crate::relay::storage::now_millis() as i64
-    }
-
-    /// Anti-replay gate for signed REST auth requests (audit 2026-06-12).
-    /// Returns true if this (pubkey, purpose, timestamp) tuple is FRESH (record
-    /// it and proceed), false if it is a REPLAY already seen within the window.
-    /// Call only AFTER the signature has verified. Keyed by a short hash of the
-    /// pubkey so map keys stay small; pruned to the window + size-capped.
-    pub fn auth_nonce_fresh(&self, pubkey_hex: &str, purpose: &str, timestamp: u64) -> bool {
-        const WINDOW_SECS: u64 = 6 * 60; // slightly wider than the 5-min freshness check
-        const MAP_CAP: usize = 100_000;
-        let fp = {
-            use sha2::{Digest, Sha256};
-            let mut h = Sha256::new();
-            h.update(pubkey_hex.as_bytes());
-            hex::encode(&h.finalize()[..8])
-        };
-        let id = format!("{fp}:{purpose}:{timestamp}");
-        let mut map = self.seen_auth_nonces.lock().unwrap();
-        let now = Instant::now();
-        if map.len() > MAP_CAP {
-            map.retain(|_, t| now.duration_since(*t).as_secs() < WINDOW_SECS);
-        }
-        if let Some(t) = map.get(&id) {
-            if now.duration_since(*t).as_secs() < WINDOW_SECS {
-                return false; // replay
-            }
-        }
-        map.insert(id, now);
-        true
     }
 
     pub fn new(db: Storage) -> Self {
@@ -528,7 +499,9 @@ impl RelayState {
             new_identity_per_ip: std::sync::Mutex::new(HashMap::new()),
             object_submit_rate: std::sync::Mutex::new(HashMap::new()),
             announce_rate: std::sync::Mutex::new(Vec::new()),
-            seen_auth_nonces: std::sync::Mutex::new(HashMap::new()),
+            replay: Default::default(),
+            own_names: std::sync::OnceLock::new(),
+            started_at: crate::relay::signed_request::StartedAt::now(),
             claim_code: RwLock::new(None),
             claim_code_file: std::sync::Mutex::new(crate::relay::handlers::owner::CLAIM_CODE_FILE.into()),
             owner_claim_misses: std::sync::Mutex::new(Default::default()),
@@ -715,7 +688,7 @@ pub enum RelayMessage {
 
     /// Server-issued challenge after `identify`. The client must sign
     /// the domain-separated preimage
-    ///   "hum/identify/v1\n" + nonce + "\n" + public_key_hex
+    ///   "hum/identify/v2\n" + audience + "\n" + nonce + "\n" + public_key_hex
     /// with their Dilithium3 secret and return it as `IdentifyResponse`.
     /// Until verified the relay does NOT bind the socket to the claimed
     /// identity — this closes HIGH-2 (identify spoofing / impersonation).
@@ -723,7 +696,8 @@ pub enum RelayMessage {
     IdentifyChallenge {
         /// 32 random bytes, hex-encoded (64 chars). Fresh per socket.
         nonce: String,
-        /// This server's own did:hum, which every friendship pass given here names (pq_crypto.rs `friend_cert_preimage`).
+        /// This server's own did:hum. Since 2026-11-21 no pass names it: a pass names the address
+        /// the issuer's app opened (pq_crypto.rs `friend_cert_preimage`).
         #[serde(default, skip_serializing_if = "String::is_empty")] server_did: String,
     },
 
@@ -734,6 +708,8 @@ pub enum RelayMessage {
     IdentifyResponse {
         /// Base64 of the 3309-byte Dilithium3 signature.
         sig_b64: String,
+        /// The address the app connected to, which the signature names (audience.rs).
+        #[serde(default)] audience: String,
     },
 
     /// A chat message, Dilithium3-signed (`pq_signature`).
@@ -1417,7 +1393,7 @@ pub enum RelayMessage {
         /// On a `dc_offer`: the target's friendship pass for the sender, as on `voice_call`; never forwarded.
         #[serde(default, skip_serializing_if = "Option::is_none")] friend_cert: Option<String>,
         /// On a `dc_offer`: the target's FILE PASS for the sender, the JSON object
-        /// `{"v":1,"id","expiry","sig"}` (pq_crypto `verify_file_pass`; device-to-device big files,
+        /// `{"v":2,"aud","id","expiry","sig"}` (pq_crypto `verify_file_pass`; device-to-device big files,
         /// docs/design/files-showcase.md): the receiver of a file dials its sender with it. Read by
         /// the relay (handlers/reach.rs `dc_offer_may_pass`), never forwarded.
         #[serde(default, skip_serializing_if = "Option::is_none")] file_pass: Option<serde_json::Value>,
@@ -2821,7 +2797,8 @@ impl Drop for ConnectionGuard {
 }
 
 /// Handle a single WebSocket connection.
-pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client_ip: String) {
+/// `arrival`: the upgrade's `Host` and client address, what a sign-in's audience must match (audience.rs).
+pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client_ip: String, arrival: crate::relay::audience::Arrival) {
     // Connection limit check: reject if at capacity.
     let prev = state.connection_count.fetch_add(1, Ordering::SeqCst);
     if prev >= state.max_connections {
@@ -2973,7 +2950,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     } else {
                         // Human identity: issue the Dilithium nonce challenge.
                         // Client must sign the canonical preimage
-                        //   "hum/identify/v1\n" + nonce_hex + "\n" + public_key_hex
+                        //   "hum/identify/v2\n" + audience + "\n" + nonce_hex + "\n" + public_key_hex
                         // and return it via IdentifyResponse before we bind.
                         let mut nonce_bytes = [0u8; 32];
                         if getrandom::getrandom(&mut nonce_bytes).is_err() {
@@ -2995,7 +2972,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         continue;
                     }
                 }
-                Ok(RelayMessage::IdentifyResponse { sig_b64 }) => {
+                Ok(RelayMessage::IdentifyResponse { sig_b64, audience }) => {
                     let Some(pending) = pending_identify.take() else {
                         let err = RelayMessage::System {
                             message: "No pending identify challenge — send Identify first.".to_string(),
@@ -3003,29 +2980,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
                         continue;
                     };
-                    let preimage = format!("hum/identify/v1\n{}\n{}", pending.nonce, pending.public_key);
-                    // The Dilithium3 proof-of-possession verify is CPU-bound; run it OFF
-                    // the async worker pool (once per socket connect) so a connect flood
-                    // can't starve tokio. spawn_blocking closures must be 'static + Send,
-                    // so move the owned preimage + cloned key/sig in. The reject DECISION
-                    // is UNCHANGED — only where the verify runs moves. A panicked/cancelled
-                    // verify task fails closed (`false` → reject), never as a pass.
-                    let pk_for_verify = pending.public_key.clone();
-                    let sig_for_verify = sig_b64.clone();
-                    let ok = tokio::task::spawn_blocking(move || {
-                        crate::relay::handlers::broadcast::verify_dilithium_b64(
-                            &pk_for_verify,
-                            preimage.as_bytes(),
-                            &sig_for_verify,
-                        )
-                    })
-                    .await
-                    .unwrap_or(false);
-                    if !ok {
-                        let err = RelayMessage::System {
-                            message: "Identify challenge verification failed. Reconnect and re-identify.".to_string(),
-                        };
-                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                    // The sign-in proof (audience.rs `verify_identify`): the key in its one form, the
+                    // audience the address this socket was opened to and one of this relay's own names,
+                    // from a client its reach allows (a signature made for another server never signs
+                    // anyone in here), the Dilithium3 signature over
+                    // `hum/identify/v2\n{audience}\n{nonce}\n{key}`, verified off the executor.
+                    if let Err(words) = crate::relay::audience::verify_identify(&state, &arrival, &audience, &pending.nonce, &pending.public_key, &sig_b64).await {
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&RelayMessage::System { message: words }).unwrap().into())).await;
                         continue;
                     }
 
@@ -3736,7 +3697,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     let state_clone = state.clone();
     let my_key_for_recv = my_key.clone();
     let mut last_profile_update: Option<Instant> = None;
-    let mut recv_task = tokio::spawn(async move {
+    // The handlers it calls know where this socket arrived (audience.rs `presenter_peer`): a pass
+    // naming a loopback or LAN name is taken only from a client there (C8).
+    let mut recv_task = tokio::spawn(crate::relay::audience::scope_socket(arrival, async move {
         // Wrong owner claim codes this connection tried (handlers/owner.rs).
         let mut owner_claim_misses: u32 = 0;
         while let Some(Ok(msg)) = ws_rx.next().await {
@@ -5026,6 +4989,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
                                 let ch = if channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL.to_string() } else { channel };
 
+                                // A chat text that begins with a signing domain line ("hum/request/v2"
+                                // then a newline) is never accepted: its signature over `text\nts` would
+                                // be the very bytes of a signed request, a report or a DM's inner
+                                // signature (2026-11-20, `signed_request`). Our clients never sign one.
+                                if crate::relay::signed_request::starts_with_signing_domain(&content) {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Message not sent: a message cannot begin with a line like \"hum/request/v2\", which is kept for signed requests.".to_string(),
+                                    });
+                                    continue;
+                                }
+
                                 // Who may post here, and below Verified one link and no attachment (chat_access.rs).
                                 if crate::relay::chat_access::post_refused(&state_clone, &my_key_for_recv, &ch, &content, timestamp) { continue; }
 
@@ -6045,7 +6020,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 _ => {}
             }
         }
-    });
+    }));
 
     // Wait for either task to finish.
     tokio::select! {

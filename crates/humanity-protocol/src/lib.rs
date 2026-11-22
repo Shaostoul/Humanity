@@ -60,6 +60,10 @@ pub mod recovery;
 /// 2026-11-02): the desktop updater checks a download by it, and the server checks a signed pair by
 /// it before the website marks that release Signed (docs/design/front-door.md, section 3.1).
 pub mod release_signature;
+/// The one shape a signed REQUEST has (2026-11-20): `hum/request/v1`, the purpose, the time, so no
+/// chat message signature can ever stand in for one. The relay, the desktop app and the website
+/// (web/chat/pq.js) all build it from here or its twin.
+pub mod signed_request;
 pub mod signing;
 pub mod solana_rpc;
 /// HEIF still picture (HEIC, AVIF) metadata removal in place: the Exif and

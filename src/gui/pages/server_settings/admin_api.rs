@@ -5,28 +5,12 @@
 //! each frame. Every request runs on a worker thread, so the page never waits on the network; the
 //! answers come back over `AdminConsoleState::tx`.
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde_json::{json, Value};
 
 use crate::gui::{AdminReply, GuiState};
 
-/// The time a request is signed at: the next millisecond after the last one this app signed, so
-/// two requests started together are never refused as the same one (the relay remembers each
-/// key, purpose and time once).
-fn next_timestamp() -> u64 {
-    static LAST: AtomicU64 = AtomicU64::new(0);
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
-    let mut prev = LAST.load(Ordering::SeqCst);
-    loop {
-        let next = if now > prev { now } else { prev + 1 };
-        match LAST.compare_exchange(prev, next, Ordering::SeqCst, Ordering::SeqCst) {
-            Ok(_) => return next,
-            Err(p) => prev = p,
-        }
-    }
-}
 
 /// The connected server's web address, or None while the app is not connected to one.
 pub(crate) fn server_base(state: &GuiState) -> Option<String> {
@@ -86,9 +70,9 @@ pub(crate) fn run_action(state: &mut GuiState, action: &str, inputs: Value, conf
                 return Err("No identity loaded: sign in first.".into());
             }
             let inputs_text = inputs.to_string();
-            let ts = next_timestamp();
+            let ts = crate::net::identity::next_request_timestamp();
             // The Dilithium3 signature is CPU work: it is made here, on the worker, not the UI.
-            let sig = crate::net::identity::pq_sign_chat(&seed, &crate::relay::admin::run_purpose(&action, &inputs_text), ts);
+            let sig = crate::net::identity::pq_sign_request(&seed, &base, &crate::relay::admin::run_purpose(&action, &inputs_text), ts);
             let body = json!({ "key": key, "timestamp": ts, "sig": sig, "action": action, "inputs": inputs_text, "confirm": confirm }).to_string();
             match ureq::post(&format!("{base}/api/admin/actions/run")).set("Content-Type", "application/json").send_string(&body) {
                 Ok(r) => serde_json::from_str(&r.into_string().map_err(|e| format!("The answer could not be read: {e}"))?)

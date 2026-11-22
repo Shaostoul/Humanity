@@ -157,7 +157,7 @@ fn relay_category(label: &str) -> String {
 ///
 /// The route is unauthenticated by design on the relay side (no signature is
 /// verified; `reporter_key` is whatever the client claims), so unlike the Files
-/// page this sends no `pq_sign_chat` signature: adding one would be theatre,
+/// page this sends no `pq_sign_request` signature: adding one would be theatre,
 /// since `create_bug` never checks it. We do send our real public key and name
 /// so a maintainer can follow up.
 #[allow(clippy::too_many_arguments)]
@@ -205,15 +205,15 @@ fn submit_bug_blocking(
     }
 }
 
-/// The signed staff read's credentials: this person's key and a signature over
-/// `bug_details\n<time>` (the relay's `BUG_DETAILS_PURPOSE`). None without a seed here.
-fn staff_auth(seed: Option<&[u8]>, key: &str) -> Option<serde_json::Value> {
+/// The signed staff read's credentials: this person's key and a request signature for `server`
+/// over `bug_details` (the relay's `BUG_DETAILS_PURPOSE`). None without a seed here.
+fn staff_auth(server: &str, seed: Option<&[u8]>, key: &str) -> Option<serde_json::Value> {
     let seed = seed?;
-    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let ts = crate::net::identity::next_request_timestamp();
     Some(serde_json::json!({
         "key": key,
         "timestamp": ts,
-        "sig": crate::net::identity::pq_sign_chat(seed, "bug_details", ts),
+        "sig": crate::net::identity::pq_sign_request(seed, server, "bug_details", ts),
     }))
 }
 
@@ -319,7 +319,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     bs.severity_idx = 0;
                     bs.category_idx = 0;
                     bs.status_message = tf("bugs.saved", &[("id", &id)]);
-                    let staff = if bs.show_details { staff_auth(seed.as_deref(), &my_key) } else { None };
+                    let staff = if bs.show_details { staff_auth(&server, seed.as_deref(), &my_key) } else { None };
                     spawn_list_fetch(bs, &server, staff);
                 }
                 Ok(Err(e)) => {
@@ -351,13 +351,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if with_hint(ui, "bugs.refresh_hint", |ui| widgets::secondary_button(ui, theme, t("common.refresh"))) {
                         with_state(|bs| {
-                            let staff = if bs.show_details { staff_auth(seed.as_deref(), &my_key) } else { None };
+                            let staff = if bs.show_details { staff_auth(&server, seed.as_deref(), &my_key) } else { None };
                             spawn_list_fetch(bs, &server, staff);
                         });
                     }
                     // Who sent each report, for the admins and moderators (BUG-280).
                     if with_hint(ui, "bugs.show_details_hint", |ui| widgets::secondary_button(ui, theme, t("bugs.show_details"))) {
-                        with_state(|bs| match staff_auth(seed.as_deref(), &my_key) {
+                        with_state(|bs| match staff_auth(&server, seed.as_deref(), &my_key) {
                             Some(auth) => {
                                 bs.show_details = true;
                                 spawn_list_fetch(bs, &server, Some(auth));

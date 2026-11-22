@@ -441,7 +441,10 @@ pub(crate) mod tests {
     use crate::net::dm_store::SentPass;
     use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
-    const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+    // The server these tests' apps are on, by the address passes and permits name (C8, 2026-11-21:
+    // a pass names the address the app opened; the DM store's identity, `set_pass_server`, takes it
+    // too, any text standing for the server's did:hum there).
+    const SERVER: &str = "relay.example";
 
     pub(crate) fn identity(n: u8) -> (Vec<u8>, String) {
         let seed = vec![n; 32];

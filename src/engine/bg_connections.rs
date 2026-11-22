@@ -560,28 +560,18 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
     state.gui_state.connections[ci].msgs_in += 1;
     match val.get("type").and_then(|v| v.as_str()) {
         Some("identify_challenge") => {
-            // Same signed preimage as the active connection's arm in lib.rs:
-            // "hum/identify/v1\n{nonce}\n{pubkey}", Dilithium3 over the seed.
+            // The same sign-in proof as the active connection's (frame_ws_poll.rs), signed for the
+            // address THIS connection opened (net::identity::identify_response, 2026-11-21): a server
+            // that passes another server's challenge through gets a proof naming itself.
             let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("");
-            if nonce.is_empty() {
-                return;
-            }
             let Some(seed) = state.gui_state.private_key_bytes.as_ref() else {
                 return;
             };
-            let preimage = format!(
-                "hum/identify/v1\n{}\n{}",
-                nonce, state.gui_state.profile_public_key
-            );
-            let sig = crate::net::identity::pq_sign_raw(seed, preimage.as_bytes());
-            use base64::{engine::general_purpose::STANDARD as B64, Engine};
-            let response = serde_json::json!({
-                "type": "identify_response",
-                "sig_b64": B64.encode(&sig),
-            })
-            .to_string();
             if let Some(ws) = state.gui_state.connections[ci].ws.as_ref() {
-                ws.send(&response);
+                match crate::net::identity::identify_response(seed, ws.server_url(), nonce, &state.gui_state.profile_public_key) {
+                    Ok(response) => ws.send(&response),
+                    Err(why) => log::warn!("background connection: identify_challenge not signed: {why}"),
+                }
             }
         }
         Some("peer_list") => {

@@ -13,10 +13,12 @@
 //! THE FILE PASS. The relay lets a `dc_offer` through, and hands out forwarder credentials, only
 //! with a reason. Two people who are not friends have none, so the sender mints one for this one
 //! transfer: a Dilithium3 signature over
-//! `hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}`, carried as
-//! `{"v":1,"id":"<id>","expiry":<n>,"sig":"<base64>"}`. The relay checks it statelessly, rebuilding
-//! the words from its own did:hum and the two keys it knows from the frame, the pattern of the
-//! friendship passes and plot permits. It is good for nothing but reaching the issuer for this file.
+//! `hum/file-pass/v2\n{audience}\n{issuer}\n{grantee}\n{id}\n{expiry}`, carried as
+//! `{"v":2,"aud":"<audience>","id":"<id>","expiry":<n>,"sig":"<base64>"}`, the audience the
+//! address the sender's app opened (engine/dm.rs `pass_audience`; v1 named the server's did:hum,
+//! which the server itself claimed). The relay checks it statelessly: the audience one of its own
+//! names, the rest of the words rebuilt from the two keys it knows from the frame, the pattern of
+//! the friendship passes and plot permits. It is good for nothing but reaching the issuer for this file.
 //!
 //! THE NOTES. Sealed DMs like the choice and block notes, never shown as messages:
 //! `[[hum:offer:v1]]{...}`, `[[hum:offer-answer:v1]]{"id","accept"}`, `[[hum:offer-cancel:v1]]{"id"}`.
@@ -50,8 +52,10 @@ pub const CTL_OFFER_CANCEL: &str = "[[hum:offer-cancel:v1]]";
 /// The size of every piece but the last, bytes (256 KiB).
 pub const PIECE_SIZE: u64 = 262_144;
 
-/// The first line of what a file pass signs.
-pub const FILE_PASS_DOMAIN: &str = "hum/file-pass/v1";
+/// The first line of what a file pass signs (the relay's, so the two cannot differ).
+pub const FILE_PASS_DOMAIN: &str = humanity_protocol::pq_crypto::FILE_PASS_DOMAIN;
+/// The `v` a file pass carries (v2, 2026-11-21: it names the address the sender's app opened).
+pub const FILE_PASS_VERSION: u32 = 2;
 /// The longest a file pass may run: 7 days.
 pub const FILE_PASS_MAX_SECS: u64 = 7 * 86_400;
 /// How much longer than [`FILE_PASS_MAX_SECS`] a check allows, as plot permits do: the issuer
@@ -66,10 +70,13 @@ pub const MAX_OFFER_BYTES: u64 = 1 << 38;
 /// The longest file name or type an offer may carry, in characters.
 const MAX_TEXT_CHARS: usize = 255;
 
-/// A file pass: the sender's word that the receiver may reach them for this one file.
+/// A file pass: the sender's word that the receiver may reach them for this one file, at the
+/// server the sender's app opened as `aud`. Fields in the spec's order, the order it is written in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilePass {
     pub v: u32,
+    /// The address the sender's app opened to reach the server (a canonical audience).
+    pub aud: String,
     pub id: String,
     pub expiry: u64,
     pub sig: String,
@@ -171,7 +178,8 @@ impl Offer {
         if !lower_hex(&self.blake3, 64) || !lower_hex(&self.hashes, 64) {
             return Err("its hashes are not 64 lowercase hex characters");
         }
-        if self.pass.v != 1 || self.pass.id != self.id || self.pass.sig.is_empty() {
+        let aud_ok = humanity_protocol::pq_crypto::pass_audience_ok(&self.pass.aud);
+        if self.pass.v != FILE_PASS_VERSION || !aud_ok || self.pass.id != self.id || self.pass.sig.is_empty() {
             return Err("its pass is not for this transfer");
         }
         Ok(())
@@ -220,16 +228,18 @@ pub fn new_id() -> Option<String> {
 
 // ── The file pass ───────────────────────────────────────────────────────────────────────────
 
-/// What the sender signs: the server it is given on (that server's own did:hum), the sender's key,
-/// the receiver's key, the transfer and when it runs out.
-pub fn file_pass_preimage(server: &str, issuer: &str, grantee: &str, id: &str, expiry: u64) -> String {
-    format!("{FILE_PASS_DOMAIN}\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}")
+/// What the sender signs: the server it is given on (the address the sender's app opened, a
+/// canonical audience; never the did:hum the server says it has), the sender's key, the
+/// receiver's key, the transfer and when it runs out.
+pub fn file_pass_preimage(audience: &str, issuer: &str, grantee: &str, id: &str, expiry: u64) -> String {
+    format!("{FILE_PASS_DOMAIN}\n{audience}\n{issuer}\n{grantee}\n{id}\n{expiry}")
 }
 
 /// Why a file pass was not minted, or does not check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PassError {
-    /// A server, key or id that is empty, holds a line break, or an id that is not one.
+    /// A server address not in its canonical form, a key that is empty or holds a line break,
+    /// an id that is not one, or a version other than [`FILE_PASS_VERSION`].
     Malformed,
     /// Its end has come.
     Expired,
@@ -253,34 +263,37 @@ fn pass_window(expiry: u64, now: u64, slack: u64) -> Result<(), PassError> {
     Ok(())
 }
 
-/// Mint MY file pass for `grantee` to reach me for transfer `id` on the server `server` (its
-/// did:hum), running out at `expiry` (Unix seconds), with the Dilithium key derived from my BIP39
-/// `seed`. Refused when a check would refuse it (the minting allows no clock slack).
-pub fn mint_file_pass(seed: &[u8], server: &str, issuer: &str, grantee: &str, id: &str, expiry: u64, now: u64) -> Result<FilePass, PassError> {
+/// Mint MY file pass for `grantee` to reach me for transfer `id` at the server my app opened as
+/// `audience` (engine/dm.rs `pass_audience`), running out at `expiry` (Unix seconds), with the
+/// Dilithium key derived from my BIP39 `seed`. Refused when a check would refuse it (the minting
+/// allows no clock slack).
+pub fn mint_file_pass(seed: &[u8], audience: &str, issuer: &str, grantee: &str, id: &str, expiry: u64, now: u64) -> Result<FilePass, PassError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
-    if ![server, issuer, grantee].into_iter().all(pass_field_ok) || !is_id(id) {
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, pass_audience_ok, DilithiumKeypair};
+    if !pass_audience_ok(audience) || ![issuer, grantee].into_iter().all(pass_field_ok) || !is_id(id) {
         return Err(PassError::Malformed);
     }
     pass_window(expiry, now, 0)?;
     let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
-    let sig = B64.encode(kp.sign(file_pass_preimage(server, issuer, grantee, id, expiry).as_bytes()));
-    Ok(FilePass { v: 1, id: id.to_string(), expiry, sig })
+    let sig = B64.encode(kp.sign(file_pass_preimage(audience, issuer, grantee, id, expiry).as_bytes()));
+    Ok(FilePass { v: FILE_PASS_VERSION, aud: audience.to_string(), id: id.to_string(), expiry, sig })
 }
 
-/// Does `pass` let `grantee` reach `issuer_hex` for its transfer on the server `server`? The words
-/// are rebuilt from the facts the checker knows, never the pass's claims beyond its id and end.
-/// The receiver checks an offer's pass this way before asking anything, so an offer whose pass the
-/// relay would refuse is never asked about.
-pub fn verify_file_pass(issuer_hex: &str, server: &str, grantee: &str, pass: &FilePass, now: u64) -> Result<(), PassError> {
+/// Does `pass` let `grantee` reach `issuer_hex` for its transfer? The words are rebuilt from the
+/// facts the checker knows, never the pass's claims beyond its server address, id and end; whether
+/// that address is one of the relay's names is the relay's question (it is the judge of its own
+/// names). The receiver checks an offer's pass this way before asking anything, so an offer whose
+/// pass the relay would refuse for its signature is never asked about.
+pub fn verify_file_pass(issuer_hex: &str, grantee: &str, pass: &FilePass, now: u64) -> Result<(), PassError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    if pass.v != 1 || ![server, issuer_hex, grantee].into_iter().all(pass_field_ok) || !is_id(&pass.id) {
+    let fields_ok = [issuer_hex, grantee].into_iter().all(pass_field_ok);
+    if pass.v != FILE_PASS_VERSION || !humanity_protocol::pq_crypto::pass_audience_ok(&pass.aud) || !fields_ok || !is_id(&pass.id) {
         return Err(PassError::Malformed);
     }
     pass_window(pass.expiry, now, FILE_PASS_CLOCK_SLACK_SECS)?;
     let Ok(issuer_pk) = hex::decode(issuer_hex.trim()) else { return Err(PassError::BadSignature) };
     let Ok(sig) = B64.decode(pass.sig.trim()) else { return Err(PassError::BadSignature) };
-    humanity_protocol::pq_crypto::verify_dilithium(&issuer_pk, file_pass_preimage(server, issuer_hex, grantee, &pass.id, pass.expiry).as_bytes(), &sig)
+    humanity_protocol::pq_crypto::verify_dilithium(&issuer_pk, file_pass_preimage(&pass.aud, issuer_hex, grantee, &pass.id, pass.expiry).as_bytes(), &sig)
         .map_err(|_| PassError::BadSignature)
 }
 
@@ -546,8 +559,8 @@ pub enum Applied {
 }
 
 /// Apply one verified note from `from` to `to` signed at `ts` to the records. `me` is this
-/// person's key; `pass_ok` checks an offer's pass (the caller rebuilds the words from the server's
-/// did:hum, the sender and this person, `verify_file_pass`). The cases:
+/// person's key; `pass_ok` checks an offer's pass (the caller rebuilds the words from the pass's
+/// server address, the sender and this person, `verify_file_pass`). The cases:
 /// - an offer from someone else to me: listed as incoming, not here until accepted here; one whose
 ///   pass does not check is not listed (the relay would refuse its connection anyway);
 /// - an offer from me (a self-copy, from my other device or this one's own echo): listed as

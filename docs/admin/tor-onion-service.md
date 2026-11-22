@@ -57,6 +57,14 @@ sudo cat /var/lib/tor/humanity/hostname   # your <56-char>.onion address
 Publish that `.onion` address alongside the clearnet URL. The
 `scripts/tor-onion-setup.sh` helper does the above and prints the address.
 
+**The relay must be told the onion name (2026-11-21).** Every signed request and sign-in
+names the address the person's app connected to, and the relay refuses a name it was not
+given (`src/relay/audience.rs`). Add the address to `PUBLIC_HOSTS` in the relay's `.env`
+(no port: Tor's port 80 is the default) and restart the relay; the helper script does this
+when it finds `/opt/Humanity/.env` (or `$HUMANITY_REPO/.env`). Tor reaches the relay over
+loopback without the visitor's address, so every onion visitor looks like this computer:
+that is why the relay takes no loopback name unless the dev switch says so.
+
 ## What the user does
 
 Open the relay's `.onion` address in Tor Browser (or any Tor-enabled client).

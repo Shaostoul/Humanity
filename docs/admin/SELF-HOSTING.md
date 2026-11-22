@@ -113,7 +113,8 @@ Linux: `PORT=4000 HumanityOS --headless`.
 **Who can connect (`BIND_ADDRESS`).** The default, `0.0.0.0`, listens on every
 network interface, so other devices on your network can reach the node: that
 is what the LAN case below, a router port forward, and friends connecting
-straight to a Tailscale address all need. `127.0.0.1` (or `localhost`) listens
+straight to a Tailscale address all need (for Tailscale, also say the node is
+on a tailnet: `ON_TAILNET=1`, under Configuration). `127.0.0.1` (or `localhost`) listens
 on this computer only: nothing else can reach it, which is right for trying a
 node out by yourself, and for a server where nginx or a tunnel on the same
 machine (Cloudflare Tunnel, `tailscale serve`, a Tor onion service) passes
@@ -431,6 +432,46 @@ API_SECRET=generate_a_random_64_char_hex  # For bot API authentication
 # scripts/provision-vps.sh writes it for you from HUMANITY_DOMAIN.
 ALLOWED_ORIGINS=https://your-domain.example,https://chat.your-domain.example
 
+# The names people's apps reach this relay by, comma-separated, each a host name or
+# address with :port when people type one (2026-11-21). Every request and sign-in a
+# person's app makes names the address it connected to, and the relay refuses a
+# signature made for any name it does not answer to, so a server cannot pass on what
+# someone signed for it. The relay also answers to every https:// origin in
+# ALLOWED_ORIGINS and to TURN_PUBLIC_HOST, so a node on its own domain needs nothing
+# more; add an onion address (scripts/tor-onion-setup.sh writes it), a second domain,
+# or an address and port people type (203.0.113.9:3210). A name that means "this
+# computer" (127.0.0.1, localhost) is taken only from this computer, and a local
+# network name (192.168.1.5:3210, mypc.local) only from that network, judged by the
+# connection's own address. A connection carrying a forwarding header (X-Real-IP,
+# X-Forwarded-For, Forwarded, Via: nginx sends one) is never local. But a forwarder
+# that adds NO header (Tor, frp, ngrok, playit, a Whonix gateway) hands every visitor
+# over from its own address: on this computer that is 127.0.0.1, and on another device
+# of your network (Tor on a router, a Raspberry Pi or a NAS) a local address, so its
+# visitors would count as this computer or as your household. So point every
+# forwarder at 127.0.0.1 on THIS computer, at PORT, and beside a public name list no
+# loopback name and no local-network name (2026-11-21; the log warns when the list
+# mixes a public name with a local one). With no name at all the relay refuses every
+# signed request and sign-in, and its log says so at start. scripts/provision-vps.sh
+# writes your domains here; the desktop's Host a node section has a Public address
+# field for it, and lists your local address beside it only when you tick "Also
+# answer on my local network".
+PUBLIC_HOSTS=your-domain.example,chat.your-domain.example
+
+# The owner's door (optional, 2026-11-21): a second port the relay listens on at
+# 127.0.0.1 only, the way the owner's own app reaches the node. Its names
+# (127.0.0.1, localhost and [::1] at that port) are taken there alone, and only for
+# HUMANITY_OWNER_ADMIN_KEY's key, so it is no address to share, and a forwarder
+# pointed at it by mistake hands over nothing anyone else signed. The desktop's Host
+# a node section always opens one, at the node's port and one.
+# OWNER_PORT=3211
+# HUMANITY_OWNER_ADMIN_KEY=<your key, lowercase hex>
+
+# The node is on a Tailscale network (optional, 2026-11-21): 1 lets a client with any
+# address in 100.64.0.0/10 use the node's Tailscale address and its MagicDNS
+# one-word name. Without it an address in that range counts as its own network,
+# because internet providers give the same range to their customers.
+# ON_TAILNET=1
+
 # Where it listens (both optional; "Run your own node" above explains them)
 PORT=3210                                  # Port (default 3210)
 BIND_ADDRESS=0.0.0.0                       # Address (default 0.0.0.0, every interface;
@@ -486,7 +527,12 @@ cargo build --release --features relay --no-default-features
 # /etc/systemd/system/humanity-relay.service
 [Unit]
 Description=Humanity Network Relay
-After=network.target
+# Start once the clock is set (2026-11-21): the relay refuses a signed request made before
+# its own start, so a relay that starts on a clock still wrong at boot refuses everything
+# until the clock catches up. Enable systemd-time-wait-sync.service for this to wait for a
+# real time sync (scripts/provision-vps.sh does, with a 90-second limit).
+After=network.target time-sync.target
+Wants=time-sync.target
 
 [Service]
 Type=simple
@@ -550,6 +596,13 @@ sudo systemctl start humanity-relay
 ```
 
 ### 4. Set up nginx with TLS
+
+**nginx must pass the Host on WITH its port** (`proxy_set_header Host $http_host;`, as
+every block below does, never `$host`): every signed request names the address the
+person's app connected to, port included when it is not 443, and the relay checks it
+against the Host it receives. `$host` drops the port, so on a non-default port every
+signed request would be refused while sign-in still worked; the refusal says "a
+different port, or none" when this is the cause.
 
 ```bash
 # Install nginx and certbot
@@ -632,7 +685,7 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_read_timeout 86400;
     }
@@ -642,7 +695,7 @@ server {
     location /api/ {
         limit_req zone=general burst=20 nodelay;
         proxy_pass http://127.0.0.1:3210/api/;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
@@ -660,7 +713,7 @@ server {
         proxy_send_timeout 900s;
         proxy_read_timeout 900s;
         proxy_pass http://127.0.0.1:3210/api/upload;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
@@ -676,7 +729,7 @@ server {
         proxy_send_timeout 300s;
         proxy_read_timeout 900s;
         proxy_pass http://127.0.0.1:3210;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
@@ -699,7 +752,7 @@ server {
         limit_req_status 429;
         proxy_pass http://127.0.0.1:3210;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -795,7 +848,14 @@ nginx runs on another machine of yours; `TRUSTED_PROXIES=none` for a relay
 that faces the internet with no proxy). From anyone else every such header is
 ignored and the connection's own address counts. Without `X-Real-IP` it reads
 `X-Forwarded-For` from the right (the last entry is the one nginx appended; a
-visitor can write anything to the left of it).
+visitor can write anything to the left of it). That address COUNTS requests; it
+never decides that a visitor is on this computer or this local network (whether a
+signature made for a loopback or LAN name is taken): only the connection's own
+address does, and a connection carrying any forwarding header is never local
+(2026-11-21, `src/relay/client_addr.rs` `direct_peer`). A forwarder that adds no
+header is a different case: its visitors arrive from the forwarder's own address,
+which is why every forwarder points at 127.0.0.1 on this computer and a relay with
+a public name lists no loopback or local-network name (`PUBLIC_HOSTS`, above).
 
 The relay uses that address for its own per-address limits on every route
 (`src/relay/ip_limit.rs`): the bot API's `/api/send` and the other routes

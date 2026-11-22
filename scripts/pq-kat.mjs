@@ -97,7 +97,7 @@ try {
   const ss2 = m.ml_kem768.decapsulate(cipherText, kkp.secretKey);
   if (hx(sharedSecret) !== hx(ss2)) fail('ml_kem768 encapsulate/decapsulate shared-secret mismatch');
 
-  // ── Friendship pass v2 (2026-10-09, blocking-and-safe-mode.md 10b) ──
+  // ── Friendship pass v3 (v2 2026-10-09, blocking-and-safe-mode.md 10b; v3 2026-11-21: the address the app opened) ──
   // A pass MINTED BY RUST from the KAT seeds (crates/humanity-protocol/src/pq_kat_friend_pass.json,
   // which pq_crypto.rs friend_cert_kat_fixture_matches_the_builder proves the Rust
   // builder reproduces) must read and verify here: its JSON through the web's own
@@ -105,7 +105,8 @@ try {
   // the chat client mints and checks with), its signature with this vendored noble.
   // So the string, the shape and the signature path all agree, not only the string.
   // Seen red 2026-10-09 with the server left out of friendPassPreimage's words: "a
-  // friendship pass minted by Rust does not verify over the web builder's words".
+  // friendship pass minted by Rust does not verify over the web builder's words". v3:
+  // seen red with friend-pass.js still on v2 (the Rust v3 pass did not parse).
   {
     const require = createRequire(import.meta.url);
     const fp = require(join(REPO, 'web', 'shared', 'friend-pass.js'));
@@ -116,24 +117,27 @@ try {
     const grantee = hx(keyOf(fx.grantee_master_byte));
     const pass = fp.friendPassParse(fx.cert);
     if (!pass) fail('the Rust-minted friendship pass does not parse with web/shared/friend-pass.js');
-    if (pass.serial !== fx.serial || pass.may !== fx.may) fail(`friendship pass fields differ: ${pass.serial} ${pass.may}`);
-    const words = (may) => new TextEncoder().encode(fp.friendPassPreimage(fx.server, hx(issuerPk), grantee, pass.serial, may));
+    if (pass.aud !== fx.aud || pass.serial !== fx.serial || pass.may !== fx.may) fail(`friendship pass fields differ: ${pass.aud} ${pass.serial} ${pass.may}`);
+    const words = (may, aud = pass.aud) => new TextEncoder().encode(fp.friendPassPreimage(aud, hx(issuerPk), grantee, pass.serial, may));
     const sig = new Uint8Array(Buffer.from(pass.sig, 'base64'));
     if (!m.ml_dsa65.verify(sig, words(pass.may), issuerPk)) {
       fail('a friendship pass minted by Rust does not verify over the web builder\'s words: web and relay disagree');
     }
     if (m.ml_dsa65.verify(sig, words('call,' + pass.may), issuerPk)) fail('a widened friendship pass still verified');
+    if (m.ml_dsa65.verify(sig, words(pass.may, 'elsewhere.example'), issuerPk)) fail('a friendship pass moved to another server still verified');
     // And the other direction: a pass the web side signs over its own words is the
     // shape the relay reads (the relay's own test checks a Rust-minted one).
     const mine = m.ml_dsa65.sign(words(pass.may), m.ml_dsa65.keygen(
       m.blake3.create({ context: ctx, dkLen: 32 }).update(new Uint8Array(32).fill(fx.issuer_master_byte)).digest()).secretKey);
-    const webPass = fp.friendPassParse(fp.friendPassJson(pass.serial, pass.may, Buffer.from(mine).toString('base64')));
+    const webText = fp.friendPassJson(pass.aud, pass.serial, pass.may, Buffer.from(mine).toString('base64'));
+    const webPass = fp.friendPassParse(webText);
+    if (webText.replace(/"sig":"[^"]*"/, '') !== fx.cert.replace(/"sig":"[^"]*"/, '')) fail('the web helpers write the pass in another shape than the relay\'s builder');
     if (!webPass || !m.ml_dsa65.verify(new Uint8Array(Buffer.from(webPass.sig, 'base64')), words(webPass.may), issuerPk)) {
       fail('a friendship pass built with the web helpers does not round-trip');
     }
   }
 
-  console.log('pq-kat: PASS: vendored noble matches the Rust relay byte-for-byte (Dilithium3 + Kyber768 + friendship pass v2)');
+  console.log('pq-kat: PASS: vendored noble matches the Rust relay byte-for-byte (Dilithium3 + Kyber768 + friendship pass v3)');
   process.exit(0);
 } catch (e) {
   fail(e && e.message ? e.message : String(e));

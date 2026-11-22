@@ -217,8 +217,8 @@ pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner,
         }
         return Arrival::OwnEcho;
     }
-    let server = store.pass_server().unwrap_or("").to_string();
-    if let Err(e) = humanity_protocol::pq_crypto::verify_friend_cert(&server, &inner.from, me, &pass) {
+    // Any server address the pass names: the relay is the judge of its own names.
+    if let Err(e) = humanity_protocol::pq_crypto::verify_friend_cert(&inner.from, me, &pass) {
         log::warn!("contact request from {}… dropped: its pass failed its check ({e:?})", humanity_core::text::prefix(&inner.from, 12));
         return Arrival::Dropped;
     }
@@ -418,7 +418,10 @@ pub(crate) mod tests {
     use super::*;
     use humanity_protocol::pq_crypto::{derive_dilithium_seed, verify_friend_cert, DilithiumKeypair};
 
-    const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+    // The server these tests' apps are on, by the address passes and permits name (C8, 2026-11-21:
+    // a pass names the address the app opened; the DM store's identity, `set_pass_server`, takes it
+    // too, any text standing for the server's did:hum there).
+    const SERVER: &str = "relay.example";
 
     pub(crate) fn identity(n: u8) -> (Vec<u8>, String) {
         let seed = vec![n; 32];
@@ -478,7 +481,7 @@ pub(crate) mod tests {
         assert_eq!(arrived.from, ann, "the signature says who asked");
         let (claimed, pass) = crate::net::reach::parse_contact_request_text(&arrived.text).unwrap();
         assert_eq!(claimed, "Ann");
-        assert_eq!(verify_friend_cert(SERVER, &ann, &ben, &pass).map(|p| p.serial), Ok(sent.serial.clone()), "her pass, for Ben, on this server");
+        assert_eq!(verify_friend_cert(&ann, &ben, &pass).map(|p| p.serial), Ok(sent.serial.clone()), "her pass, for Ben, on this server");
         assert_eq!(open(&ours, &ann_seed).text, arrived.text, "her self-copy holds the same request");
 
         assert!(!crate::engine::dm::ingest_dm(&mut ben_app, &arrived), "a request is never a message");

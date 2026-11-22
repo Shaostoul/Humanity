@@ -71,10 +71,12 @@ Your identity is a Dilithium3 (ML-DSA-65, post-quantum) cryptographic keypair, d
    ```json
    { "type": "identify_challenge", "nonce": "<64 hex chars>" }
    ```
-   Sign the domain-separated preimage `hum/identify/v1\n<nonce>\n<public_key_hex>`
-   with your Dilithium3 secret and return the base64 signature:
+   Sign the domain-separated preimage `hum/identify/v2\n<audience>\n<nonce>\n<public_key_hex>`, where
+   the audience is the address YOU connected to (host, lowercase, and `:port` when not 80/443), with
+   your Dilithium3 secret, and return the base64 signature with that audience. Never sign for an
+   address you did not open, and never a nonce that is not 64 lowercase hex characters:
    ```json
-   { "type": "identify_response", "sig_b64": "<base64 of the Dilithium3 signature>" }
+   { "type": "identify_response", "sig_b64": "<base64 of the Dilithium3 signature>", "audience": "<host[:port]>" }
    ```
    Only after the relay verifies this is your socket authenticated. (Bots whose
    key begins with `bot_` skip the challenge and auth via `bot_secret` instead.)
@@ -214,7 +216,7 @@ Connect to `wss://server-url/ws` and send JSON messages. Key message types:
 |-------------|---------|
 | `identify` | Phase 1: present your public key |
 | `identify_challenge` | Server -> you: a nonce to sign (Phase 2) |
-| `identify_response` | You -> server: `sig_b64` over `hum/identify/v1\n<nonce>\n<pubkey>` |
+| `identify_response` | You -> server: `sig_b64` over `hum/identify/v2\n<audience>\n<nonce>\n<pubkey>`, and `audience` |
 | `chat` | Send a message to a channel |
 | `profile_update` | Update your profile (bio/socials/avatar_url/pronouns/location/website) |
 | `dm_put` / `dm_fetch` / `dm_purge` | Sealed-sender direct messages. The sender identity is signed INSIDE the ciphertext, so the relay never learns it; it stores a sender-less expiring mailbox. One user-visible DM is TWO `dm_put` deposits: the recipient copy and a self copy so your other devices can read the thread. |

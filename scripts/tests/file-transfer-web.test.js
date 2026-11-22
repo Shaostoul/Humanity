@@ -71,7 +71,8 @@ const SHAPES = SPEC.slice(SHAPES_AT, SPEC.indexOf("\n## ", SHAPES_AT + 10));
 const FIXTURE = path.join(__dirname, "fixtures", "file-offer-v1.json");
 
 const hex = (u8) => Buffer.from(u8).toString("hex");
-const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The server address passes name here (v2, 2026-11-21: the address the sender's app opened).
+const SERVER = "relay.example";
 
 let NOBLE = null;
 async function noble() {
@@ -222,7 +223,7 @@ async function offerFor(file, over = {}) {
     offer: Object.assign({
       id, name: file.name || "clip.bin", size: file.size, type: file.type || "", blake3: h.blake3,
       piece: FT.PIECE_BYTES, pieces: h.pieces, hashes: h.hashes,
-      pass: FT.filePassObject(id, 1760000000 + 3600, "c2ln"),
+      pass: FT.filePassObject(SERVER, id, 1760000000 + 3600, "c2ln"),
     }, over),
   };
 }
@@ -281,14 +282,14 @@ test("2. the pass's words and JSON and the three notes are the spec's, byte for 
   const grantee = "b2".repeat(8);
   const expiry = 1760604800;
   // The pass's words: the spec's block with each {field} filled in and each \n a line break.
-  const wordsBlock = specBlock("hum/file-pass/v1").trim();
-  assert.equal(wordsBlock, "hum/file-pass/v1\\n{server}\\n{issuer}\\n{grantee}\\n{id}\\n{expiry}", "the spec's block, as written");
-  const filled = wordsBlock.replace(/\\n/g, "\n").replace("{server}", SERVER).replace("{issuer}", issuer)
+  const wordsBlock = specBlock("hum/file-pass/v2").trim();
+  assert.equal(wordsBlock, "hum/file-pass/v2\\n{audience}\\n{issuer}\\n{grantee}\\n{id}\\n{expiry}", "the spec's block, as written");
+  const filled = wordsBlock.replace(/\\n/g, "\n").replace("{audience}", SERVER).replace("{issuer}", issuer)
     .replace("{grantee}", grantee).replace("{id}", id).replace("{expiry}", String(expiry));
   assert.equal(FT.filePassPreimage(SERVER, issuer, grantee, id, expiry), filled, "the words a pass signs");
   // The pass as it travels.
-  assert.ok(SHAPES.includes('`{"v":1,"id":"<id>","expiry":<n>,"sig":"<base64>"}`'), "the spec's pass shape");
-  assert.equal(JSON.stringify(FT.filePassObject(id, expiry, "QUJD")), `{"v":1,"id":"${id}","expiry":${expiry},"sig":"QUJD"}`);
+  assert.ok(SHAPES.includes('`{"v":2,"aud":"<audience>","id":"<id>","expiry":<n>,"sig":"<base64>"}`'), "the spec's pass shape");
+  assert.equal(JSON.stringify(FT.filePassObject(SERVER, id, expiry, "QUJD")), `{"v":2,"aud":"${SERVER}","id":"${id}","expiry":${expiry},"sig":"QUJD"}`);
 
   // The three notes: the spec's block, its wrapped lines joined, its placeholders filled in order.
   const notes = specBlock("[[hum:offer:v1]]").split(/\n(?=\[\[)/).map((s) => s.replace(/\n\s*/g, "").trim());
@@ -298,13 +299,14 @@ test("2. the pass's words and JSON and the three notes are the spec's, byte for 
   const sig = "c2lnbmF0dXJl";
   const offer = {
     id, name: "clip.mp4", size: 2468000000, type: "video/mp4", blake3: whole, piece: 262144, pieces: 9415, hashes: list,
-    pass: FT.filePassObject(id, expiry, sig),
+    pass: FT.filePassObject(SERVER, id, expiry, sig),
   };
   const expectOffer = notes[0]
     .replace('"<32 hex>"', `"${id}"`)
     .replace(/"<64 hex, the whole file>"/, `"${whole}"`)
     .replace(/"<64 hex, BLAKE3 of the piece hashes[^"]*>"/, `"${list}"`)
     .replace('"<same id>"', `"${id}"`)
+    .replace('"<audience>"', `"${SERVER}"`)
     .replace("<n>", String(expiry))
     .replace('"<base64>"', `"${sig}"`);
   assert.ok(!/<[^>]*>/.test(expectOffer), "every placeholder filled: " + expectOffer);
@@ -326,7 +328,7 @@ test("2. the pass's words and JSON and the three notes are the spec's, byte for 
   // pass's words, its signature, the notes and the file's hashes. Until 2026-10-12 this block
   // looked for field names the fixture does not have, and checked nothing.
   const fx = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
-  assert.equal(FT.filePassPreimage(fx.server, fx.issuer, fx.grantee, fx.id, fx.expiry), fx.preimage, "the pass's words, as the relay writes them");
+  assert.equal(FT.filePassPreimage(fx.aud, fx.issuer, fx.grantee, fx.id, fx.expiry), fx.preimage, "the pass's words, as the relay writes them");
   const nm = await noble();
   assert.ok(
     nm.ml_dsa65.verify(Buffer.from(fx.sig, "base64"), new TextEncoder().encode(fx.preimage), Buffer.from(fx.issuer, "hex")),
@@ -372,7 +374,7 @@ test("3. an offer is read only when every field is fit, and a pass only for its 
   const id = "00112233445566778899aabbccddeeff";
   const base = {
     id, name: "clip.mp4", size: 600000, type: "video/mp4", blake3: "ab".repeat(32), piece: 262144, pieces: 3,
-    hashes: "cd".repeat(32), pass: FT.filePassObject(id, 1760604800, "c2ln"),
+    hashes: "cd".repeat(32), pass: FT.filePassObject(SERVER, id, 1760604800, "c2ln"),
   };
   assert.ok(FT.offerNoteParse(FT.CTL_OFFER + JSON.stringify(base)), "the fit offer");
   const bad = (change, what) => {
@@ -386,7 +388,9 @@ test("3. an offer is read only when every field is fit, and a pass only for its 
   bad({ id: "00112233445566778899AABBCCDDEEFF" }, "an id in capitals");
   bad({ blake3: "ab".repeat(31) }, "a short hash");
   bad({ name: "two\nlines" }, "a name with a line break");
-  bad({ pass: FT.filePassObject("ff".repeat(16), 1760604800, "c2ln") }, "a pass for another transfer");
+  bad({ pass: FT.filePassObject(SERVER, "ff".repeat(16), 1760604800, "c2ln") }, "a pass for another transfer");
+  bad({ pass: FT.filePassObject("did:hum:4dQe1bVHyiHm1Vh8rWbx2F", id, 1760604800, "c2ln") }, "a pass naming a did:hum, not an address (v1's server)");
+  bad({ pass: { ...FT.filePassObject(SERVER, id, 1760604800, "c2ln"), v: 1 } }, "a v1 pass");
   bad({ pass: { v: 2, id, expiry: 1760604800, sig: "c2ln" } }, "a pass of another version");
   assert.equal(FT.offerNoteParse("[[hum:offer:v1]]not json"), null);
   assert.equal(FT.answerNoteParse(FT.CTL_OFFER_ANSWER + '{"id":"' + id + '","accept":"yes"}'), null, "an answer is true or false");
@@ -621,7 +625,7 @@ test("10. hashing and sending a 40 MB file read it a piece at a time, in message
   const id = "fe".repeat(16);
   const offer = {
     id, name: "big.bin", size, type: "", blake3: hashed.blake3, piece: FT.PIECE_BYTES, pieces: hashed.pieces, hashes: hashed.hashes,
-    pass: FT.filePassObject(id, 1760604800, "c2ln"),
+    pass: FT.filePassObject(SERVER, id, 1760604800, "c2ln"),
   };
   const store = memoryStore();
   const c = connect(offer, file, hashed.pieceHashes, store);

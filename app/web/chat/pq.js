@@ -230,7 +230,165 @@ async function pqBlake3(bytes) {
   }
 }
 
+// ── Signed requests and sign-ins (2026-11-20; the audience line 2026-11-21) ─────────────────────
+// A REQUEST to a relay (an account export, a bug's details, a vault sync, a channel read, an admin
+// action) is signed over `hum/request/v2\n{audience}\n{purpose}\n{timestamp}`, never over a chat
+// message's `text\ntimestamp`: a request signed in the chat shape was a chat line, so a person who
+// posted the line `account_export` handed the room a credential. A SIGN-IN (the answer to a relay's
+// identify challenge) is signed over `hum/identify/v2\n{audience}\n{nonce}\n{key}`.
+// The AUDIENCE is the address this page talks to (its own location.host for requests, the socket's
+// own URL for a sign-in), so a signature made for one server is never good at another: a server
+// cannot replay a request it received, nor pass another server's sign-in challenge through to this
+// page and sign in there as the person (the review of 2026-11-21). The twin of
+// crates/humanity-protocol/src/signed_request.rs; both are held to
+// scripts/tests/fixtures/signed-request-v2.json by scripts/tests/signed-request-web.test.js. Every
+// page that signs a request or a sign-in loads this file.
+const PQ_REQUEST_DOMAIN = 'hum/request/v2';
+const PQ_IDENTIFY_DOMAIN = 'hum/identify/v2';
+
+/**
+ * The audience for a URL: its host, lowercase, then `:port` when the port is not the scheme's
+ * default (80 for http and ws, 443 for https and wss); null for anything that is not an address.
+ * A URL with no scheme is read as host[:port]. The same rules as the Rust `audience_of`.
+ *
+ * One reading (2026-11-21, round 3): the URL is read twice, by this strict hand reading and by the
+ * WHATWG URL parser the browser sends with (`new URL`), and null unless both name the same host
+ * and port: a backslash ends a special URL's host for the sender, so `https://evil.example\@victim.example/`
+ * would be signed for victim.example and sent to evil.example; `127.1` is 127.0.0.1 to the sender;
+ * IPv6 has one written form. A trailing dot is a second spelling of a name and gives none.
+ */
+function pqAudienceOf(url) {
+  if (typeof url !== 'string') return null;
+  let rest = url.trim();
+  let scheme = '';
+  const sep = rest.indexOf('://');
+  if (sep >= 0) { scheme = rest.slice(0, sep).toLowerCase(); rest = rest.slice(sep + 3); }
+  let authority = rest.split(/[/?#]/)[0];
+  const at = authority.lastIndexOf('@');
+  if (at >= 0) authority = authority.slice(at + 1);
+  authority = authority.toLowerCase();
+  let host, portText = null;
+  if (authority.startsWith('[')) {
+    const close = authority.indexOf(']');
+    if (close < 0) return null;
+    host = authority.slice(0, close + 1);
+    const after = authority.slice(close + 1);
+    if (after !== '') { if (!after.startsWith(':')) return null; portText = after.slice(1); }
+  } else {
+    const colon = authority.lastIndexOf(':');
+    if (colon >= 0) { host = authority.slice(0, colon); portText = authority.slice(colon + 1); } else host = authority;
+  }
+  let port = null;
+  if (portText !== null) {
+    if (!/^[0-9]{1,5}$/.test(portText)) return null;
+    port = Number(portText);
+    if (port < 1 || port > 65535) return null;
+  }
+  const inner = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : null;
+  const hostOk = inner !== null
+    ? (inner.length > 0 && /^[0-9a-f:.]+$/.test(inner))
+    : (host.length > 0 && host.length <= 253 && /^[a-z0-9.-]+$/.test(host) && !/^[.-]/.test(host) && !host.endsWith('.') && host.indexOf('..') < 0);
+  if (!hostOk) return null;
+  const dflt = (scheme === 'http' || scheme === 'ws') ? 80 : ((scheme === 'https' || scheme === 'wss') ? 443 : null);
+  // The sender's reading. A URL with no scheme is read as http would read its host.
+  let sent;
+  try { sent = new URL(scheme ? url.trim() : 'http://' + rest); } catch (_) { return null; }
+  const known = { 'http:': 80, 'ws:': 80, 'https:': 443, 'wss:': 443 };
+  const sentPort = sent.port ? Number(sent.port) : (sent.protocol in known ? known[sent.protocol] : null);
+  const handPort = port !== null ? port : (scheme ? dflt : 80);
+  if (sent.hostname !== host || sentPort !== handPort) return null;
+  return (port !== null && port !== dflt) ? host + ':' + port : host;
+}
+
+/** This page's own audience: the address it was served from (location.host, lowercase). */
+function pqAudience() {
+  const loc = (typeof location !== 'undefined' && location) ? location : null;
+  return loc ? pqAudienceOf((loc.protocol || 'https:') + '//' + loc.host) : null;
+}
+
+/** The text signed for a request: the domain line, the audience, the purpose, the time (ms). */
+function pqRequestPreimage(audience, purpose, timestamp) {
+  return PQ_REQUEST_DOMAIN + '\n' + audience + '\n' + purpose + '\n' + timestamp;
+}
+
+/** The text signed to answer a relay's identify challenge. */
+function pqIdentifyPreimage(audience, nonce, publicKeyHex) {
+  return PQ_IDENTIFY_DOMAIN + '\n' + audience + '\n' + nonce + '\n' + publicKeyHex;
+}
+
+/** Whether `nonce` has a relay's challenge shape (64 lowercase hex): nothing else is signed as a sign-in. */
+function pqIsIdentifyNonce(nonce) {
+  return typeof nonce === 'string' && /^[0-9a-f]{64}$/.test(nonce);
+}
+
+/**
+ * Whether a chat text begins with a signing domain line (`hum/<name>/v<n>` then a newline). Such a
+ * text is never signed as a chat message (its signature would be the bytes of a request, a report
+ * or a DM's inner signature) and the relay refuses it.
+ */
+function pqIsReservedChatText(text) {
+  return typeof text === 'string' && /^hum\/[a-z0-9.\-]+\/v[0-9]+\n/.test(text);
+}
+
+// The relay takes each (key, purpose, time) once, so two requests started in the same millisecond
+// must not share one: every request time is the next millisecond after the last this page handed
+// out (the desktop's net::identity::next_request_timestamp).
+let _pqLastRequestTs = 0;
+/** The time a request is signed at: Date.now(), or one past the last one handed out. */
+function pqRequestTimestamp() {
+  const now = Date.now();
+  _pqLastRequestTs = now > _pqLastRequestTs ? now : _pqLastRequestTs + 1;
+  return _pqLastRequestTs;
+}
+
+/** Lowercase hex of a byte array. */
+function pqHex(bytes) {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  return hex;
+}
+
+/**
+ * Sign a request to this page's own server with a Dilithium3 secret: `{timestamp, sig}` (sig in
+ * hex), at `timestamp` when given, else at pqRequestTimestamp(). Null when signing is not possible.
+ */
+async function pqSignRequest(secretKey, purpose, timestamp) {
+  if (typeof purpose !== 'string' || !purpose) return null;
+  const audience = pqAudience();
+  if (!audience) return null;
+  const ts = (typeof timestamp === 'number') ? timestamp : pqRequestTimestamp();
+  const bytes = await pqSignMessage(secretKey, new TextEncoder().encode(pqRequestPreimage(audience, purpose, ts)));
+  if (!bytes) return null;
+  return { timestamp: ts, sig: pqHex(bytes) };
+}
+
+/**
+ * The answer to a relay's identify challenge on the socket opened at `socketUrl` (the socket's own
+ * `url`): `{type: 'identify_response', sig_b64, audience}`, or null when the nonce is not a relay's
+ * or the URL names no address. The audience comes ONLY from the URL this page opened, never from the
+ * server, so a server passing another server's challenge through gets a proof naming itself.
+ */
+async function pqIdentifyResponse(secretKey, publicKeyHex, socketUrl, nonce) {
+  if (!pqIsIdentifyNonce(nonce)) return null;
+  const audience = pqAudienceOf(socketUrl);
+  if (!audience) return null;
+  const bytes = await pqSignMessage(secretKey, new TextEncoder().encode(pqIdentifyPreimage(audience, nonce, publicKeyHex)));
+  if (!bytes || !bytes.length) return null;
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return { type: 'identify_response', sig_b64: btoa(s), audience };
+}
+
 // Exposed globally (the chat client is classic scripts, not modules).
+window.pqRequestPreimage = pqRequestPreimage;
+window.pqIdentifyPreimage = pqIdentifyPreimage;
+window.pqIdentifyResponse = pqIdentifyResponse;
+window.pqIsIdentifyNonce = pqIsIdentifyNonce;
+window.pqAudienceOf = pqAudienceOf;
+window.pqAudience = pqAudience;
+window.pqIsReservedChatText = pqIsReservedChatText;
+window.pqRequestTimestamp = pqRequestTimestamp;
+window.pqSignRequest = pqSignRequest;
 window.pqBlake3 = pqBlake3;
 window.pqDeriveIdentity = pqDeriveIdentity;
 window.pqSignMessage = pqSignMessage;

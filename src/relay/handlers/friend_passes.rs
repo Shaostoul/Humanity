@@ -3,10 +3,13 @@
 //! Two jobs, both small:
 //!
 //! - [`friend_pass`]: the one check every contact path makes (dm_put, trade_request,
-//!   voice_call, a dc_offer, a profile request). It rebuilds the pass's signed words from the
-//!   relay's OWN facts (its did:hum, the person being reached as issuer, the sender's signed-in
-//!   socket key as grantee), so a pass given on another server, by someone else or to someone
-//!   else does not count, and then asks the withdrawal list whether the issuer has taken it back.
+//!   voice_call, a dc_offer, a profile request). It takes the pass's audience only when it is
+//!   one of the relay's OWN names and the presenter may use it (audience.rs `pass_is_for_here`,
+//!   v3, 2026-11-21), rebuilds the rest of the signed words from the relay's own facts (the
+//!   person being reached as issuer, the sender's signed-in socket key as grantee), so a pass
+//!   given at another server (one claiming this relay's did:hum included), by someone else or to
+//!   someone else does not count, and then asks the withdrawal list whether the issuer has taken
+//!   it back.
 //! - [`handle_cert_revoke`]: `{"type":"cert_revoke","serial":"<32 lowercase hex>"}` from the
 //!   issuer's own signed-in socket withdraws the pass with that serial. The issuer is the socket
 //!   key, so no further signature is needed and nobody can withdraw a pass they did not give.
@@ -22,17 +25,20 @@
 
 use std::sync::Arc;
 
-use humanity_protocol::pq_crypto::{friend_cert_serial_ok, verify_friend_cert, FriendPass};
+use humanity_protocol::pq_crypto::{friend_cert_serial_ok, parse_friend_cert, verify_friend_cert, FriendPass};
 use crate::relay::relay::{RelayMessage, RelayState};
 use crate::relay::storage::FriendCertWithdrawal;
 
 /// The pass `cert` that `issuer` (the person being reached) gave `grantee` (the sender: always
 /// the signed-in socket's key, never a key the message names), if it is good here and not
-/// withdrawn. None for no pass, a pass that does not check out, or one its issuer took back.
+/// withdrawn. None for no pass, a pass made out at another server address (or naming a loopback
+/// or LAN name of this one from a client not there), a pass that does not check out, or one its
+/// issuer took back. The audience is asked first: it costs no signature check.
 pub fn friend_pass(state: &Arc<RelayState>, issuer: &str, grantee: &str, cert: Option<&str>) -> Option<FriendPass> {
     let cert = cert.filter(|c| !c.is_empty())?;
-    let server = state.db.server_did().ok()?;
-    let pass = verify_friend_cert(&server, issuer, grantee, cert).ok()?;
+    let (claimed, _) = parse_friend_cert(cert).ok()?;
+    crate::relay::audience::pass_is_for_here(state, &claimed.aud)?;
+    let pass = verify_friend_cert(issuer, grantee, cert).ok()?;
     if state.db.friend_cert_withdrawn(issuer, &pass.serial) {
         return None;
     }
@@ -40,13 +46,14 @@ pub fn friend_pass(state: &Arc<RelayState>, issuer: &str, grantee: &str, cert: O
 }
 
 /// For tests: mint the pass `issuer_hex` (whose BIP39 seed is `issuer_seed`) gives `grantee` on
-/// THIS relay, with a fresh serial and the defaults two new friends get. Returns (pass, serial).
+/// THIS relay (for a name of it any client may use), with a fresh serial and the defaults two new
+/// friends get. Returns (pass, serial).
 #[cfg(test)]
 pub(crate) fn test_pass(state: &Arc<RelayState>, issuer_seed: &[u8], issuer_hex: &str, grantee: &str) -> (String, String) {
     use humanity_protocol::pq_crypto::{build_friend_cert, new_friend_cert_serial, FRIEND_PASS_DEFAULT_MAY};
-    let server = state.db.server_did().expect("the relay's own did:hum");
+    let aud = crate::relay::audience::test_pass_audience(state);
     let serial = new_friend_cert_serial().expect("randomness");
-    let pass = build_friend_cert(issuer_seed, &server, issuer_hex, grantee, &serial, &FRIEND_PASS_DEFAULT_MAY).expect("a pass");
+    let pass = build_friend_cert(issuer_seed, &aud, issuer_hex, grantee, &serial, &FRIEND_PASS_DEFAULT_MAY).expect("a pass");
     (pass, serial)
 }
 

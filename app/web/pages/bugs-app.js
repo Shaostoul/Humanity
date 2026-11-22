@@ -248,9 +248,10 @@
   // ---- Voting ----
   //
   // POST /api/bugs/{id}/vote takes { voter_key, timestamp, sig } and checks
-  // them with verify_signed_actor (src/relay/api.rs): the timestamp must be
-  // under 5 minutes old, and sig must be a Dilithium3 signature by voter_key
-  // over the bytes "bug_vote\n<timestamp>". getPqSignedAuth('bug_vote')
+  // them with signed_request::check (src/relay/signed_request.rs): the timestamp
+  // at most 5 minutes old and used once, and sig a Dilithium3 signature by
+  // voter_key over the request bytes "hum/request/v2\n<server address>\nbug_vote\n<bug>\n<timestamp>".
+  // getPqSignedAuth('bug_vote\n' + id)
   // (web/shared/pq-relay-auth.js, loaded by bugs.html together with
   // /chat/pq.js) builds exactly that preimage and returns { key, timestamp,
   // sig }, with key the Dilithium public key hex the relay knows people by.
@@ -258,19 +259,19 @@
   // works on browsers without WebCrypto Ed25519 too. It returns null when
   // this device has no such backup (then the bugs.no_identity words say what to do).
 
-  function signVote() {
+  function signVote(id) {
     if (typeof window.getPqSignedAuth !== 'function') {
       console.warn('Bug vote: pq-relay-auth.js not loaded');
       return Promise.resolve(null);
     }
-    return window.getPqSignedAuth('bug_vote');
+    return window.getPqSignedAuth('bug_vote\n' + id); // names the bug (the relay's bug_vote_purpose)
   }
 
   window.__voteBug = function (id, btn) {
     if (btn.disabled) return;
     btn.disabled = true;
 
-    signVote()
+    signVote(id)
       .then(function (auth) {
         if (!auth) {
           alert(i18n.t('bugs.no_identity'));

@@ -214,24 +214,19 @@ pub struct SignedRead {
 /// read's purpose, fresh (five minutes, and not from the future), not used before, from a key whose
 /// rank admits the channel's read level. The refusal otherwise.
 async fn signed_reader(state: &RelayState, req: &SignedRead, what: &str, channel: &str) -> Result<(), Response> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
+    use crate::relay::signed_request::SignedRefusal;
     let (read, _, _) = levels(&state.db, channel);
-    if req.key.is_empty() || req.sig.is_empty() {
-        return Err(refuse(StatusCode::UNAUTHORIZED, "A signed read needs a key and a signature.", read));
-    }
-    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    if now_ms.saturating_sub(req.timestamp) > 5 * 60 * 1000 || req.timestamp > now_ms + 60_000 {
-        return Err(refuse(StatusCode::BAD_REQUEST, "The request is too old or from the future: check this computer's clock.", read));
-    }
+    // Fresh, signed as a request (never a chat line's shape), used once (signed_request.rs).
     let purpose = access::read_purpose(what, channel);
-    let (vk, vsig, vpurpose, vts) = (req.key.clone(), req.sig.clone(), purpose.clone(), req.timestamp);
-    // CPU-bound: off the async executor, failing closed if the check panics.
-    let ok = tokio::task::spawn_blocking(move || verify_dilithium_signature(&vk, &vpurpose, vts, &vsig)).await.unwrap_or(false);
-    if !ok {
-        return Err(refuse(StatusCode::UNAUTHORIZED, "The signature does not match this request.", read));
-    }
-    if !state.auth_nonce_fresh(&req.key, &purpose, req.timestamp) {
-        return Err(refuse(StatusCode::UNAUTHORIZED, "That request was already used: try again.", read));
+    match crate::relay::signed_request::check(state, &req.key, req.timestamp, &req.sig, &purpose, "chat_read").await {
+        Ok(()) => {}
+        Err(SignedRefusal::Unsigned) => {
+            return Err(refuse(StatusCode::UNAUTHORIZED, "A signed read needs a key and a signature.", read));
+        }
+        Err(SignedRefusal::Clock) => {
+            return Err(refuse(StatusCode::BAD_REQUEST, "The request is too old or from the future: check this computer's clock.", read));
+        }
+        Err(other) => return Err(refuse(other.status(), &other.words(), read)),
     }
     if !read.admits(rank_of(&state.db, &req.key)) {
         let words = if read == ReadLevel::Verified {

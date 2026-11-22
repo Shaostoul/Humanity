@@ -484,6 +484,12 @@ async function loadChat(opts = {}) {
   run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
   run("shared/key-card.js");
   run("chat/crypto.js");
+  // pq.js's request half (signed requests, 2026-11-20), without its noble loader.
+  {
+    const pq = fs.readFileSync(path.join(WEB, "chat", "pq.js"), "utf8");
+    const start = pq.indexOf("const PQ_REQUEST_DOMAIN");
+    if (start >= 0) vm.runInContext(pq.slice(start, pq.indexOf("// Exposed globally", start)), ctx, { filename: "pq.js#requests" });
+  }
   run("chat/chat-dm-store.js");
   run("chat/chat-key-cards.js");
   run("chat/view/timestampPill.js");

@@ -5045,8 +5045,8 @@ mod body_heat_hint_tests {
 /// The body of the signed export request: the key, the time and the signature, and nothing
 /// else from this device (so nothing of this device's own settings, the protected setup's
 /// included, can reach a server this way; 10h, "Per device, never synced").
-pub(crate) fn account_export_request(public_key: &str, seed: &[u8], ts: u64) -> serde_json::Value {
-    let sig = crate::net::identity::pq_sign_chat(seed, "account_export", ts);
+pub(crate) fn account_export_request(server: &str, public_key: &str, seed: &[u8], ts: u64) -> serde_json::Value {
+    let sig = crate::net::identity::pq_sign_request(seed, server, "account_export", ts);
     serde_json::json!({
         "key": public_key,
         "timestamp": ts,
@@ -5066,11 +5066,8 @@ fn fetch_account_export_blocking(
     seed: &[u8],
 ) -> Result<String, String> {
     let base = server_url.trim_end_matches('/');
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    let body = account_export_request(public_key, seed, ts);
+    let ts = crate::net::identity::next_request_timestamp();
+    let body = account_export_request(base, public_key, seed, ts);
 
     let text = match ureq::post(&format!("{base}/api/account/export"))
         .set("Content-Type", "application/json")

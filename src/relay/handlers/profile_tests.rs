@@ -1041,7 +1041,7 @@ fn the_admins_count_every_member_listed_or_not() {
     assert_eq!(directory(&st, None).0, 0, "test setup: nobody is in the public directory");
     let ts = now_millis();
     let keys = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[5; 32]));
-    let sig = hex::encode(keys.sign(format!("admin_stats\n{ts}").as_bytes()));
+    let sig = hex::encode(keys.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, "admin_stats", ts).as_bytes()));
     let query = crate::relay::api::AdminStatsQuery { key: admin.clone(), timestamp: ts, sig };
     let stats = block(crate::relay::api::post_admin_stats(State(st.clone()), axum::Json(query))).expect("an admin's stats").0;
     assert_eq!(stats["user_count"], 3, "the dashboard counts every member");

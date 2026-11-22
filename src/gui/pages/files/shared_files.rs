@@ -143,11 +143,8 @@ fn delete_shared_blocking(
     seed: &[u8],
 ) -> ActionResult {
     let base = server_url.trim_end_matches('/');
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    let sig = crate::net::identity::pq_sign_chat(seed, "delete_upload", ts);
+    let ts = crate::net::identity::next_request_timestamp();
+    let sig = crate::net::identity::pq_sign_request(seed, base, &crate::relay::api::delete_upload_purpose(filename), ts);
     let body = serde_json::json!({
         "filename": filename,
         "key": public_key,

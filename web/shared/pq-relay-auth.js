@@ -11,8 +11,9 @@
  * silently rejected every request from them. Inc5c-tail (v0.277.2)
  * routes those pages through this helper.
  *
- * Preimage is identical to the chat client's `purpose\ntimestamp` shape
- * (matches `verify_dilithium_signature` in src/relay/handlers/broadcast.rs).
+ * Preimage: a signed REQUEST, `hum/request/v2\n{audience}\n{purpose}\n{timestamp}` (pq.js
+ * pqRequestPreimage; the relay's src/relay/signed_request.rs), since 2026-11-20. It used to be the
+ * chat message's `purpose\ntimestamp` shape, so a chat line holding a purpose was a credential.
  * The wire format is also unchanged — `{ key, timestamp, sig }` — only
  * the byte sizes grew: Dilithium pubkey hex is 3904 chars (was 64) and
  * signature hex is ~6618 chars (was 128). For GET endpoints that carry
@@ -44,12 +45,6 @@
     return bytes.slice(bytes.length - 32);
   }
 
-  function _bufToHex(buf) {
-    const bytes = new Uint8Array(buf);
-    let hex = '';
-    for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
-    return hex;
-  }
 
   /**
    * Load the user's BIP39 seed (32 bytes) from localStorage.
@@ -93,27 +88,12 @@
     }
   }
 
-  // The last timestamp this page signed with. The relay refuses a second
-  // request with the same key, purpose and timestamp as a replay (media.rs
-  // check_signed, auth_nonce_fresh), and two requests started in the same
-  // millisecond read the same Date.now(): Accept on a category suggestion
-  // sent two signed `media_list` reads at once and the relay refused one
-  // (the Media page review, 2026-10-11). So every signature from this page
-  // takes the next millisecond after the last one, like the desktop app's
-  // `next_timestamp`: no two signed requests from one page ever share one.
-  let _lastTimestamp = 0;
-  function _nextTimestamp() {
-    const now = Date.now();
-    _lastTimestamp = now > _lastTimestamp ? now : _lastTimestamp + 1;
-    return _lastTimestamp;
-  }
-
   /**
    * Build a Dilithium3-signed relay auth payload.
    *
-   * @param {string} purpose — domain-separated tag, MUST match the
-   *   server-side `format!("{}\n{}", content, timestamp)` preimage
-   *   in `verify_dilithium_signature`. Known values today:
+   * @param {string} purpose — what the request is for, MUST match the
+   *   relay's purpose for the route (signed as a request: pq.js
+   *   pqRequestPreimage, the relay's signed_request::check). Some values:
    *   "vault_sync", "admin_stats", "review", "review_delete",
    *   "trade_order", "cancel_order", "fill_order", "agent_override".
    * @returns {Promise<{key:string,timestamp:number,sig:string}|null>}
@@ -127,7 +107,7 @@
       console.warn('pq-relay-auth: purpose is required');
       return null;
     }
-    if (typeof window.pqDeriveIdentity !== 'function' || typeof window.pqSignMessage !== 'function') {
+    if (typeof window.pqDeriveIdentity !== 'function' || typeof window.pqSignRequest !== 'function') {
       console.warn('pq-relay-auth: pq.js helpers not loaded — load /chat/pq.js first');
       return null;
     }
@@ -141,20 +121,20 @@
       return null;
     }
 
-    // Taken after the identity is derived, the moment before signing: the
-    // next one after the last this page signed (see _nextTimestamp).
-    const ts = _nextTimestamp();
-    const preimage = new TextEncoder().encode(purpose + '\n' + ts);
-    const sigBytes = await window.pqSignMessage(id.dilithiumSecret, preimage);
-    if (!sigBytes) {
-      console.warn('pq-relay-auth: pqSignMessage returned null');
+    // The time is taken after the identity is derived, the moment before signing, and is the next
+    // millisecond after the last one this page handed out (pq.js pqRequestTimestamp): the relay
+    // takes each (key, purpose, time) once, and Accept on a category suggestion once sent two
+    // signed `media_list` reads in one millisecond (the Media page review, 2026-10-11).
+    const signed = await window.pqSignRequest(id.dilithiumSecret, purpose);
+    if (!signed) {
+      console.warn('pq-relay-auth: pqSignRequest returned null');
       return null;
     }
 
     return {
       key: id.dilithiumPublicHex,
-      timestamp: ts,
-      sig: _bufToHex(sigBytes),
+      timestamp: signed.timestamp,
+      sig: signed.sig,
     };
   }
 

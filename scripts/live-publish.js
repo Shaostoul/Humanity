@@ -23,7 +23,7 @@
 // socket is a JSON auth frame:
 //
 //     {"key": <dilithium3 public key hex>, "timestamp": <ms>,
-//      "sig": <hex of Dilithium3 over "live_publish\n<timestamp>">,
+//      "sig": <hex of Dilithium3 over "hum/request/v2\n<audience>\nlive_publish\n<timestamp>">,
 //      "title": ..., "chat": ...}
 //
 // The relay verifies the signature, checks freshness (5 min) and replay, and
@@ -159,8 +159,8 @@ if (!LOOPBACK && !ALLOW_REMOTE) {
     `live-publish: REFUSED to publish to ${HOST}.`,
     "This is a test publisher; it only talks to a relay on this machine by default.",
     "Start a local one:",
-    "  BIND_ADDRESS=127.0.0.1 PORT=3399 DATABASE_PATH=<scratch>/relay.db target/release/HumanityOS.exe --headless",
-    "(BIND_ADDRESS=127.0.0.1: this computer only, so Windows raises no firewall prompt for it.)",
+    "  BIND_ADDRESS=127.0.0.1 HUMANITY_DEV_LOOPBACK_NAMES=1 PORT=3399 DATABASE_PATH=<scratch>/relay.db target/release/HumanityOS.exe --headless",
+    "(BIND_ADDRESS=127.0.0.1: this computer only, so Windows raises no firewall prompt for it. HUMANITY_DEV_LOOPBACK_NAMES=1: it answers to 127.0.0.1.)",
     "If you really mean a remote relay, pass --allow-remote (never united-humanity.us:",
     "that server is the operator's live service and its streaming switch is their call).",
   );
@@ -360,10 +360,12 @@ async function registerName(id) {
         return;
       }
       if (msg.type === "identify_challenge") {
-        // The exact preimage relay.rs builds before verifying.
-        const preimage = new TextEncoder().encode(`hum/identify/v1\n${msg.nonce}\n${id.publicKeyHex}`);
+        // The exact preimage the relay checks (2026-11-21): hum/identify/v2, the address this
+        // script opened (never one the relay names), the nonce, the key.
+        const audience = new URL(url).host.toLowerCase();
+        const preimage = new TextEncoder().encode(`hum/identify/v2\n${audience}\n${msg.nonce}\n${id.publicKeyHex}`);
         const sig = id.sign(preimage);
-        ws.send(JSON.stringify({ type: "identify_response", sig_b64: Buffer.from(sig).toString("base64") }));
+        ws.send(JSON.stringify({ type: "identify_response", sig_b64: Buffer.from(sig).toString("base64"), audience }));
         return;
       }
       // A peer list is what the relay sends once the socket is bound: by then
@@ -392,10 +394,11 @@ async function openPublisher(id) {
     const timer = setTimeout(() => reject(new Error("the relay did not answer the auth frame within 20 s")), 20000);
     ws.addEventListener("open", () => {
       const timestamp = Date.now();
-      // The preimage the relay verifies: "live_publish\n<timestamp>", signed
-      // with Dilithium3 and sent as HEX (src/relay/live.rs::authenticate ->
-      // verify_dilithium_signature).
-      const sig = id.sign(new TextEncoder().encode(`live_publish\n${timestamp}`));
+      // A signed request naming this server (2026-11-21): "hum/request/v2\n<audience>\nlive_publish
+      // \n<timestamp>", signed with Dilithium3 and sent as HEX (src/relay/live.rs::authenticate ->
+      // signed_request::check_for, which also takes each signature once).
+      const audience = new URL(url).host.toLowerCase();
+      const sig = id.sign(new TextEncoder().encode(`hum/request/v2\n${audience}\nlive_publish\n${timestamp}`));
       const frame = { key: id.publicKeyHex, timestamp, sig: hex(sig), title: TITLE, chat: CHAT };
       ws.send(JSON.stringify(frame));
     });

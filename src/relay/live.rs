@@ -160,7 +160,7 @@ impl LiveRegistry {
 
 /// The publisher's first WS message.
 #[derive(Deserialize)]
-struct AuthFrame {
+pub(crate) struct AuthFrame {
     key: String,
     timestamp: u64,
     sig: String,
@@ -177,9 +177,16 @@ struct AuthFrame {
 pub async fn pub_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<RelayState>>,
+    headers: axum::http::HeaderMap,
+    connect: Option<axum::Extension<axum::extract::ConnectInfo<std::net::SocketAddr>>>,
+    direct: Option<axum::Extension<crate::relay::client_addr::DirectPeer>>,
+    door: Option<axum::Extension<crate::relay::audience::Door>>,
 ) -> impl IntoResponse {
+    // The address the publisher connected to, which its signed auth frame must name, and where it
+    // came from (audience.rs `Arrival`).
+    let arrival = crate::relay::audience::Arrival::from_parts(&headers, connect.map(|c| c.0 .0), direct.map(|d| d.0), door.map(|d| d.0));
     ws.max_message_size(MAX_FRAME_BYTES)
-        .on_upgrade(move |socket| publisher_loop(socket, state))
+        .on_upgrade(move |socket| publisher_loop(socket, state, arrival))
 }
 
 /// `GET /live/sub/{stream}` - viewer socket. Unauthenticated by design: a live
@@ -199,34 +206,11 @@ pub async fn list_handler(State(state): State<Arc<RelayState>>) -> Json<serde_js
 
 /// Verify the publisher's auth frame and resolve its stream id (= registered name).
 /// Returns None if the signature, freshness, or name lookup fails.
-async fn authenticate(state: &Arc<RelayState>, auth: &AuthFrame) -> Option<String> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(auth.timestamp) > 5 * 60 * 1000 {
-        warn!("live: publisher auth rejected (stale timestamp)");
-        return None;
-    }
-
-    // Dilithium verify is CPU-bound; keep it off the async executor.
-    let (k, s, ts) = (auth.key.clone(), auth.sig.clone(), auth.timestamp);
-    let ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&k, "live_publish", ts, &s)
-    })
-    .await
-    .unwrap_or(false);
-    if !ok {
-        warn!("live: publisher auth rejected (bad signature)");
-        return None;
-    }
-
-    // Replay guard: the same signed auth frame cannot be reused to hijack the
-    // stream inside the freshness window.
-    if !state.auth_nonce_fresh(&auth.key, "live_publish", auth.timestamp) {
-        warn!("live: publisher auth rejected (replay)");
+pub(crate) async fn authenticate(state: &Arc<RelayState>, auth: &AuthFrame, arrival: &crate::relay::audience::Arrival) -> Option<String> {
+    // Fresh, signed as a request (never a chat line's shape), and used once: the same signed auth
+    // frame cannot be reused to hijack the stream inside the freshness window (signed_request.rs).
+    if let Err(why) = crate::relay::signed_request::check_for(state, arrival, &auth.key, auth.timestamp, &auth.sig, "live_publish", "live_publish").await {
+        warn!("live: publisher auth rejected ({})", why.code());
         return None;
     }
 
@@ -241,7 +225,7 @@ async fn authenticate(state: &Arc<RelayState>, auth: &AuthFrame) -> Option<Strin
     }
 }
 
-async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>) {
+async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>, arrival: crate::relay::audience::Arrival) {
     // --- Phase 1: in-band auth (see module docs for why not a query string).
     let first = match tokio::time::timeout(AUTH_TIMEOUT, socket.recv()).await {
         Ok(Some(Ok(Message::Text(t)))) => t,
@@ -258,7 +242,7 @@ async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>) {
             .await;
         return;
     };
-    let Some(id) = authenticate(&state, &auth).await else {
+    let Some(id) = authenticate(&state, &auth, &arrival).await else {
         let _ = socket
             .send(Message::Text(r#"{"ok":false,"error":"unauthorized"}"#.into()))
             .await;
@@ -492,17 +476,18 @@ mod tests {
         let pubkey = hex::encode(dil.public_key());
         db.register_name("streamer", &pubkey).expect("register name");
 
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
         let state = Arc::new(RelayState::new(db));
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap()));
         let registry_handle = state.clone();
         let app = axum::Router::new()
             .route("/ws/live/pub", get(pub_handler))
             .route("/ws/live/sub/{stream}", get(sub_handler))
             .with_state(state);
 
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
         tokio::spawn(async move {
-            axum::serve(listener, app).await.unwrap();
+            axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap();
         });
 
         // --- Publisher: connect, then authenticate IN-BAND.
@@ -515,8 +500,8 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        // The exact preimage the relay verifies: "live_publish\n{ts}".
-        let sig = hex::encode(dil.sign(format!("live_publish\n{ts}").as_bytes()));
+        // The exact preimage the relay verifies: hum/request/v2, this relay's address, live_publish, the time.
+        let sig = hex::encode(dil.sign(crate::relay::signed_request::request_preimage(&format!("127.0.0.1:{port}"), "live_publish", ts).as_bytes()));
         let auth = serde_json::json!({
             "key": pubkey, "timestamp": ts, "sig": sig, "title": "Test stream",
         });
@@ -617,14 +602,15 @@ mod tests {
         let pubkey = hex::encode(dil.public_key());
         db.register_name("streamer", &pubkey).expect("register name");
 
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
         let state = Arc::new(RelayState::new(db));
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap()));
         let app = axum::Router::new()
             .route("/ws/live/pub", get(pub_handler))
             .route("/ws/live/sub/{stream}", get(sub_handler))
             .with_state(state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        tokio::spawn(async move { axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap() });
 
         // Publisher up, one keyframe out.
         let (mut pubsock, _) =
@@ -635,7 +621,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        let sig = hex::encode(dil.sign(format!("live_publish\n{ts}").as_bytes()));
+        let sig = hex::encode(dil.sign(crate::relay::signed_request::request_preimage(&format!("127.0.0.1:{port}"), "live_publish", ts).as_bytes()));
         pubsock
             .send(tokio_tungstenite::tungstenite::Message::Text(
                 serde_json::json!({ "key": pubkey, "timestamp": ts, "sig": sig, "title": "" })
@@ -705,14 +691,15 @@ mod tests {
         use futures::{SinkExt, StreamExt};
 
         let db = crate::relay::storage::Storage::open_temp("live_unreg");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
         let state = Arc::new(RelayState::new(db));
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap()));
 
         let app = axum::Router::new()
             .route("/ws/live/pub", get(pub_handler))
             .with_state(state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        tokio::spawn(async move { axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap() });
 
         // A valid signature from a key nobody has registered a name for.
         let seed = [9u8; 32];
@@ -722,7 +709,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        let sig = hex::encode(dil.sign(format!("live_publish\n{ts}").as_bytes()));
+        let sig = hex::encode(dil.sign(crate::relay::signed_request::request_preimage(&format!("127.0.0.1:{port}"), "live_publish", ts).as_bytes()));
 
         let (mut sock, _) =
             tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/pub"))
@@ -759,13 +746,14 @@ mod tests {
         // The name IS registered -- only the signature is wrong.
         db.register_name("streamer", &pubkey).expect("register name");
 
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
         let state = Arc::new(RelayState::new(db));
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap()));
         let app = axum::Router::new()
             .route("/ws/live/pub", get(pub_handler))
             .with_state(state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        tokio::spawn(async move { axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap() });
 
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

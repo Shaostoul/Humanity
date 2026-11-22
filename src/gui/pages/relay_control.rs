@@ -113,12 +113,9 @@ fn spawn_admin_stats_fetch(state: &mut GuiState, base: &str) {
             if key.is_empty() {
                 return Err("No identity loaded - sign in first.".to_string());
             }
-            let ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|e| format!("clock error: {e}"))?
-                .as_millis() as u64;
-            // Sign the exact preimage the relay verifies: "admin_stats\n{ts}".
-            let sig = crate::net::identity::pq_sign_chat(&seed, "admin_stats", ts);
+            let ts = crate::net::identity::next_request_timestamp();
+            // Signed as a request for this server (hum/request/v2, its address, admin_stats, the time).
+            let sig = crate::net::identity::pq_sign_request(&seed, &base, "admin_stats", ts);
 
             // POST, not GET: the Dilithium key (3904 hex) + signature (~6600 hex)
             // are ~10 KB, which as query params made the URL exceed nginx's default
@@ -304,7 +301,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 .strong());
             ui.add_space(4.0);
             {
-                let running = host_node::running_local_url().is_some();
+                let running = host_node::node_running();
                 let is_sel = selected.as_deref() == Some(LOCAL_NODE_SEL);
                 let bg = if is_sel { theme.bg_tertiary() } else { Color32::TRANSPARENT };
                 let resp = Frame::NONE

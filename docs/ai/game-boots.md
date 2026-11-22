@@ -109,6 +109,19 @@ needs `BIND_ADDRESS=127.0.0.1` in its environment**. Tests bind 127.0.0.1. The
 relay's default stays 0.0.0.0 for the LAN-node and self-hosting setups. Never
 "fix" a prompt by changing firewall settings: that is his machine's policy.
 
+**A dev relay also needs `HUMANITY_DEV_LOOPBACK_NAMES=1` (signed requests round 3,
+2026-11-21).** Every signed request and sign-in names the address the app connected
+to, and a relay answers only to the names it was given (src/relay/audience.rs). Since
+round 3 a relay listening on loopback no longer takes `127.0.0.1:{port}`,
+`localhost:{port}` and `[::1]:{port}` on its own (a public relay behind nginx or Tor
+listens on loopback too, and every such relay shared those names): the dev and test
+switch `HUMANITY_DEV_LOOPBACK_NAMES=1` gives them, taken only from a client on this
+computer. The rigs' throwaway relays set it (scripts/lib/throwaway-relay.js,
+verify-live-screen.js), `just run-relay` sets it, and a relay you run by hand needs it
+beside `BIND_ADDRESS=127.0.0.1`, or the game's sign-in is refused with words naming
+the address it signed for. Rust tests get the same names from `OwnNames::loopback`
+(`serve_relay`).
+
 ## How the engine keeps a boot in the background
 
 The engine honours background in two places, and both are needed (v0.1069): the

@@ -71,7 +71,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use humanity_protocol::pq_crypto::{verify_file_pass, FilePass, FriendPass};
+use humanity_protocol::pq_crypto::{parse_file_pass, verify_file_pass, FilePass, FriendPass};
 use crate::relay::handlers::friend_passes::friend_pass;
 use crate::relay::relay::{RelayMessage, RelayState};
 
@@ -611,17 +611,19 @@ pub async fn dc_offer_may_pass(
 }
 
 /// The file pass `pass` that `issuer` gave `grantee` on THIS relay, if it checks out now
-/// (pq_crypto `verify_file_pass`): the relay's own server DID and the two keys the caller passes,
-/// its own facts, never the pass's claims. None for no pass, a forged one, one given to or by
-/// someone else or on another server, one run out, and one longer than a week (plus a day of
-/// clock slack). Which transfer it is for is the caller's question (`call_credentials` checks the
-/// id against the file asked about; a `dc_offer` carries no id the relay can see). Stateless:
-/// nothing is stored or withdrawn.
+/// (pq_crypto `verify_file_pass`): its audience one of the relay's own names that the presenter
+/// may use (audience.rs `pass_is_for_here`, asked first, 2026-11-21), and the two keys the caller
+/// passes, its own facts, never the pass's claims. None for no pass, a forged one, one given to
+/// or by someone else or at another server address, one run out, and one longer than a week
+/// (plus a day of clock slack). Which transfer it is for is the caller's question
+/// (`call_credentials` checks the id against the file asked about; a `dc_offer` carries no id the
+/// relay can see). Stateless: nothing is stored or withdrawn.
 pub fn file_pass_of(state: &RelayState, issuer: &str, grantee: &str, pass: Option<&serde_json::Value>) -> Option<FilePass> {
     let pass = pass.filter(|p| !p.is_null())?;
-    let server = state.db.server_did().ok()?;
+    let (claimed, _) = parse_file_pass(pass).ok()?;
+    crate::relay::audience::pass_is_for_here(state, &claimed.aud)?;
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-    verify_file_pass(&server, issuer, grantee, pass, now).ok()
+    verify_file_pass(issuer, grantee, pass, now).ok()
 }
 
 /// The longest piece of a refused word repeated back in a notice.

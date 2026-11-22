@@ -48,7 +48,7 @@ fn connect(st: &Arc<RelayState>, key: &str) {
 
 /// The pass `issuer` gives `grantee` on this relay, allowing `may`.
 fn pass(st: &Arc<RelayState>, issuer: &Person, grantee: &str, may: &[&str]) -> String {
-    let server = st.db.server_did().expect("the relay's own did:hum");
+    let server = crate::relay::audience::test_pass_audience(st);
     let serial = new_friend_cert_serial().expect("randomness");
     build_friend_cert(&issuer.seed, &server, &issuer.key, grantee, &serial, may).expect("a pass")
 }

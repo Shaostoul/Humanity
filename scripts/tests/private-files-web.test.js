@@ -714,6 +714,12 @@ async function loadChat(me, opts = {}) {
   run("shared/upload-window.js"); // the window a drop on a channel opens (2026-10-17)
   run("shared/key-card.js");
   run("chat/crypto.js");
+  // pq.js's request half (signed requests, 2026-11-20), without its noble loader.
+  {
+    const pq = fs.readFileSync(path.join(WEB, "chat", "pq.js"), "utf8");
+    const start = pq.indexOf("const PQ_REQUEST_DOMAIN");
+    if (start >= 0) vm.runInContext(pq.slice(start, pq.indexOf("// Exposed globally", start)), ctx, { filename: "pq.js#requests" });
+  }
   run("chat/chat-dm-store.js");
   run("chat/chat-key-cards.js");
   run("chat/view/timestampPill.js");
@@ -3669,8 +3675,10 @@ test("media card: a Media item's address on this site is a card just after the w
   // Asked for once, signed with the chat's own identity, as the Media page signs a read.
   assert.equal(lists.length, 1, "asked for once");
   assert.deepEqual([lists[0].id, lists[0].limit, lists[0].key], [7, 1, fx.ann.key]);
-  const signed = new TextEncoder().encode("media_list\n" + lists[0].timestamp);
-  assert.ok(fx.m.noble.ml_dsa65.verify(Buffer.from(lists[0].sig, "hex"), signed, fx.ann.pub), "a real signature over media_list\n<timestamp>");
+  // A signed request (pq.js pqRequestPreimage, 2026-11-20): the domain line, the purpose, the time.
+  // The stand-in signer hands back any "hum/..." words as their own signature (isWords), so the
+  // signature's bytes are exactly what was signed.
+  assert.equal(Buffer.from(lists[0].sig, "hex").toString(), "hum/request/v2\nlocalhost\nmedia_list\n" + lists[0].timestamp, "signed as a request over media_list, for the page's own server");
   // The same item in another message: no second request.
   postInRoom(page, fx.cy, "also https://localhost/files/7", T0 + 955);
   await settle();

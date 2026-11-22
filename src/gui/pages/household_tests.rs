@@ -13,7 +13,10 @@ use serde_json::Value;
 use std::sync::mpsc::Receiver;
 
 /// The server every app here is on.
-const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The server these tests' apps are on, by the address passes and permits name (C8, 2026-11-21:
+// a pass names the address the app opened; the DM store's identity, `set_pass_server`, takes it
+// too, any text standing for the server's did:hum there).
+const SERVER: &str = "relay.example";
 const SERIAL: &str = "00112233445566778899aabbccddeeff";
 
 /// The words the card must never say (plan 3.9): whole words, and the stems of the rest (so
@@ -93,7 +96,7 @@ fn gave(gs: &mut GuiState, to: &str, plot: &str, serial: &str, at_s: u64, expiry
 fn held(gs: &mut GuiState, from: &str, plot: &str, expiry: u64, verdict: Option<Verdict>) {
     let permit = Permit {
         issuer: from.into(),
-        server: SERVER.into(),
+        aud: SERVER.into(),
         plot: plot.into(),
         grantee: "did:hum:me".into(),
         serial: SERIAL.into(),

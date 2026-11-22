@@ -566,6 +566,8 @@ async function main() {
         // and a relay on every interface makes Windows raise a firewall
         // prompt for this exe path (scripts/lib/throwaway-relay.js, top).
         BIND_ADDRESS: TR.LOOPBACK_BIND,
+        // Its loopback names, the dev and test switch (src/relay/audience.rs, 2026-11-21).
+        HUMANITY_DEV_LOOPBACK_NAMES: "1",
         // Never the operator's focus, even though a headless relay opens no
         // window: the marker files and this var are how the whole rig asks.
         HUMANITY_NO_FOCUS: "1",

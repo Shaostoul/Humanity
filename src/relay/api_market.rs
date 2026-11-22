@@ -317,30 +317,9 @@ pub async fn create_listing_review(
     axum::extract::Path(listing_id): axum::extract::Path<String>,
     Json(body): Json<CreateReviewRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    // Reject requests older than 5 minutes.
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
-    }
-
-    // Verify signature over "review\n" + listing_id + "\n" + timestamp.
-    // ML-DSA-65 verify is CPU-bound — run it off the async executor (clone owned
-    // inputs in; fail-closed on panic → reject). Decision + 401 status unchanged.
-    let sig_content = format!("review\n{}", listing_id);
-    let vk = body.public_key.clone();
-    let vsig = body.signature.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    // Fresh, signed as a request (never a chat line's shape), used once (signed_request.rs).
+    let sig_content = review_purpose(&listing_id, body.rating, &body.comment);
+    crate::relay::signed_request::check(&state, &body.public_key, body.timestamp, &body.signature, &sig_content, "review").await?;
 
     let reviewer_name = state.db.name_for_key(&body.public_key)
         .ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
@@ -365,27 +344,9 @@ pub async fn delete_listing_review(
     axum::extract::Path((listing_id, review_id)): axum::extract::Path<(String, i64)>,
     Query(q): Query<VaultSyncQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    // Fresh, signed as a request (never a chat line's shape), used once (signed_request.rs).
     let sig_content = format!("review_delete\n{}", review_id);
-    let vk = q.key.clone();
-    let vsig = q.sig.clone();
-    let vts = q.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    crate::relay::signed_request::check(&state, &q.key, q.timestamp, &q.sig, &sig_content, "review_delete").await?;
 
     let user_role = state.db.get_role(&q.key).unwrap_or_default();
     let is_admin = crate::relay::handlers::msg_handlers::is_staff_role(&user_role); // the owner too (BUG-332)
@@ -462,27 +423,9 @@ pub async fn create_trade_order(
     State(state): State<Arc<RelayState>>,
     Json(body): Json<CreateTradeOrderRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
-    let sig_content = format!("trade_order\n{}\n{}\n{}", body.item_type, body.quantity, body.price_per_unit);
-    let vk = body.public_key.clone();
-    let vsig = body.signature.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    // Fresh, signed as a request (never a chat line's shape), used once (signed_request.rs).
+    let sig_content = trade_order_purpose(&body);
+    crate::relay::signed_request::check(&state, &body.public_key, body.timestamp, &body.signature, &sig_content, "trade_order").await?;
 
     if body.quantity <= 0 {
         return Err((StatusCode::BAD_REQUEST, "Quantity must be positive.".into()));
@@ -519,27 +462,9 @@ pub async fn cancel_trade_order(
     axum::extract::Path(order_id): axum::extract::Path<i64>,
     Query(q): Query<VaultSyncQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    // Fresh, signed as a request (never a chat line's shape), used once (signed_request.rs).
     let sig_content = format!("cancel_order\n{}", order_id);
-    let vk = q.key.clone();
-    let vsig = q.sig.clone();
-    let vts = q.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    crate::relay::signed_request::check(&state, &q.key, q.timestamp, &q.sig, &sig_content, "cancel_order").await?;
 
     match state.db.cancel_trade_order(order_id, &q.key) {
         Ok(true) => Ok(Json(serde_json::json!({ "status": "cancelled" }))),
@@ -562,27 +487,9 @@ pub async fn fill_trade_order(
     axum::extract::Path(order_id): axum::extract::Path<i64>,
     Json(body): Json<FillOrderRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
-    }
-
-    // ML-DSA-65 verify off the async executor (fail-closed → reject). 401 unchanged.
+    // Fresh, signed as a request (never a chat line's shape), used once (signed_request.rs).
     let sig_content = format!("fill_order\n{}\n{}", order_id, body.quantity);
-    let vk = body.public_key.clone();
-    let vsig = body.signature.clone();
-    let vts = body.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, &sig_content, vts, &vsig)
-    }).await.unwrap_or(false);
-    if !sig_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
+    crate::relay::signed_request::check(&state, &body.public_key, body.timestamp, &body.signature, &sig_content, "fill_order").await?;
 
     match state.db.fill_trade_order(order_id, &body.public_key, body.quantity) {
         Ok(history_id) => Ok(Json(serde_json::json!({
@@ -694,4 +601,25 @@ pub async fn search_messages(
         }
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Search error: {e}"))),
     }
+}
+
+/// What a review is signed over (2026-11-21, D5 of the signed-requests round 2): the listing, the
+/// rating and a BLAKE3 hash of the words, so a signature for one review is not good for another
+/// rating or other words on the same listing (it named the listing alone).
+pub fn review_purpose(listing_id: &str, rating: i32, comment: &str) -> String {
+    format!("review\n{listing_id}\n{rating}\n{}", crate::relay::signed_request::body_hash(comment.as_bytes()))
+}
+
+/// What a trade order is signed over (2026-11-21, D5): every field the order carries, the item,
+/// its id (blank when none), the quantity, the price and the currency (blank when none), so a
+/// signature is for exactly this order (the id and the currency were left out).
+pub fn trade_order_purpose(body: &CreateTradeOrderRequest) -> String {
+    format!(
+        "trade_order\n{}\n{}\n{}\n{}\n{}",
+        body.item_type,
+        body.item_id.as_deref().unwrap_or(""),
+        body.quantity,
+        body.price_per_unit,
+        body.currency.as_deref().unwrap_or("")
+    )
 }

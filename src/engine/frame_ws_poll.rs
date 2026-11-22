@@ -100,19 +100,16 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         if nonce.is_empty() {
                             log::warn!("identify_challenge missing nonce");
                         } else if let Some(ref seed) = state.gui_state.private_key_bytes {
-                            let preimage = format!(
-                                "hum/identify/v1\n{}\n{}",
-                                nonce, state.gui_state.profile_public_key
-                            );
-                            let sig = crate::net::identity::pq_sign_raw(seed, preimage.as_bytes());
-                            use base64::{engine::general_purpose::STANDARD as B64, Engine};
-                            let sig_b64 = B64.encode(&sig);
-                            let response = serde_json::json!({
-                                "type": "identify_response",
-                                "sig_b64": sig_b64,
-                            });
+                            // Signed for the address THIS socket opened, never one the server names
+                            // (net::identity::identify_response, 2026-11-21).
                             if let Some(ref ws_client) = state.gui_state.ws_client {
-                                ws_client.send(&response.to_string());
+                                match crate::net::identity::identify_response(seed, ws_client.server_url(), nonce, &state.gui_state.profile_public_key) {
+                                    Ok(response) => ws_client.send(&response),
+                                    Err(why) => {
+                                        log::warn!("identify_challenge not signed: {why}");
+                                        state.gui_state.ws_status = why.to_string();
+                                    }
+                                }
                             }
                         } else {
                             log::error!("identify_challenge received but seed not unlocked — cannot sign. Unlock identity to connect.");

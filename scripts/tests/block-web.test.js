@@ -182,6 +182,9 @@ const BEN = "c3".repeat(32);
 const CY = "d4".repeat(32);
 const STRANGER = "e5".repeat(32);
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The address the page opened (pq.js `pqAudience`, stubbed here): what every pass names since v3
+// (2026-11-21), never the did:hum the server claims.
+const AUD = "chat.example";
 const CTL_FOLLOW = "[[hum:follow]]";
 const CTL_FRIEND_CERT = "[[hum:friend-cert]]";
 const MY_KYBER = "my-kyber";
@@ -310,6 +313,7 @@ async function loadChat() {
   // The stand-in primitives (see the top of this file).
   const key = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   ctx.getDmStoreKey = async () => key;
+  ctx.pqAudience = () => AUD;
   ctx.pqSignMessage = async (_secret, bytes) => new Uint8Array(bytes);
   ctx.pqVerifyMessage = async (_pk, bytes, sig) => Buffer.from(bytes).equals(Buffer.from(sig));
   ctx.pqDmSeal = async (pub, plaintext) => ({ ek_ct_b64: b64(pub), nonce_b64: "AAAA", ct_b64: b64(plaintext) });
@@ -360,7 +364,7 @@ function envelope(from, to, text, ts = 1760000000000, extra = {}) {
 const dmEnvelope = (from, text, ts) => envelope(from, ME, text, ts);
 // A pass `issuer` gave `grantee` on this server (the stand-in signature is the signed words).
 function passFrom(issuer, grantee = ME, serial = "0123456789abcdef0123456789abcdef", may = MAY) {
-  return fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(SERVER, issuer, grantee, serial, may)));
+  return fp.friendPassJson(AUD, serial, may, b64(fp.friendPassPreimage(AUD, issuer, grantee, serial, may)));
 }
 const chat = (from, from_name, content, timestamp) => ({ type: "chat", from, from_name, content, timestamp, channel: "global" });
 const drawnFrom = (appended, key) => appended.filter((e) => e && e.dataset && e.dataset.from === key);

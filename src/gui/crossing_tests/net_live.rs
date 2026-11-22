@@ -35,10 +35,12 @@ async fn a_real_frame_survives_the_whole_pipeline_to_a_viewer() {
     let app = axum::Router::new()
         .route("/ws/live/pub", get(crate::relay::live::pub_handler))
         .route("/ws/live/sub/{stream}", get(crate::relay::live::sub_handler))
-        .with_state(state);
+        .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    // The address it answers to, which the publisher's signed frame names (relay/audience.rs).
+    let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap()));
+    tokio::spawn(async move { axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap() });
 
     // --- Start the real publisher.
     let cfg = LiveConfig {

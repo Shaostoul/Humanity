@@ -102,8 +102,11 @@ macro_rules! say {
 /// When the check began, for `say!`.
 static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 
-/// The server DID both sides sign and check file passes for (a pass names the server it is for).
+/// The server's did:hum the page is told (its identify_challenge's): it marks the page signed in.
+/// Since 2026-11-21 no file pass names it: a pass names the address its sender's app opened.
 const SERVER_DID: &str = "did:hum:browserwebrtccheck";
+/// The server address the desktop's file pass names (the page's names its own `location.host`).
+const SERVER_AUD: &str = "relay.example";
 /// How long a call may take to connect and carry sound both ways.
 const CALL_WAIT: Duration = Duration::from_secs(30);
 /// How long a file may take, offer to saved.
@@ -642,9 +645,11 @@ impl World {
         RelayMessage::CallCredentials { to: to.to_string(), creds }
     }
 
-    /// The relay's check of a file pass: `issuer` gave `grantee` this pass on this server.
+    /// The relay's check of a file pass: `issuer` gave `grantee` this pass (its signature over the
+    /// server address it names; whether that address is the relay's own is the real relay's
+    /// `file_pass_of`, tested in relay/handlers/reach_file_pass_tests.rs).
     fn pass_id(issuer: &str, grantee: &str, pass: &Value) -> Option<String> {
-        humanity_protocol::pq_crypto::verify_file_pass(SERVER_DID, issuer, grantee, pass, unix_now()).ok().map(|p| p.id)
+        humanity_protocol::pq_crypto::verify_file_pass(issuer, grantee, pass, unix_now()).ok().map(|p| p.id)
     }
 
     fn page_voice_call(&mut self, msg: &Value) {
@@ -791,7 +796,7 @@ impl World {
             say!("[desktop] the page's note {}", humanity_core::text::prefix(&text, 40));
             return;
         };
-        if let Err(e) = file_offer::verify_file_pass(&self.browser, SERVER_DID, &self.desktop, &offer.pass, unix_now()) {
+        if let Err(e) = file_offer::verify_file_pass(&self.browser, &self.desktop, &offer.pass, unix_now()) {
             self.errors.push(format!("the website's file pass did not check on the desktop: {e:?}"));
             return;
         }
@@ -964,7 +969,7 @@ impl World {
         std::fs::write(&path, &bytes).unwrap();
         let id = file_offer::new_id().expect("an id");
         let now = unix_now();
-        let pass: FilePass = file_offer::mint_file_pass(&self.seed, SERVER_DID, &self.desktop, &self.browser, &id, now + 3600, now).expect("the app mints its pass");
+        let pass: FilePass = file_offer::mint_file_pass(&self.seed, SERVER_AUD, &self.desktop, &self.browser, &id, now + 3600, now).expect("the app mints its pass");
         let hashes: Vec<[u8; 32]> = bytes.chunks(PIECE_SIZE as usize).map(|c| *blake3::hash(c).as_bytes()).collect();
         let mut offer = Offer {
             id: id.clone(),

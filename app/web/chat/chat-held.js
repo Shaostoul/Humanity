@@ -245,7 +245,9 @@
   //
   // A grant alone fetches nothing: the relay serves a held part only to the key the grant belongs
   // to, so every request to a held part route carries my key, the time and my Dilithium3 signature
-  // over `purpose\ntime` (/shared/held-seal.js callerPurpose; the desktop's net/held.rs `Caller`).
+  // over the signed request `hum/request/v2\n{this page's server}\n{purpose}\n{time}` (pq.js
+  // pqRequestPreimage and pqAudience; the purpose /shared/held-seal.js callerPurpose; the desktop's
+  // net/held.rs `Caller`; merged 2026-11-22: until then `purpose\ntime`, a chat line's shape).
   // chat-owner.js signs its re-wrap and check requests through `window.heldCallerHeaders` too.
 
   let lastSignedAt = 0;
@@ -257,12 +259,15 @@
 
   /** The three headers proving I asked for `purpose`, signed now. */
   async function callerHeaders(purpose) {
-    if (typeof myKey !== 'string' || !myKey || typeof myDilithiumSecret === 'undefined' || !myDilithiumSecret || typeof window.pqSignMessage !== 'function') {
+    if (typeof myKey !== 'string' || !myKey || typeof myDilithiumSecret === 'undefined' || !myDilithiumSecret || typeof window.pqSignMessage !== 'function'
+      || typeof window.pqRequestPreimage !== 'function' || typeof window.pqAudience !== 'function') {
       throw new Error(t('held.need_key'));
     }
+    const audience = window.pqAudience();
+    if (!audience) throw new Error(t('held.need_key'));
     const { seal } = await mods();
     const ts = nextMs();
-    const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(purpose + '\n' + ts));
+    const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(window.pqRequestPreimage(audience, purpose, ts)));
     if (!sig) throw new Error(t('held.need_key'));
     let hex = '';
     for (let i = 0; i < sig.length; i++) hex += sig[i].toString(16).padStart(2, '0');

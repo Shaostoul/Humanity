@@ -26,7 +26,7 @@ fn person(seed: u8) -> Person {
 
 impl Person {
     fn sign(&self, purpose: &str, ts: u64) -> String {
-        hex::encode(self.pair.sign(format!("{purpose}\n{ts}").as_bytes()))
+        hex::encode(self.pair.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, &purpose, ts).as_bytes()))
     }
     fn list(&self, ts: u64) -> ListParams {
         ListParams { key: Some(self.key.clone()), timestamp: Some(ts), sig: Some(self.sign("media_list", ts)), ..Default::default() }

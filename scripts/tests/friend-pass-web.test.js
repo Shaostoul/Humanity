@@ -1,5 +1,6 @@
-// The web chat client gives, keeps and withdraws friendship passes (v2, 2026-10-09,
-// docs/design/blocking-and-safe-mode.md 10b), the way native src/engine/dm.rs does.
+// The web chat client gives, keeps and withdraws friendship passes (v2 2026-10-09,
+// docs/design/blocking-and-safe-mode.md 10b; v3 2026-11-21: a pass names the address the page
+// opened), the way native src/engine/dm.rs does.
 //
 // Run: node --test scripts/tests/friend-pass-web.test.js   (in `just rig-tests`)
 //
@@ -13,11 +14,12 @@
 //
 // What it proves:
 //  1. On the member list, the client gives a pass to every mutual follow that has none (and to
-//     nobody else), minted for the server its challenge named, with a fresh serial and the
+//     nobody else), minted for the address this page opened (pq.js `pqAudience`, stubbed here:
+//     never the did:hum the server's challenge claims), with a fresh serial and the
 //     defaults (no calls); a second list mints nothing more.
 //  2. Unfollowing withdraws: `cert_revoke {serial}` goes out, is resent on every member list
 //     until the relay answers `cert_revoked`, and stops then.
-//  3. A pass from a friend is checked against this server and kept; their unfollow drops it; the
+//  3. A pass from a friend is checked (its words, over the address it names) and kept; their unfollow drops it; the
 //     echo of a pass we gave from another device records its serial.
 //  4. A DM, a call ring and a trade note carry the pass we hold (the ring here).
 //  5. A new server identity voids every pass held or given.
@@ -94,6 +96,8 @@ const ANN = "b2".repeat(32);
 const BEN = "c3".repeat(32);
 const CY = "d4".repeat(32);
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The address this page opened, what every pass it mints names (C8, 2026-11-21).
+const AUD = "chat.example";
 const CTL_FOLLOW = "[[hum:follow]]";
 const CTL_UNFOLLOW = "[[hum:unfollow]]";
 const CTL_FRIEND_CERT = "[[hum:friend-cert]]";
@@ -153,6 +157,7 @@ async function loadChat() {
   // control it carries instead of sealing it.
   const key = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   ctx.getDmStoreKey = async () => key;
+  ctx.pqAudience = () => AUD;
   ctx.pqSignMessage = async (_secret, bytes) => new Uint8Array(bytes);
   ctx.pqVerifyMessage = async (_pk, bytes, sig) => Buffer.from(bytes).equals(Buffer.from(sig));
   vm.runInContext(`(s, me) => {
@@ -202,10 +207,11 @@ test("mutual follows get a pass on the member list, once; withdrawals resend unt
   assert.deepEqual(given.map((m) => m.to).sort(), [ANN, BEN].sort(), "a pass for each mutual follow, none for a one-way follow");
   for (const m of given) {
     const pass = fp.friendPassParse(m.cert);
-    assert.ok(pass, "the pass is a v2 pass in canonical form");
+    assert.ok(pass, "the pass is a v3 pass in canonical form");
+    assert.equal(pass.aud, AUD, "it names the address this page opened, not the did:hum the server claimed");
     assert.equal(pass.may, "invite,message,trade,voice_message", "the defaults: no calls");
     // The stand-in signature is the signed words: they name this server, me and them.
-    assert.equal(Buffer.from(pass.sig, "base64").toString(), fp.friendPassPreimage(SERVER, ME, m.to, pass.serial, pass.may));
+    assert.equal(Buffer.from(pass.sig, "base64").toString(), fp.friendPassPreimage(AUD, ME, m.to, pass.serial, pass.may));
     assert.ok(store.certSentTo(m.to));
   }
   const annSerial = fp.friendPassParse(given.find((m) => m.to === ANN).cert).serial;
@@ -235,15 +241,16 @@ test("a friend's pass is checked, kept, carried and dropped when they unfollow",
   const fp = require(path.join(WEB, "shared", "friend-pass.js"));
   const serial = "00112233445566778899aabbccddeeff";
   const may = "invite,message,trade,voice_message";
-  const passFrom = (issuer, server) => fp.friendPassJson(serial, may, Buffer.from(fp.friendPassPreimage(server, issuer, ME, serial, may)).toString("base64"));
+  const passFrom = (issuer, aud) => fp.friendPassJson(aud, serial, may, Buffer.from(fp.friendPassPreimage(aud, issuer, ME, serial, may)).toString("base64"));
   const ingest = (inner) => vm.runInContext("ingestDmControl", ctx)(inner);
   await memberList(ctx); // the store learns which server its passes name
 
-  await ingest({ from: BEN, to: ME, text: CTL_FRIEND_CERT, cert: passFrom(BEN, "did:hum:elsewhere") });
-  assert.equal(store.certFor(BEN), null, "a pass given on another server is not kept");
-  await ingest({ from: BEN, to: ME, text: CTL_FRIEND_CERT, cert: passFrom(ANN, SERVER) });
+  const moved = JSON.stringify({ ...JSON.parse(passFrom(BEN, AUD)), aud: "elsewhere.example" });
+  await ingest({ from: BEN, to: ME, text: CTL_FRIEND_CERT, cert: moved });
+  assert.equal(store.certFor(BEN), null, "a pass moved to another server address after signing is not kept");
+  await ingest({ from: BEN, to: ME, text: CTL_FRIEND_CERT, cert: passFrom(ANN, AUD) });
   assert.equal(store.certFor(BEN), null, "nor one signed for someone else's words");
-  const good = passFrom(BEN, SERVER);
+  const good = passFrom(BEN, AUD);
   await ingest({ from: BEN, to: ME, text: CTL_FRIEND_CERT, cert: good });
   assert.equal(store.certFor(BEN), good, "a good pass is kept");
 
@@ -256,7 +263,7 @@ test("a friend's pass is checked, kept, carried and dropped when they unfollow",
   assert.equal(store.certFor(BEN), null, "their unfollow withdrew it, so it is dropped");
 
   // Our own pass, echoed from another of our devices: its serial is recorded.
-  await ingest({ from: ME, to: CY, text: CTL_FRIEND_CERT, cert: fp.friendPassJson(serial, may, "c2ln") });
+  await ingest({ from: ME, to: CY, text: CTL_FRIEND_CERT, cert: fp.friendPassJson(AUD, serial, may, "c2ln") });
   assert.ok(store.certSentTo(CY), "the echo of a pass we gave records it");
 
   // A new server identity voids it all.

@@ -479,6 +479,12 @@ async function loadChat(me, opts = {}) {
   run("shared/group-report.js");
   run("shared/key-card.js");
   run("chat/crypto.js");
+  // pq.js's request half (signed requests: the group reads), without its noble loader.
+  {
+    const pq = fs.readFileSync(path.join(WEB, "chat", "pq.js"), "utf8");
+    const start = pq.indexOf("const PQ_REQUEST_DOMAIN");
+    if (start >= 0) vm.runInContext(pq.slice(start, pq.indexOf("// Exposed globally", start)), ctx, { filename: "pq.js#requests" });
+  }
   run("chat/chat-dm-store.js");
   run("chat/chat-key-cards.js");
   run("chat/view/timestampPill.js");

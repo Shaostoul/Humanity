@@ -1045,6 +1045,13 @@ may      = the sorted, comma-joined subset of: call, invite, message, trade, voi
 cert     = {"v":2,"serial":"...","may":"...","sig":"<base64 Dilithium3 over the preimage>"}
 ```
 
+**Since v3 (2026-11-21, C8 of the signed-requests round 3)** the server line is the address the
+issuer's app opened, carried in the pass as `aud` (`hum/friend/v3\n{audience}\n...`,
+`{"aud","may","serial","sig","v":3}`), and the relay takes it only when that address is one of its
+own names: the did:hum came from the server's own `identify_challenge`, so a server claiming
+another's identity collected passes good there. The household permit (v3) and the file pass (v2)
+moved the same way. docs/reference/cryptography.md has the current shapes.
+
 - **No end date** (10a). Withdrawal is by serial: the issuer sends `cert_revoke {serial}` on its
   own signed-in socket; the relay keeps `friend_cert_revocations (issuer_fingerprint, serial,
   revoked_day)`, under a keyed fingerprint of the issuer's key, for good (revised in review

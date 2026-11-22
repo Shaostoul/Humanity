@@ -4321,6 +4321,26 @@ window.HOS_I18N_EN = {
       "remove_main_kept_note": "This item is kept by the server. If {{next}} was added after it was kept, removing the main file ends that until an admin keeps it again."
     }
   },
+  "host_node": {
+    "door_port_busy": "Port {{port}}, your own app's way into this node (the node's port and one), is not available ({{error}}). Another program is already using it. Try a different port for the node.",
+    "lan_not_answered": "not answered: this node answers to its public address only (Also answer on my local network is off)",
+    "lan_too": "Also answer on my local network",
+    "lan_too_hint": "Lets devices in your home connect by this computer's local address as well as by the public address.",
+    "lan_too_off": "With a public address, this node answers to it alone, so nothing that forwards visitors to it can make them look like your household. Tick this to let devices in your home use the local address too.",
+    "lan_too_risk": "Only safe if nothing else on your network forwards the public address's visitors to this node. Tor on a router, a Raspberry Pi or a NAS, or a tunnel's helper (frp, ngrok, playit) on another device hands each visitor over from a local address, so they would count as your household and could use what was signed for your local address. Point every forwarder at 127.0.0.1 on this computer instead.",
+    "owner_door_note": "Your own app's way in. It takes your key alone and only from this computer, so it is not an address to share.",
+    "public_address": "Public address",
+    "public_address_bad": "{{value}} is not an address. Write a name or an IP address, with :port when people type one, separated by commas.",
+    "public_address_hint": "The names people reach this node by, separated by commas: a domain, an onion address, or an address and :port when people type one (node.example.org:3210). The node refuses any signature made for another name, so a sign-in meant for someone else's server never works here. Point whatever forwards visitors to it (Tor, a tunnel) at 127.0.0.1 on this computer, at the port below.",
+    "public_address_note": "With a public address, this node answers to it alone: not to this computer's own names, since Tor or a tunnel on this computer hands every visitor over as this computer, and not to your local network address unless you tick Also answer on my local network. Your own app comes in by its own door (On this computer, once the node runs). Passes your friends get here name only the public address. With none set, no pass is made here, so your local address is never handed to a friend.",
+    "public_address_placeholder": "node.example.org:3210",
+    "reach_public": "People reach this node by its public address. Point whatever brings them here (Tor, a tunnel) at 127.0.0.1 on this computer, port {{port}}.",
+    "share_unknown": "There is no address to share yet: this computer's address on your network is not known. Check that it is connected to your network, then stop the node and start it again.",
+    "tailnet": "This computer is on a Tailscale network",
+    "tailnet_hint": "Lets the other devices on your Tailscale network use this node's Tailscale address and name.",
+    "tailnet_off": "Off: an address in Tailscale's range (100.64.0.0 to 100.127.255.255) counts as its own network, because internet providers give that range to their customers too. Tick this if you use Tailscale, and put this computer's Tailscale address or name in Public address.",
+    "tailnet_on": "On: every device on your Tailscale network may use this node's Tailscale address (100.x.y.z:port) and name; put them in Public address. Leave this off if you do not use Tailscale: internet providers give the same range to their customers."
+  },
   "hud": {
     "corridor_between": "Corridor between {{a}} and {{b}}",
     "death_asleep": "You are asleep on the [[lifeline]], and a [[respawner]] is growing you a new body. You keep everything you know.",

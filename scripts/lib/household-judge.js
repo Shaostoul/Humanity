@@ -312,7 +312,8 @@ function judgeHousehold(run, evidence = {}) {
   const aKey = typeof A.key === "string" ? A.key.toLowerCase() : null;
   const aFrame = A.plot ? `plot:${A.plot}` : null;
   const gFrame = G.plot ? `plot:${G.plot}` : null;
-  const serverDid = (m.relay && m.relay.server_did) || null;
+  // The address the game opened (the run records it): what a permit names since v3 (2026-11-21).
+  const relayAud = (m.relay && m.relay.audience) || null;
 
   // ── 1-2. The relay, the game and Ada, and who holds what.
   add("relay_up", s.relay && s.relay.ok, s.relay ? s.relay.detail : "never started");
@@ -413,7 +414,7 @@ function judgeHousehold(run, evidence = {}) {
   }
   const given = give && give.received && give.received.permit ? give.received.permit : null;
   {
-    const wrong = given ? permitFactsWrong(given, { plot: G.plot, grantee: A.did, server: serverDid, issuer: me }) : "no permit";
+    const wrong = given ? permitFactsWrong(given, { plot: G.plot, grantee: A.did, aud: relayAud, issuer: me }) : "no permit";
     const checksOut = !!give && !!give.checks_out && !!given && give.checks_out.serial === given.serial && give.checks_out.plot === given.plot && give.checks_out.from === key12(me);
     const ok = !!given && wrong === null && checksOut;
     add(

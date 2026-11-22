@@ -73,23 +73,28 @@ struct StoreBody {
     /// Keys that follow me (learned from [[hum:follow]] notices).
     #[serde(default)]
     followers: std::collections::HashSet<String>,
-    // ── Friendship passes v2 (2026-10-09, blocking-and-safe-mode.md 10b). The JSON keys are
-    // new on purpose: a store written in the v1 days had `certs_from` / `certs_sent` holding
-    // v1 certificates, which no relay accepts any more. Under new names those simply are not
-    // read, so the old records are gone on the next save and the pass sweep
-    // (engine/dm.rs `sweep_friend_passes`) mints v2 passes for every current mutual follow.
+    // ── Friendship passes v3 (v2 2026-10-09, blocking-and-safe-mode.md 10b; v3 2026-11-21). The
+    // JSON keys are new on purpose, each time: a store written in the v1 days had `certs_from` /
+    // `certs_sent`, the v2 days `passes_from` / `passes_sent` / `passes_unanswered` and
+    // `permits_held` / `permits_given`, holding passes and permits that named the server's
+    // did:hum, which no relay accepts any more (a pass now names the address the app opened,
+    // pq_crypto.rs). Under new names those simply are not read, so the old records are gone on
+    // the next save and the pass sweep (engine/dm.rs `sweep_friend_passes`) mints v3 passes for
+    // every current mutual follow; a withdrawal still waiting (`withdrawals_pending`, serials
+    // only) keeps its name and still goes out.
     /// The did:hum of the server the passes below were given on (its `identify_challenge`
-    /// says). A pass names its server, so if this server's identity ever changes, every pass
-    /// below is void and is dropped (`set_pass_server`).
+    /// says). No pass names it since v3, but a changed identity is a different server (or the
+    /// same one reset, its withdrawal list gone), so every pass below is void and is dropped
+    /// (`set_pass_server`).
     #[serde(default)]
     pass_server: String,
-    /// peer → the pass THEY gave ME (the v2 JSON as it arrived, checked then), presented
+    /// peer → the pass THEY gave ME (the v3 JSON as it arrived, checked then), presented
     /// whenever I reach them: every dm_put, trade request, call ring and direct offer.
-    #[serde(default, rename = "passes_from")]
+    #[serde(default, rename = "passes_from_v3")]
     certs_from: HashMap<String, String>,
     /// peer → the passes I gave THEM that still stand: the serial (what a withdrawal names)
     /// and what each allows. Usually one; two devices minting at once can make two.
-    #[serde(default, rename = "passes_sent")]
+    #[serde(default, rename = "passes_sent_v3")]
     certs_sent: HashMap<String, Vec<SentPass>>,
     /// Serials of passes I withdrew that the relay has not confirmed yet (`cert_revoked`).
     /// Resent on every connection until it does, so going offline cannot lose a withdrawal.
@@ -101,7 +106,7 @@ struct StoreBody {
     /// But one may have reached them all the same, and a pass we hold no record of could never
     /// be taken back, so these are withdrawn whenever the passes to that friend are. Kept on
     /// disk for that reason: an answer lost to a closed app must not leave a pass nobody knows of.
-    #[serde(default)]
+    #[serde(default, rename = "passes_unanswered_v3")]
     passes_unanswered: HashMap<String, Vec<SentPass>>,
     // ── Who can reach me (step B, 2026-10-09, blocking-and-safe-mode.md 10c) ──
     /// What this server last said our audiences are (`reach_settings`). Kept so that a DM
@@ -176,12 +181,13 @@ struct StoreBody {
     file_offers: Vec<super::file_offer::OfferRecord>,
     // ── Household permits (ship homes 5b, 2026-10-12, net/household.rs) ──
     /// Permits friends gave me on this server, each checked when it arrived: one per (giver,
-    /// plot), the one given later winning. The relay keeps none, so this is the only copy.
-    #[serde(default)]
+    /// plot), the one given later winning. The relay keeps none, so this is the only copy. (v3
+    /// keys, 2026-11-21: v2 permits named the server's did:hum; see the passes above.)
+    #[serde(default, rename = "permits_held_v3")]
     permits_held: Vec<super::household::HeldPermit>,
     /// Permits I gave on this server, one row per serial: what the Household card lists, and the
     /// serial taking one back names.
-    #[serde(default)]
+    #[serde(default, rename = "permits_given_v3")]
     permits_given: Vec<super::household::GivenPermit>,
 }
 
@@ -1122,6 +1128,10 @@ mod tests {
     /// server identity voids every pass and waiting withdrawal.
     /// Seen red 2026-10-09 with the `rename = "passes_from"` taken off `certs_from`: "the v1
     /// certificate is not read", left `Some("djEtY2VydA==")`.
+    /// v3 (2026-11-21): a store written in the v2 days (its passes named the server's did:hum)
+    /// loads with those passes and records gone too, so both friends are owed v3 passes, while a
+    /// withdrawal still waiting goes out. Seen red with `certs_sent` still renamed
+    /// "passes_sent": "both friends get a new pass", left `["ben"]`, right `["ann", "ben"]`.
     #[test]
     fn passes_v2_replace_v1_records_and_track_withdrawals() {
         let (seed, me) = identity(51);
@@ -1131,13 +1141,21 @@ mod tests {
             "high_water": 9, "conversations": {}, "last_read": {},
             "following": ["ann", "ben", "cy"], "followers": ["ann", "ben"],
             "certs_from": { "ann": "djEtY2VydA==" }, "certs_sent": ["ann", "ben"],
+            "passes_from": { "ben": "{\"v\":2}" },
+            "passes_sent": { "ann": [{ "serial": "a2", "may": "invite,message,trade,voice_message" }] },
+            "passes_unanswered": { "ben": [{ "serial": "b2", "may": "message" }] },
+            "withdrawals_pending": ["c2"],
         }));
         let mut store = DmStore::load(&seed, &me, &server);
         assert_eq!(store.high_water(), 9, "the rest of the store loads");
         assert!(store.is_friend("ann") && store.is_friend("ben") && !store.is_friend("cy"));
         assert_eq!(store.cert_for("ann"), None, "the v1 certificate is not read");
+        assert_eq!(store.cert_for("ben"), None, "the v2 pass is not read");
+        assert!(store.passes_unanswered_to("ben").is_empty(), "nor a v2 pass on its way");
         assert_eq!(store.friends_without_pass(), vec!["ann".to_string(), "ben".to_string()], "both friends get a new pass");
+        assert_eq!(store.pending_withdrawals(), &["c2".to_string()], "a waiting withdrawal still goes out");
         assert_eq!(store.pass_server(), None);
+        store.withdrawal_confirmed("c2");
 
         assert!(store.set_pass_server("did:hum:one"));
         assert!(!store.set_pass_server("did:hum:one"), "the same server again changes nothing");
@@ -1187,7 +1205,7 @@ mod tests {
         assert!(store.set_pass_server("did:hum:one"));
         let permit = humanity_core::build_permission::Permit {
             issuer: "ada".into(),
-            server: "did:hum:one".into(),
+            aud: "relay.example".into(),
             plot: "p1".into(),
             grantee: "did:hum:me".into(),
             serial: "00112233445566778899aabbccddeeff".into(),

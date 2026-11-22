@@ -261,13 +261,11 @@ fn worker(
 
     // --- Authenticate in-band (see the relay module docs: a Dilithium key + sig in a
     // query string is a ~10 KB URL and nginx 414s it).
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
+    let ts = crate::net::identity::next_request_timestamp();
     let pq = crate::net::identity::derive_pq_identity(&seed)
         .map_err(|e| format!("could not derive identity: {e}"))?;
-    let sig = crate::net::identity::pq_sign_chat(&seed, "live_publish", ts);
+    // Signed for the address the socket opened (2026-11-21), which the relay checks.
+    let sig = crate::net::identity::pq_sign_request(&seed, &ws_url, "live_publish", ts);
     let auth = serde_json::json!({
         "key": pq.dilithium_hex,
         "timestamp": ts,

@@ -27,7 +27,7 @@ fn person(seed: u8) -> Person {
 impl Person {
     /// A signature over `purpose\ntimestamp`, as the apps make it.
     fn sign(&self, purpose: &str, ts: u64) -> String {
-        hex::encode(self.pair.sign(format!("{purpose}\n{ts}").as_bytes()))
+        hex::encode(self.pair.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, &purpose, ts).as_bytes()))
     }
 }
 

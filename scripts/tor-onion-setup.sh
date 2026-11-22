@@ -52,9 +52,24 @@ for _ in $(seq 1 20); do
 done
 
 if [ -f "$HS_DIR/hostname" ]; then
+  ONION="$(tr -d '[:space:]' < "$HS_DIR/hostname")"
   echo ""
   echo "Onion address (publish this alongside your clearnet URL):"
-  cat "$HS_DIR/hostname"
+  echo "$ONION"
+  # The relay must answer to the onion name (2026-11-21): every signed request and sign-in names
+  # the address the app connected to, and the relay refuses a name it was not given
+  # (src/relay/audience.rs). Tor's port 80 is the default, so the name has no port.
+  ENV_FILE="${HUMANITY_REPO:-/opt/Humanity}/.env"
+  if [ -f "$ENV_FILE" ]; then
+    if grep -q '^PUBLIC_HOSTS=' "$ENV_FILE"; then
+      grep -q "^PUBLIC_HOSTS=.*$ONION" "$ENV_FILE" || sed -i "s|^PUBLIC_HOSTS=\(.*\)|PUBLIC_HOSTS=\1,$ONION|" "$ENV_FILE"
+    else
+      printf 'PUBLIC_HOSTS=%s\n' "$ONION" >> "$ENV_FILE"
+    fi
+    echo "PUBLIC_HOSTS in $ENV_FILE names the onion address; restart the relay to take it: sudo systemctl restart humanity-relay"
+  else
+    echo "Add the onion address to the relay's PUBLIC_HOSTS setting (no $ENV_FILE here), then restart the relay."
+  fi
 else
   echo "Tor restarted but no hostname yet; check 'journalctl -u tor' and re-run." >&2
   exit 2

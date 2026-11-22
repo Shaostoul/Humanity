@@ -477,7 +477,7 @@ mod tests {
             project_use: true,
         };
         assert_eq!(edit_text(&edit), fx["edit"]["text"].as_str().unwrap(), "the edit's text, byte for byte");
-        let signer = Signer::new("a1".repeat(32).as_str(), &[7u8; 32]);
+        let signer = Signer::new("http://127.0.0.1:3210", "a1".repeat(32).as_str(), &[7u8; 32]);
         let req = edit_request(&signer, &ItemRef { id: 1, filename: "1760_x.png".into() }, &edit);
         assert_eq!(req.purpose.as_deref(), fx["edit"]["purpose"].as_str(), "the edit's purpose is the relay's");
         let body = req.body.as_deref().unwrap();
@@ -494,7 +494,7 @@ mod tests {
     /// "the relay checks the same purpose for a rename" (left: "media_file_rename:7:1:<hash>").
     #[test]
     fn a_renames_and_a_covers_purposes_are_the_relays() {
-        let signer = Signer::new("a1".repeat(32).as_str(), &[7u8; 32]);
+        let signer = Signer::new("http://127.0.0.1:3210", "a1".repeat(32).as_str(), &[7u8; 32]);
         let item = ItemRef { id: 7, filename: "/uploads/7_dusk.glb".into() };
         let rename = file_rename_request(&signer, &item, 1, "/uploads/8_textures.zip", "skin.zip");
         let body: crate::relay::files_edit::FileRenameBody = serde_json::from_str(rename.body.as_deref().unwrap()).unwrap();

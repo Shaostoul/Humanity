@@ -32,7 +32,8 @@
 //! - mine, to a friend, echoed from my other device: listed as given, after the same check;
 //! - a note to myself from my other device saying what it took back: those rows say so here;
 //! - to me from a friend: kept only when `net::household::judge_arrival` says it is theirs, for me,
-//!   on this server and checks out; a notice says so;
+//!   and checks out (whether its server address is this relay's is the relay's to judge); a
+//!   notice says so;
 //! - from anyone else: dropped with one log line naming 12 characters of the key.
 //!
 //! The relay keeps no permit. Whether a held permit works now (its giver still holds the plot, and
@@ -220,9 +221,9 @@ pub fn take_note(store: &mut DmStore, me: &str, inner: &DmInner, now_s: u64, to_
     let Some(p) = hh::parse_note(&inner.text) else { return Arrived::Dropped(Dropped::Unreadable) };
     if from_me {
         // My own permit to the friend `inner.to`, from my other device: the same check as a
-        // friend's, against the server this store holds, the friend it went to and the time it
-        // was given (the DM's signed time), so a forged one is never listed as given.
-        if let Err(why) = hh::judge_arrival(&p, me, store.pass_server(), &plot_owner_id(&inner.to), inner.ts / 1000) {
+        // friend's, against the friend it went to and the time it was given (the DM's signed
+        // time), so a forged one is never listed as given.
+        if let Err(why) = hh::judge_arrival(&p, me, &plot_owner_id(&inner.to), inner.ts / 1000) {
             return Arrived::Dropped(Dropped::NotMine(why));
         }
         let row = GivenPermit { to: inner.to.clone(), plot: p.plot.clone(), serial: p.serial.clone(), expiry: p.expiry, at: inner.ts, state: GivenState::Taken };
@@ -238,7 +239,7 @@ pub fn take_note(store: &mut DmStore, me: &str, inner: &DmInner, now_s: u64, to_
     if !store.is_friend(&inner.from) {
         return Arrived::Dropped(Dropped::NotAFriend);
     }
-    if let Err(why) = hh::judge_arrival(&p, &inner.from, store.pass_server(), &plot_owner_id(me), now_s) {
+    if let Err(why) = hh::judge_arrival(&p, &inner.from, &plot_owner_id(me), now_s) {
         return Arrived::Dropped(Dropped::Refused(why));
     }
     let held = HeldPermit { from: inner.from.clone(), permit: p, at: inner.ts };
@@ -328,7 +329,12 @@ fn give_until(gs: &mut GuiState, peer: &str, days: u64, expiry: u64) -> Result<(
     if !gs.ws_client.as_ref().is_some_and(|c| c.is_connected()) || !crate::engine::dm::ensure_dm_store(gs) {
         return Err(NOT_CONNECTED.into());
     }
-    let Some(server) = gs.dm_store.as_ref().and_then(|s| s.pass_server()).map(str::to_string) else { return Err(NO_SERVER_YET.into()) };
+    // The permit names the address this app opened (C8, engine/dm.rs `pass_audience`), given once
+    // the server has signed this app in and said who it is (a changed identity voids permits).
+    if gs.dm_store.as_ref().and_then(|s| s.pass_server()).is_none() {
+        return Err(NO_SERVER_YET.into());
+    }
+    let Some(aud) = crate::engine::dm::pass_audience(gs) else { return Err(NO_SERVER_YET.into()) };
     let Some(plot) = gs.household.my_plot.clone() else { return Err(NO_PLOT.into()) };
     if crate::engine::block::is_blocked(gs, peer) {
         return Err(format!("You blocked {name}. Unblock them first, in Settings > Safety > Blocked people."));
@@ -352,11 +358,11 @@ fn give_until(gs: &mut GuiState, peer: &str, days: u64, expiry: u64) -> Result<(
     let seed = gs.private_key_bytes.clone().unwrap_or_default();
     let Some(serial) = humanity_protocol::pq_crypto::new_friend_cert_serial() else { return Err(NOT_MADE.into()) };
     let grantee = plot_owner_id(peer);
-    let sig = humanity_protocol::pq_crypto::build_plot_permit(&seed, &server, &plot, &grantee, &serial, expiry, now).map_err(|e| {
+    let sig = humanity_protocol::pq_crypto::build_plot_permit(&seed, &aud, &plot, &grantee, &serial, expiry, now).map_err(|e| {
         log::warn!("Household: a permit for {plot} was not made ({e:?})");
         NOT_MADE.to_string()
     })?;
-    let permit = Permit { issuer: gs.profile_public_key.clone(), server, plot: plot.clone(), grantee, serial: serial.clone(), expiry, sig };
+    let permit = Permit { issuer: gs.profile_public_key.clone(), aud, plot: plot.clone(), grantee, serial: serial.clone(), expiry, sig };
     // Theirs carries the pass they gave me, so it rides the friend lane past their gate; ours,
     // the self-copy, waits for the server's answer.
     let Some((mut theirs, ours)) = crate::engine::dm::control_puts_at(gs, peer, &hh::note_text(&permit), None, at) else {

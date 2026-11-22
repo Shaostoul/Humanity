@@ -509,26 +509,21 @@ pub struct RunRequest {
     pub confirm: Option<String>,
 }
 
-/// Check a signed admin request: present, fresh (5 minutes, not from the future), the signature
-/// over `purpose`, and not used before. Returns the caller with their role here. The role itself
-/// is checked by the caller against what its action needs.
-pub async fn check_signed(state: &RelayState, key: &str, timestamp: u64, sig: &str, tag: &str, purpose: String) -> Result<Caller, Refusal> {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-    if key.is_empty() || sig.is_empty() {
-        return Err(Refusal::with(StatusCode::UNAUTHORIZED, "Sign the request with your key: admin actions are never run unsigned."));
-    }
-    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    if now_ms.saturating_sub(timestamp) > 5 * 60 * 1000 || timestamp > now_ms + 60_000 {
-        return Err(Refusal::bad("The request is too old or from the future: check this computer's clock and try again."));
-    }
-    let (vk, vsig) = (key.to_string(), sig.to_string());
-    // CPU-bound: off the async executor, failing closed if the check panics.
-    let ok = tokio::task::spawn_blocking(move || verify_dilithium_signature(&vk, &purpose, timestamp, &vsig)).await.unwrap_or(false);
-    if !ok {
-        return Err(Refusal::with(StatusCode::UNAUTHORIZED, "The signature does not match this request."));
-    }
-    if !state.auth_nonce_fresh(key, tag, timestamp) {
-        return Err(Refusal::with(StatusCode::UNAUTHORIZED, "That request was already used: try again."));
+/// Check a signed admin request: present, fresh (5 minutes, not from the future), signed as a
+/// request over `purpose` (`signed_request::check`, never a chat line's shape), and not used before
+/// for `tag`. Returns the caller with their role here. The role itself is checked by the caller
+/// against what its action needs.
+pub async fn check_signed(state: &RelayState, key: &str, timestamp: u64, sig: &str, tag: &'static str, purpose: String) -> Result<Caller, Refusal> {
+    use crate::relay::signed_request::SignedRefusal;
+    match crate::relay::signed_request::check(state, key, timestamp, sig, &purpose, tag).await {
+        Ok(()) => {}
+        Err(SignedRefusal::Unsigned) => {
+            return Err(Refusal::with(StatusCode::UNAUTHORIZED, "Sign the request with your key: admin actions are never run unsigned."));
+        }
+        Err(SignedRefusal::Clock) => {
+            return Err(Refusal::bad("The request is too old or from the future: check this computer's clock and try again."));
+        }
+        Err(other) => return Err(Refusal::with(other.status(), other.words())),
     }
     Ok(Caller { key: key.to_string(), role: state.db.get_role(key).unwrap_or_default() })
 }

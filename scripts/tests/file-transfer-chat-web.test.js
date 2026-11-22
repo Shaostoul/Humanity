@@ -33,7 +33,7 @@
 //     spec's line ("Files over 6 MB go straight to Ben's device instead of through the server.");
 //     nothing is uploaded; Send sends one sealed note, to Ben alone, whose text is the offer note
 //     for this file (its BLAKE3, its piece hashes' BLAKE3, 256 KiB pieces) with a pass that
-//     verifies (Dilithium3 over hum/file-pass/v1, the server's did:hum, Ann, Ben, the id, an end
+//     verifies (Dilithium3 over hum/file-pass/v2, the address the page opened, Ann, Ben, the id, an end
 //     at most 7 days ahead); Ann's row says "Waiting for Ben to accept". A group still refuses a
 //     file over the limit. When Ben's profile says he accepts files only from friends and Ann is
 //     not one, the step says his app will not ask him, and Send is off. An offer whose pass is made
@@ -134,6 +134,9 @@ const unb64 = (s) => Buffer.from(s, "base64").toString("utf8");
 const sameBytes = (a, b) => Buffer.from(a).equals(Buffer.from(b));
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The address the pages opened (pq.js `pqAudience`, stubbed here), what a file pass names since
+// v2 (2026-11-21), and the one name the stand-in relay answers to.
+const AUD = "chat.example";
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xff);
 const MB = 1024 * 1024;
 const MAY = "invite,message,trade,voice_message";
@@ -173,7 +176,7 @@ async function people() {
 const kyberOf = (k) => "kyber-" + k.slice(0, 16);
 // The DM layer's stand-in signature is the signed words themselves; the pass is really signed.
 const isWords = (b) => b.length >= 4 && b[0] === 0x68 && b[1] === 0x75 && b[2] === 0x6d && b[3] === 0x2f;
-const isPassWords = (b) => Buffer.from(b.slice(0, 17)).toString("latin1") === "hum/file-pass/v1\n";
+const isPassWords = (b) => Buffer.from(b.slice(0, 17)).toString("latin1") === "hum/file-pass/v2\n";
 
 // ── The stub page (as private-files-web.test.js) ───────────────────────────
 
@@ -565,11 +568,11 @@ function forwarderScopes(config) {
 
 // ── The stand-in relay ─────────────────────────────────────────────────────
 
-/** Does `pass` let `grantee` reach `issuer`: a file pass of the issuer's, made out to the grantee, on this server, not ended? Real Dilithium3. */
+/** Does `pass` let `grantee` reach `issuer`: a file pass of the issuer's, made out to the grantee, for this server's address, not ended? Real Dilithium3. */
 function passLetsIn(pass, issuer, grantee) {
   const p = FT.filePassParse(pass);
-  if (!p || !MODS || !FT.filePassTimeOk(p, Math.floor(Date.now() / 1000))) return false;
-  const words = new TextEncoder().encode(FT.filePassPreimage(SERVER, issuer, grantee, p.id, p.expiry));
+  if (!p || !MODS || p.aud !== AUD || !FT.filePassTimeOk(p, Math.floor(Date.now() / 1000))) return false;
+  const words = new TextEncoder().encode(FT.filePassPreimage(p.aud, issuer, grantee, p.id, p.expiry));
   try { return MODS.noble.ml_dsa65.verify(Buffer.from(p.sig, "base64"), words, Buffer.from(issuer, "hex")); } catch (e) { return false; }
 }
 
@@ -747,6 +750,7 @@ async function loadPage(relay, me, opts = {}) {
   const storeKey = opts.storeKey || await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   page.storeKey = storeKey;
   ctx.getDmStoreKey = async () => storeKey;
+  ctx.pqAudience = () => AUD;
   ctx.pqSignMessage = async (secret, bytes) => (isWords(bytes) && !isPassWords(bytes) ? new Uint8Array(bytes) : noble.ml_dsa65.sign(bytes, secret));
   ctx.pqVerifyMessage = async (pk, bytes, sig) => (sig.length === 3309 ? noble.ml_dsa65.verify(sig, bytes, pk) : Buffer.from(bytes).equals(Buffer.from(sig)));
   ctx.pqDmSeal = async (pub, plaintext) => ({ ek_ct_b64: b64(pub), nonce_b64: "AAAA", ct_b64: b64(plaintext) });
@@ -950,7 +954,8 @@ test("1. a file over my private limit in a DM is offered device to device: the s
   assert.ok(/^[0-9a-f]{32}$/.test(parsed.id) && parsed.pass.id === parsed.id, "a 16-byte id, the pass's too");
   const nowSecs = Math.floor(Date.now() / 1000);
   assert.ok(parsed.pass.expiry > nowSecs && parsed.pass.expiry <= Math.floor(before / 1000) + 7 * 24 * 3600 + 1, "an end at most 7 days ahead");
-  const words = FT.filePassPreimage(SERVER, s.ppl.ann.key, s.ppl.ben.key, parsed.id, parsed.pass.expiry);
+  assert.equal(parsed.pass.aud, AUD, "the pass names the address Ann's page opened, not the did:hum the server claimed");
+  const words = FT.filePassPreimage(AUD, s.ppl.ann.key, s.ppl.ben.key, parsed.id, parsed.pass.expiry);
   const sig = Buffer.from(parsed.pass.sig, "base64");
   assert.ok(noble.ml_dsa65.verify(sig, new TextEncoder().encode(words), s.ppl.ann.pub), "the pass: Ann's Dilithium3 over the spec's words, for Ben, on this server");
   assert.equal(wordsOf(s.ann, t.id), "Waiting for Ben to accept", "Ann's row");

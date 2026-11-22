@@ -236,18 +236,24 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
     out
 }
 
-// ── Friendship passes, v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b) ──
+// ── Friendship passes, v3 (v2 2026-10-09, docs/design/blocking-and-safe-mode.md 10b; v3
+// 2026-11-21, C8 of the signed-requests round 3) ──
 // The `follows` table was the last server-side social graph and it went on 2026-08-24:
 // friendship is a CLIENT-HELD credential. When two people become friends (a mutual follow),
 // each gives the other a PASS:
 //
-//   preimage = "hum/friend/v2\n{server}\n{issuer}\n{grantee}\n{serial}\n{may}"
-//   cert     = {"v":2,"serial":"...","may":"...","sig":"<base64 Dilithium3 over the preimage>"}
+//   preimage = "hum/friend/v3\n{audience}\n{issuer}\n{grantee}\n{serial}\n{may}"
+//   cert     = {"aud":"...","may":"...","serial":"...","sig":"<base64 Dilithium3 over the preimage>","v":3}
 //
-// - `server` is the did:hum: of the server it is given on (`Storage::server_did`, which
-//   /api/server-info and every `identify_challenge` show). Friendship is formed over one
+// - `audience` is the address the ISSUER's app opened to reach the server it is given on
+//   (`signed_request::audience_of` of the socket URL; the website's `location.host`), the same
+//   name a signed request or a sign-in carries (docs/reference/cryptography.md). v2 named the
+//   server's did:hum, which the apps learned from the server's own `identify_challenge`: a
+//   malicious server claiming another's identity collected passes good at that other server
+//   (and the passes withdrawn on it stayed good there forever, a pass having no end date). A
+//   name the issuer's own app chose cannot be claimed so. Friendship is formed over one
 //   server's mailbox and each client keeps its passes per server, so a pass copied to another
-//   server is useless there, and a withdrawal on this one is exact.
+//   server is refused there, and a withdrawal on this one is exact.
 // - `serial` is 16 random bytes in lowercase hex, chosen by the issuer's client. It is what
 //   makes ONE pass withdrawable without touching the others: the issuer sends
 //   `cert_revoke {serial}` on its own signed-in socket and the relay keeps
@@ -262,16 +268,22 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
 //   and brothers"). A pass ends only when one of the two ends it, through the serial.
 //
 // The grantee presents the pass on every contact path addressed to the issuer (dm_put,
-// trade_request, voice_call, a dc_offer, a profile request). The relay rebuilds the words from
-// ITS OWN facts (its server DID, the person being reached as issuer, the sender's signed-in
-// socket key as grantee) plus the serial and `may` the pass carries, so a pass given to someone
-// else, by someone else or on another server is a bad signature. It stores no friends list;
-// the withdrawal table holds random serials under a keyed fingerprint of the key that withdrew
-// them, which names nobody without the relay's secret.
+// trade_request, voice_call, a dc_offer, a profile request). The relay takes the pass's `aud`
+// only when it is one of ITS OWN names and the presenter may use that name (relay/audience.rs
+// `OwnNames::admit_pass`: a loopback name only from a client on the relay's computer, a LAN
+// name only from its network; the pass may arrive over another of the relay's names, a pass
+// being long-lived), and rebuilds the rest of the words from its own facts (the person being
+// reached as issuer, the sender's signed-in socket key as grantee) plus the serial and `may`
+// the pass carries, so a pass given to someone else or by someone else is a bad signature, and
+// one given at another server is not for here. It stores no friends list; the withdrawal table
+// holds random serials under a keyed fingerprint of the key that withdrew them, which names
+// nobody without the relay's secret.
 //
-// v1 (`hum/friend/v1\n{issuer}\n{grantee}`, no serial, no server, nothing withdrawable) stops
-// working outright: each client mints v2 passes for its current mutual follows on first run
-// (no compatibility branch before launch, CLAUDE.md).
+// v1 (`hum/friend/v1\n{issuer}\n{grantee}`, no serial, no server, nothing withdrawable) and v2
+// (the server's did:hum) stop working outright: each client keeps its passes under store keys
+// the older versions never wrote, so the old records are not read and the pass sweep mints v3
+// passes for its current mutual follows on the next member list (no compatibility branch
+// before launch, CLAUDE.md).
 //
 // MINT AND CHECK LIVE TOGETHER ON PURPOSE (2026-09-19), and the minting refuses whatever the
 // check would refuse (the household permits' rule, below). `build_friend_cert` used to sit in
@@ -282,10 +294,10 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
 
 /// Pass signature domain: the first line of what is signed. Web MUST use the identical string
 /// (web/shared/friend-pass.js).
-pub const FRIEND_CERT_DOMAIN: &str = "hum/friend/v2";
+pub const FRIEND_CERT_DOMAIN: &str = "hum/friend/v3";
 
 /// The `v` a pass's JSON carries.
-pub const FRIEND_CERT_VERSION: u64 = 2;
+pub const FRIEND_CERT_VERSION: u64 = 3;
 
 /// Every kind of contact a pass can allow, sorted: the vocabulary of `may`. A protocol word
 /// list, signed into every pass, so it lives here and in web/shared/friend-pass.js (pinned
@@ -305,17 +317,26 @@ pub const FRIEND_CERT_SERIAL_BYTES: usize = 16;
 /// base64; the rest is well under a hundred. Anything far longer is refused before it is parsed.
 pub const FRIEND_CERT_MAX_LEN: usize = 8_192;
 
-/// The words an issuer signs to give `grantee_hex` a pass on the server `server` (that server's
-/// own `did:hum:`): the serial that names this pass and what it allows (`may`, canonical form).
-pub fn friend_cert_preimage(server: &str, issuer_hex: &str, grantee_hex: &str, serial: &str, may: &str) -> String {
-    format!("{FRIEND_CERT_DOMAIN}\n{server}\n{issuer_hex}\n{grantee_hex}\n{serial}\n{may}")
+/// The words an issuer signs to give `grantee_hex` a pass at the server their app opened as
+/// `audience` (a canonical audience, `signed_request::audience_of`): the serial that names this
+/// pass and what it allows (`may`, canonical form).
+pub fn friend_cert_preimage(audience: &str, issuer_hex: &str, grantee_hex: &str, serial: &str, may: &str) -> String {
+    format!("{FRIEND_CERT_DOMAIN}\n{audience}\n{issuer_hex}\n{grantee_hex}\n{serial}\n{may}")
+}
+
+/// Whether `audience` is fit to name a pass's server: an audience in its one canonical form
+/// (`signed_request::canonical_audience` gives it back unchanged), so one server name has one
+/// spelling in the signed words. A did:hum is not one.
+pub fn pass_audience_ok(audience: &str) -> bool {
+    crate::signed_request::canonical_audience(audience).as_deref() == Some(audience)
 }
 
 /// Why a friendship pass was not minted, or does not count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FriendCertError {
-    /// Not the v2 JSON shape (or too long to read), or a server, issuer or grantee that is
-    /// empty or holds a line break (which would let two different passes sign the same words).
+    /// Not the v3 JSON shape (or too long to read), an `aud` that is not an audience in its
+    /// canonical form ([`pass_audience_ok`]), or an issuer or grantee that is empty or holds a
+    /// line break (which would let two different passes sign the same words).
     Malformed,
     /// A serial that is not 16 bytes of lowercase hex.
     BadSerial,
@@ -375,9 +396,13 @@ impl FriendMay {
     }
 }
 
-/// A friendship pass that checked out: its serial and what it allows.
+/// A friendship pass that checked out: the server address it was given for, its serial and what
+/// it allows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FriendPass {
+    /// The address the issuer's app opened (canonical audience). Whether it is one of a relay's
+    /// own names is that relay's question (relay/audience.rs `OwnNames::admit_pass`).
+    pub aud: String,
     pub serial: String,
     pub may: FriendMay,
 }
@@ -394,50 +419,53 @@ pub fn new_friend_cert_serial() -> Option<String> {
     Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// A server, issuer or grantee fit to sign: not empty, no line break.
+/// An issuer or grantee fit to sign: not empty, no line break.
 fn friend_cert_field_ok(s: &str) -> bool {
     !s.is_empty() && !s.contains(|c: char| c == '\n' || c == '\r')
 }
 
-/// Read a pass's JSON without checking its signature: its serial and `may`, and the signature.
-/// Used by the check below, and by a client reading back a pass it issued itself (the echo of
-/// its own control message, so it knows which serial to withdraw later).
+/// Read a pass's JSON without checking its signature: its audience, serial and `may`, and the
+/// signature. Used by the check below, by the relay to ask whether the audience is one of its
+/// names before any signature is checked, and by a client reading back a pass it issued itself
+/// (the echo of its own control message, so it knows which serial to withdraw later).
 pub fn parse_friend_cert(cert_json: &str) -> std::result::Result<(FriendPass, String), FriendCertError> {
     if cert_json.len() > FRIEND_CERT_MAX_LEN {
         return Err(FriendCertError::Malformed);
     }
     let Ok(v) = serde_json::from_str::<serde_json::Value>(cert_json) else { return Err(FriendCertError::Malformed) };
     let text = |k: &str| v.get(k).and_then(|x| x.as_str());
-    let (Some(serial), Some(may), Some(sig)) = (text("serial"), text("may"), text("sig")) else {
+    let (Some(aud), Some(serial), Some(may), Some(sig)) = (text("aud"), text("serial"), text("may"), text("sig")) else {
         return Err(FriendCertError::Malformed);
     };
-    if v.get("v").and_then(|x| x.as_u64()) != Some(FRIEND_CERT_VERSION) {
+    if v.get("v").and_then(|x| x.as_u64()) != Some(FRIEND_CERT_VERSION) || !pass_audience_ok(aud) {
         return Err(FriendCertError::Malformed);
     }
     if !friend_cert_serial_ok(serial) {
         return Err(FriendCertError::BadSerial);
     }
     let may = FriendMay::parse(may)?;
-    Ok((FriendPass { serial: serial.to_string(), may }, sig.to_string()))
+    Ok((FriendPass { aud: aud.to_string(), serial: serial.to_string(), may }, sig.to_string()))
 }
 
-/// Mint MY friendship pass for `grantee_hex` on the server `server` (its own `did:hum:`, from
-/// its `identify_challenge` or /api/server-info), named by `serial` (from
-/// [`new_friend_cert_serial`]) and allowing `may` (any order, repeats folded): the v2 JSON, its
-/// signature made with the Dilithium key derived from my BIP39 `seed`. Handed to the grantee in
-/// a sealed control message; they present it whenever they reach me, and the relay checks it
-/// with [`verify_friend_cert`]. Refused, minting nothing, whenever that check would refuse it: a
-/// malformed id, a malformed serial, an empty `may` or a kind it does not know.
+/// Mint MY friendship pass for `grantee_hex` at the server my app opened as `audience` (its
+/// canonical audience, `signed_request::audience_of` of the URL; never a name or identity the
+/// server sent), named by `serial` (from [`new_friend_cert_serial`]) and allowing `may` (any
+/// order, repeats folded): the v3 JSON, its signature made with the Dilithium key derived from my
+/// BIP39 `seed`. Handed to the grantee in a sealed control message; they present it whenever they
+/// reach me, and the relay checks it with [`verify_friend_cert`] after asking whether `audience`
+/// is one of its names. Refused, minting nothing, whenever that check would refuse it: an
+/// audience not in its canonical form, a malformed id, a malformed serial, an empty `may` or a
+/// kind it does not know.
 pub fn build_friend_cert(
     seed: &[u8],
-    server: &str,
+    audience: &str,
     my_hex: &str,
     grantee_hex: &str,
     serial: &str,
     may: &[&str],
 ) -> std::result::Result<String, FriendCertError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    if ![server, my_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+    if !pass_audience_ok(audience) || ![my_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
         return Err(FriendCertError::Malformed);
     }
     if !friend_cert_serial_ok(serial) {
@@ -445,43 +473,41 @@ pub fn build_friend_cert(
     }
     let may = FriendMay::from_words(may.iter().copied())?.wire();
     let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
-    let sig = kp.sign(friend_cert_preimage(server, my_hex, grantee_hex, serial, &may).as_bytes());
-    Ok(serde_json::json!({ "v": FRIEND_CERT_VERSION, "serial": serial, "may": may, "sig": B64.encode(sig) }).to_string())
+    let sig = kp.sign(friend_cert_preimage(audience, my_hex, grantee_hex, serial, &may).as_bytes());
+    Ok(serde_json::json!({ "v": FRIEND_CERT_VERSION, "aud": audience, "serial": serial, "may": may, "sig": B64.encode(sig) }).to_string())
 }
 
-/// Did `issuer_hex` (a Dilithium3 public key, hex) really give `grantee_hex` this pass on the
-/// server `server`, and what does it allow? Stateless: whether the issuer has WITHDRAWN it is
-/// the relay's question (handlers/friend_passes.rs `friend_pass`, which every contact path
-/// calls). `server`, `issuer_hex` and `grantee_hex` must be the CHECKER's own facts (the relay's
-/// own `Storage::server_did`, the person being reached, the sender's signed-in socket key),
-/// never anything the pass claims; only the serial and `may` come from the pass. Checked
-/// cheapest first, so a malformed pass costs no signature check.
-pub fn verify_friend_cert(
-    server: &str,
-    issuer_hex: &str,
-    grantee_hex: &str,
-    cert_json: &str,
-) -> std::result::Result<FriendPass, FriendCertError> {
+/// Did `issuer_hex` (a Dilithium3 public key, hex) really give `grantee_hex` this pass, and for
+/// which server address and what does it allow? Stateless: whether the pass's audience is one of
+/// THIS relay's names and may be used by the presenter, and whether the issuer has WITHDRAWN it,
+/// are the relay's questions (handlers/friend_passes.rs `friend_pass`, which every contact path
+/// calls, asks the first before this check is made). `issuer_hex` and `grantee_hex` must be the
+/// CHECKER's own facts (the person being reached, the sender's signed-in socket key), never
+/// anything the pass claims; the audience, the serial and `may` come from the pass. Checked
+/// cheapest first, so a malformed pass costs no signature check. A client checking a pass it
+/// received takes any audience: the relay that receives the pass is the judge of its own names.
+pub fn verify_friend_cert(issuer_hex: &str, grantee_hex: &str, cert_json: &str) -> std::result::Result<FriendPass, FriendCertError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     let (pass, sig_b64) = parse_friend_cert(cert_json)?;
-    if ![server, issuer_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+    if ![issuer_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
         return Err(FriendCertError::Malformed);
     }
     let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return Err(FriendCertError::BadSignature) };
     let Ok(sig) = B64.decode(sig_b64.trim()) else { return Err(FriendCertError::BadSignature) };
-    let words = friend_cert_preimage(server, issuer_hex, grantee_hex, &pass.serial, &pass.may.wire());
+    let words = friend_cert_preimage(&pass.aud, issuer_hex, grantee_hex, &pass.serial, &pass.may.wire());
     verify_dilithium(&issuer_pk, words.as_bytes(), &sig).map_err(|_| FriendCertError::BadSignature)?;
     Ok(pass)
 }
 
-// ── Household permits (ship homes increment 5, 2026-10-05; v2 2026-10-12) ──
+// ── Household permits (ship homes increment 5, 2026-10-05; v2 2026-10-12; v3 2026-11-21) ──
 // In a server's shared world a player builds only on their own plot. A HOUSEHOLD PERMIT lets
 // someone else build there too: the plot's holder signs
 //
-//   permit = Dilithium_holder("hum/permit/v2\n{server}\n{plot}\n{grantee}\n{serial}\n{expiry}")
+//   permit = Dilithium_holder("hum/permit/v3\n{audience}\n{plot}\n{grantee}\n{serial}\n{expiry}")
 //
-// where `server` is the `did:hum:` of the server it is given on (the relay's own identity,
-// `Storage::server_did`, which /api/server-info shows), `plot` is the plot's id in the ship file
+// where `audience` is the address the holder's app opened to reach the server it is given on
+// (`signed_request::audience_of`, the friendship pass's v3 rule, and carried in the permit as
+// `aud`; v2 named the server's did:hum, which the app learned from the server itself), `plot` is the plot's id in the ship file
 // ("p3"), `grantee` is the id the relay holds plots under for the person let in
 // (`relay::storage::plots::plot_owner_id`: their `did:hum:`), `serial` is 16 random bytes in
 // lowercase hex the holder chose (the friendship pass's serial shape, `friend_cert_serial_ok`),
@@ -490,19 +516,22 @@ pub fn verify_friend_cert(
 // checks it STATELESSLY, the friendship certificate's pattern, and stores no permit.
 //
 // What the relay checks, split between this function and its caller (the build handler):
-// - here: the signature is the issuer's over words the RELAY rebuilds from what it knows (its
-//   own server DID, the frame's plot, the sender's own id), never over the server, plot and
-//   grantee the permit claims, so a permit given on another server, one for p1 used on p2, or
-//   one given to someone else fails as a bad signature; the serial's shape; and the end date:
-//   not passed, and not more than PLOT_PERMIT_MAX_DAYS ahead;
-// - the caller: the issuer has not taken this serial back (the withdrawal list friendship passes
+// - here: the signature is the issuer's over words the RELAY rebuilds from what it knows (the
+//   permit's audience once the relay has admitted it as one of its own names, the frame's plot,
+//   the sender's own id), never over the plot and grantee the permit claims, so one for p1 used
+//   on p2, or one given to someone else fails as a bad signature; the serial's shape; and the
+//   end date: not passed, and not more than PLOT_PERMIT_MAX_DAYS ahead;
+// - the caller: the permit's audience is one of its own names and the sender may use it
+//   (relay/audience.rs `OwnNames::admit_pass`), so a permit given at another server is not for
+//   here; the issuer has not taken this serial back (the withdrawal list friendship passes
 //   use, `friend_cert_revocations`), and the issuer (`plot_owner_id` of the key in the permit) is
 //   who holds that plot on this ship NOW, so a permit stops working when the plot changes hands.
 //
 // ONE SERVER (the coordinator's review of Wave 0, 2026-10-05). Every server hands out its plots
 // in the ship file's order, so the same person often holds the same plot id (p1, say) on several
 // servers. Without the server in the signed words, a permit given on one would let its holder
-// build on all of them. Naming the server makes it good only where it was given.
+// build on all of them. Naming the server makes it good only where it was given, and naming it
+// by the address the giver's app opened (v3) means no server can claim to be another.
 //
 // NO ENDLESS PERMITS (the operator, 2026-10-05). Every permit has an end date at most 90 days
 // ahead, and is renewed by signing a new one. An expiry of 0, which the first design used for "a
@@ -517,7 +546,7 @@ pub fn verify_friend_cert(
 // friendship certificate's do: the minting refuses what the check would refuse.
 
 /// Household-permit signature domain: the first line of what is signed.
-pub const PLOT_PERMIT_DOMAIN: &str = "hum/permit/v2";
+pub const PLOT_PERMIT_DOMAIN: &str = "hum/permit/v3";
 
 /// The longest a household permit may run, days (the operator, 2026-10-05). The sentence a player
 /// reads names it too (`systems::construction::crate::build_permission::PERMIT_MAX_DAYS`, pinned to this by a
@@ -536,17 +565,19 @@ pub const PLOT_PERMIT_CLOCK_SLACK_SECS: u64 = 86_400;
 /// The longest a permit's server, plot or grantee id may be, bytes (a `did:hum:` is about 30).
 pub const PLOT_PERMIT_FIELD_MAX_LEN: usize = 128;
 
-/// What a household permit's issuer signs: the server it is given on (that server's own
-/// `did:hum:`), the plot, the grantee, the serial that names it and the end date.
-pub fn plot_permit_preimage(server: &str, plot: &str, grantee: &str, serial: &str, expiry: u64) -> String {
-    format!("{PLOT_PERMIT_DOMAIN}\n{server}\n{plot}\n{grantee}\n{serial}\n{expiry}")
+/// What a household permit's issuer signs: the server it is given on (the address the issuer's
+/// app opened, a canonical audience), the plot, the grantee, the serial that names it and the
+/// end date.
+pub fn plot_permit_preimage(audience: &str, plot: &str, grantee: &str, serial: &str, expiry: u64) -> String {
+    format!("{PLOT_PERMIT_DOMAIN}\n{audience}\n{plot}\n{grantee}\n{serial}\n{expiry}")
 }
 
 /// Why a household permit was not minted, or does not let its holder in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlotPermitError {
-    /// A server, plot or grantee id that is empty, longer than [`PLOT_PERMIT_FIELD_MAX_LEN`], or
-    /// holds a line break (which would let two different permits sign the same words).
+    /// An audience not in its canonical form ([`pass_audience_ok`]), or a plot or grantee id
+    /// that is empty, longer than [`PLOT_PERMIT_FIELD_MAX_LEN`], or holds a line break (which
+    /// would let two different permits sign the same words).
     Malformed,
     /// A serial that is not 16 bytes of lowercase hex ([`friend_cert_serial_ok`]).
     BadSerial,
@@ -576,17 +607,17 @@ fn plot_permit_window(expiry: u64, now: u64, slack: u64) -> std::result::Result<
     Ok(())
 }
 
-/// Mint MY household permit for `grantee` on my plot `plot` of the server `server` (that
-/// server's own `did:hum:`, from its /api/server-info), named by `serial` (from
+/// Mint MY household permit for `grantee` on my plot `plot` of the server my app opened as
+/// `audience` (its canonical audience; never a name or identity the server sent), named by `serial` (from
 /// [`new_friend_cert_serial`]: the same shape, and the same withdrawal list) and running out at
 /// `expiry` (Unix seconds): a base64 Dilithium3 signature over [`plot_permit_preimage`], made with
 /// the Dilithium key derived from my BIP39 `seed`, as [`build_friend_cert`] makes a friendship
 /// note. `now` is my clock. Refused, minting nothing, when [`verify_plot_permit`] would refuse it:
-/// a malformed id, a malformed serial, an end date already past, or one more than
-/// [`PLOT_PERMIT_MAX_DAYS`] days ahead.
+/// an audience not in its canonical form, a malformed id, a malformed serial, an end date
+/// already past, or one more than [`PLOT_PERMIT_MAX_DAYS`] days ahead.
 pub fn build_plot_permit(
     seed: &[u8],
-    server: &str,
+    audience: &str,
     plot: &str,
     grantee: &str,
     serial: &str,
@@ -594,7 +625,7 @@ pub fn build_plot_permit(
     now: u64,
 ) -> std::result::Result<String, PlotPermitError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    if ![server, plot, grantee].into_iter().all(plot_permit_field_ok) {
+    if !pass_audience_ok(audience) || ![plot, grantee].into_iter().all(plot_permit_field_ok) {
         return Err(PlotPermitError::Malformed);
     }
     if !friend_cert_serial_ok(serial) {
@@ -602,15 +633,17 @@ pub fn build_plot_permit(
     }
     plot_permit_window(expiry, now, 0)?;
     let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
-    Ok(B64.encode(kp.sign(plot_permit_preimage(server, plot, grantee, serial, expiry).as_bytes())))
+    Ok(B64.encode(kp.sign(plot_permit_preimage(audience, plot, grantee, serial, expiry).as_bytes())))
 }
 
-/// Does `sig_b64` let `grantee` build on `plot` of the server `server` until `expiry`, signed by
-/// `issuer_hex` (a Dilithium3 public key, hex) and named `serial`? Stateless: whether the issuer
-/// has taken `serial` back is the relay's question (handlers/shared_build.rs `permit_lets_in`).
-/// `server`, `plot` and `grantee` must be the RELAY's own facts (its own `Storage::server_did`,
-/// the frame's plot, the sender's `plot_owner_id`), never what the permit claims; only the
-/// serial, the end date and the signature come from the permit. `now` is the relay's clock, Unix
+/// Does `sig_b64` let `grantee` build on `plot` of the server the issuer's app opened as
+/// `audience` until `expiry`, signed by `issuer_hex` (a Dilithium3 public key, hex) and named
+/// `serial`? Stateless: whether `audience` (the permit's `aud`) is one of the relay's own names,
+/// and whether the issuer has taken `serial` back, are the relay's questions
+/// (handlers/shared_build.rs `permit_lets_in`, which asks the first before this check). `plot`
+/// and `grantee` must be the RELAY's own facts (the frame's plot, the sender's `plot_owner_id`),
+/// never what the permit claims; the audience, the serial, the end date and the signature come
+/// from the permit. `now` is the relay's clock, Unix
 /// seconds. Checked cheapest first, so a stale or absurd permit costs no signature check: the
 /// ids, the serial, the end date (not passed, not more than [`PLOT_PERMIT_MAX_DAYS`] days plus
 /// [`PLOT_PERMIT_CLOCK_SLACK_SECS`] ahead), then the signature. Whether the issuer holds the plot
@@ -618,7 +651,7 @@ pub fn build_plot_permit(
 #[allow(clippy::too_many_arguments)]
 pub fn verify_plot_permit(
     issuer_hex: &str,
-    server: &str,
+    audience: &str,
     plot: &str,
     grantee: &str,
     serial: &str,
@@ -627,7 +660,7 @@ pub fn verify_plot_permit(
     now: u64,
 ) -> std::result::Result<(), PlotPermitError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    if ![server, plot, grantee].into_iter().all(plot_permit_field_ok) {
+    if !pass_audience_ok(audience) || ![plot, grantee].into_iter().all(plot_permit_field_ok) {
         return Err(PlotPermitError::Malformed);
     }
     if !friend_cert_serial_ok(serial) {
@@ -638,7 +671,7 @@ pub fn verify_plot_permit(
     // tells the person showing it nothing (the review of lane 1C, 2026-10-12).
     let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return Err(PlotPermitError::BadSignature) };
     let Ok(sig) = B64.decode(sig_b64.trim()) else { return Err(PlotPermitError::BadSignature) };
-    verify_dilithium(&issuer_pk, plot_permit_preimage(server, plot, grantee, serial, expiry).as_bytes(), &sig)
+    verify_dilithium(&issuer_pk, plot_permit_preimage(audience, plot, grantee, serial, expiry).as_bytes(), &sig)
         .map_err(|_| PlotPermitError::BadSignature)?;
     plot_permit_window(expiry, now, PLOT_PERMIT_CLOCK_SLACK_SECS)
 }
@@ -651,12 +684,13 @@ pub fn verify_plot_permit(
 // need not be friends, so the relay needs some other word from the sender that this connection
 // is wanted. That word is a FILE PASS, minted by the sender for this one transfer:
 //
-//   preimage = "hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}"
-//   pass     = {"v":1,"id":"<id>","expiry":<n>,"sig":"<base64 Dilithium3 over the preimage>"}
+//   preimage = "hum/file-pass/v2\n{audience}\n{issuer}\n{grantee}\n{id}\n{expiry}"
+//   pass     = {"v":2,"aud":"<audience>","id":"<id>","expiry":<n>,"sig":"<base64 Dilithium3 over the preimage>"}
 //
-// - `server` is the relay's own `did:hum:` (`Storage::server_did`, also in every
-//   `identify_challenge` as `server_did`), so a pass given on one server is a bad signature on
-//   any other.
+// - `audience` is the address the sender's app opened to reach the server (v2, 2026-11-21, the
+//   friendship pass's v3 rule; v1 named the server's did:hum, learned from the server itself),
+//   so a pass given at one server is not for any other: a relay takes it only when `aud` is one
+//   of its own names and the presenter may use that name (relay/audience.rs `OwnNames::admit_pass`).
 // - `issuer` is the sender's key, `grantee` the receiver's (Dilithium3 hex, as everywhere).
 // - `id` is the transfer's id, 16 random bytes as 32 lowercase hex characters: the same id the
 //   offer note (`[[hum:offer:v1]]`) carries, and the data channel's label (`file:<id>`).
@@ -665,9 +699,10 @@ pub fn verify_plot_permit(
 //
 // The pass says one thing: "the issuer wants the grantee to be able to reach them for this file".
 // The relay checks it STATELESSLY, the friendship pass's and the household permit's pattern: it
-// rebuilds the words from its OWN facts (its server DID, and the two keys it knows from the frame:
-// the signed-in socket's key and the person named), never from the pass's claims, so a pass given
-// to someone else, by someone else, for another file or on another server is a bad signature.
+// admits the pass's audience as one of its own names, then rebuilds the rest of the words from
+// its OWN facts (the two keys it knows from the frame: the signed-in socket's key and the person
+// named), never from the pass's claims, so a pass given to someone else, by someone else or for
+// another file is a bad signature, and one given at another server is not for here.
 // Two doors read it, and nothing else:
 // - a `dc_offer` from the grantee to the issuer (handlers/reach.rs `dc_offer_may_pass`): the
 //   receiver dials the sender, the way round in which the relay can check it;
@@ -676,15 +711,16 @@ pub fn verify_plot_permit(
 //
 // MINT AND CHECK LIVE TOGETHER (as the friendship pass and the household permit do): the minting
 // refuses what the check would refuse. Both apps mint it too (desktop net/, web chat/); the shared
-// fixture scripts/tests/fixtures/file-offer-v1.json holds one pass minted here from a fixed seed,
-// and `file_pass_fixture_matches_the_builder` below holds this builder to it byte for byte.
+// fixture scripts/tests/fixtures/file-offer-v1.json (the offer note is still v1; its pass is v2)
+// holds one pass minted here from a fixed seed, and `file_pass_fixture_matches_the_builder` below
+// holds this builder to it byte for byte.
 
 /// File-pass signature domain: the first line of what is signed. Both apps MUST use the
 /// identical string.
-pub const FILE_PASS_DOMAIN: &str = "hum/file-pass/v1";
+pub const FILE_PASS_DOMAIN: &str = "hum/file-pass/v2";
 
 /// The `v` a file pass's JSON carries.
-pub const FILE_PASS_VERSION: u64 = 1;
+pub const FILE_PASS_VERSION: u64 = 2;
 
 /// The longest a file pass may run, days (the spec, part 1). An offer nobody answers expires with
 /// the DM mailbox; its pass by its own end date, a week at most.
@@ -705,17 +741,18 @@ pub const FILE_PASS_ID_BYTES: usize = 16;
 /// characters of base64; anything far longer is refused before it is decoded.
 pub const FILE_PASS_SIG_MAX_LEN: usize = 8_192;
 
-/// What the sender signs to let the grantee reach them for transfer `id` on the server `server`
-/// (that server's own `did:hum:`) until `expiry` (Unix seconds).
-pub fn file_pass_preimage(server: &str, issuer_hex: &str, grantee_hex: &str, id: &str, expiry: u64) -> String {
-    format!("{FILE_PASS_DOMAIN}\n{server}\n{issuer_hex}\n{grantee_hex}\n{id}\n{expiry}")
+/// What the sender signs to let the grantee reach them for transfer `id` at the server the
+/// sender's app opened as `audience` (a canonical audience) until `expiry` (Unix seconds).
+pub fn file_pass_preimage(audience: &str, issuer_hex: &str, grantee_hex: &str, id: &str, expiry: u64) -> String {
+    format!("{FILE_PASS_DOMAIN}\n{audience}\n{issuer_hex}\n{grantee_hex}\n{id}\n{expiry}")
 }
 
 /// Why a file pass was not minted, or does not count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilePassError {
-    /// Not the v1 JSON shape, or a server, issuer or grantee that is empty or holds a line break
-    /// (which would let two different passes sign the same words).
+    /// Not the v2 JSON shape, an `aud` not in its canonical form ([`pass_audience_ok`]), or an
+    /// issuer or grantee that is empty or holds a line break (which would let two different
+    /// passes sign the same words).
     Malformed,
     /// An id that is not 16 bytes of lowercase hex.
     BadId,
@@ -728,9 +765,13 @@ pub enum FilePassError {
     BadSignature,
 }
 
-/// A file pass that checked out: the transfer it is for, and when it runs out.
+/// A file pass that checked out: the server address it was given for, the transfer it is for,
+/// and when it runs out.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilePass {
+    /// The address the sender's app opened (canonical audience); whether it is one of a relay's
+    /// names is that relay's question.
+    pub aud: String,
     pub id: String,
     pub expiry: u64,
 }
@@ -759,39 +800,41 @@ fn file_pass_window(expiry: u64, now: u64, slack: u64) -> std::result::Result<()
     Ok(())
 }
 
-/// Read a pass's JSON object without checking its signature: its id and end date, and the
-/// signature. Only the v1 shape is read: `v` 1, `id` 32 lowercase hex, `expiry` a whole number,
-/// `sig` a string.
+/// Read a pass's JSON object without checking its signature: its audience, id and end date, and
+/// the signature. Only the v2 shape is read: `v` 2, `aud` a canonical audience, `id` 32 lowercase
+/// hex, `expiry` a whole number, `sig` a string.
 pub fn parse_file_pass(pass: &serde_json::Value) -> std::result::Result<(FilePass, String), FilePassError> {
     let Some(obj) = pass.as_object() else { return Err(FilePassError::Malformed) };
     if obj.get("v").and_then(|x| x.as_u64()) != Some(FILE_PASS_VERSION) {
         return Err(FilePassError::Malformed);
     }
-    let (Some(id), Some(expiry), Some(sig)) = (
+    let (Some(aud), Some(id), Some(expiry), Some(sig)) = (
+        obj.get("aud").and_then(|x| x.as_str()),
         obj.get("id").and_then(|x| x.as_str()),
         obj.get("expiry").and_then(|x| x.as_u64()),
         obj.get("sig").and_then(|x| x.as_str()),
     ) else {
         return Err(FilePassError::Malformed);
     };
-    if sig.len() > FILE_PASS_SIG_MAX_LEN {
+    if sig.len() > FILE_PASS_SIG_MAX_LEN || !pass_audience_ok(aud) {
         return Err(FilePassError::Malformed);
     }
     if !file_pass_id_ok(id) {
         return Err(FilePassError::BadId);
     }
-    Ok((FilePass { id: id.to_string(), expiry }, sig.to_string()))
+    Ok((FilePass { aud: aud.to_string(), id: id.to_string(), expiry }, sig.to_string()))
 }
 
-/// Mint MY file pass for `grantee_hex` on the server `server` (its own `did:hum:`), for transfer
-/// `id` (from [`new_file_pass_id`]), running out at `expiry` (Unix seconds); `now` is my clock.
-/// The JSON text, keys in the spec's order (`v`, `id`, `expiry`, `sig`), its signature made with
-/// the Dilithium key derived from my BIP39 `seed`. Refused, minting nothing, whenever
-/// [`verify_file_pass`] would refuse it: a malformed id or key, an end date already past, or one
-/// more than [`FILE_PASS_MAX_DAYS`] days ahead.
+/// Mint MY file pass for `grantee_hex` at the server my app opened as `audience` (its canonical
+/// audience), for transfer `id` (from [`new_file_pass_id`]), running out at `expiry` (Unix
+/// seconds); `now` is my clock. The JSON text, keys in the spec's order (`v`, `aud`, `id`,
+/// `expiry`, `sig`), its signature made with the Dilithium key derived from my BIP39 `seed`.
+/// Refused, minting nothing, whenever [`verify_file_pass`] or the relay's audience check would
+/// refuse it: an audience not in its canonical form, a malformed id or key, an end date already
+/// past, or one more than [`FILE_PASS_MAX_DAYS`] days ahead.
 pub fn build_file_pass(
     seed: &[u8],
-    server: &str,
+    audience: &str,
     my_hex: &str,
     grantee_hex: &str,
     id: &str,
@@ -799,7 +842,7 @@ pub fn build_file_pass(
     now: u64,
 ) -> std::result::Result<String, FilePassError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    if ![server, my_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+    if !pass_audience_ok(audience) || ![my_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
         return Err(FilePassError::Malformed);
     }
     if !file_pass_id_ok(id) {
@@ -807,23 +850,24 @@ pub fn build_file_pass(
     }
     file_pass_window(expiry, now, 0)?;
     let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
-    let sig = B64.encode(kp.sign(file_pass_preimage(server, my_hex, grantee_hex, id, expiry).as_bytes()));
+    let sig = B64.encode(kp.sign(file_pass_preimage(audience, my_hex, grantee_hex, id, expiry).as_bytes()));
     // Written by hand so the keys keep the spec's order (serde_json sorts them). Nothing in it
-    // needs escaping: hex, a number and base64.
-    Ok(format!("{{\"v\":{FILE_PASS_VERSION},\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"{sig}\"}}"))
+    // needs escaping: a canonical audience (letters, digits, `.`, `-`, `:`, brackets), hex, a
+    // number and base64.
+    Ok(format!("{{\"v\":{FILE_PASS_VERSION},\"aud\":\"{audience}\",\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"{sig}\"}}"))
 }
 
-/// Did `issuer_hex` (a Dilithium3 public key, hex) really give `grantee_hex` this pass on the
-/// server `server`, and is it good at `now` (the checker's clock, Unix seconds)? Stateless.
-/// `server`, `issuer_hex` and `grantee_hex` must be the CHECKER's own facts (the relay's own
-/// `Storage::server_did`, and the two keys of the frame: the signed-in socket's key and the
-/// person it names, each in the place the door puts them), never anything the pass claims; only
-/// the id and the end date come from the pass, and whether the id is the transfer asked about is
-/// the caller's question. Checked cheapest first, so a stale or absurd pass costs no signature
-/// check: the shape, the ids, the end date (not passed, not more than [`FILE_PASS_MAX_DAYS`] days
-/// plus [`FILE_PASS_CLOCK_SLACK_SECS`] ahead), then the signature.
+/// Did `issuer_hex` (a Dilithium3 public key, hex) really give `grantee_hex` this pass, for which
+/// server address, and is it good at `now` (the checker's clock, Unix seconds)? Stateless.
+/// `issuer_hex` and `grantee_hex` must be the CHECKER's own facts (the two keys of the frame: the
+/// signed-in socket's key and the person it names, each in the place the door puts them), never
+/// anything the pass claims; the audience, the id and the end date come from the pass. Whether
+/// the audience is one of THIS relay's names (and may be used by the presenter) is the relay's
+/// question, asked before this check (handlers/reach.rs `file_pass_of`), and whether the id is the
+/// transfer asked about is the caller's. Checked cheapest first, so a stale or absurd pass costs
+/// no signature check: the shape, the ids, the end date (not passed, not more than
+/// [`FILE_PASS_MAX_DAYS`] days plus [`FILE_PASS_CLOCK_SLACK_SECS`] ahead), then the signature.
 pub fn verify_file_pass(
-    server: &str,
     issuer_hex: &str,
     grantee_hex: &str,
     pass: &serde_json::Value,
@@ -831,13 +875,13 @@ pub fn verify_file_pass(
 ) -> std::result::Result<FilePass, FilePassError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     let (pass, sig_b64) = parse_file_pass(pass)?;
-    if ![server, issuer_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+    if ![issuer_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
         return Err(FilePassError::Malformed);
     }
     file_pass_window(pass.expiry, now, FILE_PASS_CLOCK_SLACK_SECS)?;
     let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return Err(FilePassError::BadSignature) };
     let Ok(sig) = B64.decode(sig_b64.trim()) else { return Err(FilePassError::BadSignature) };
-    let words = file_pass_preimage(server, issuer_hex, grantee_hex, &pass.id, pass.expiry);
+    let words = file_pass_preimage(&pass.aud, issuer_hex, grantee_hex, &pass.id, pass.expiry);
     verify_dilithium(&issuer_pk, words.as_bytes(), &sig).map_err(|_| FilePassError::BadSignature)?;
     Ok(pass)
 }
@@ -1172,36 +1216,42 @@ pub(crate) mod tests {
     /// (web/shared/friend-pass.js), and scripts/tests/friend-pass.test.js reads THIS literal
     /// and compares the web builder's output with it. A pass minted by the SHIPPED builder
     /// verifies and reads back its serial and `may`; the minting folds `may` into its one
-    /// canonical spelling; a pass is good only for the server, issuer and grantee it names.
+    /// canonical spelling; a pass is good only for the server address, issuer and grantee it
+    /// names, and reads back the address its issuer's app opened.
     /// Seen red 2026-10-09 with the server left out of `friend_cert_preimage`'s words: left
     /// `"hum/friend/v2\nAABB\nCCDD\n00112233445566778899aabbccddeeff\nmessage,trade"`, right
     /// `"hum/friend/v2\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\nmessage,trade"`.
+    /// v3 (2026-11-21, the audience): seen red with `FRIEND_CERT_DOMAIN` still "hum/friend/v2":
+    /// left `"hum/friend/v2\nrelay.example\n.."`, right `"hum/friend/v3\nrelay.example\n.."`.
     #[test]
     fn friend_cert_roundtrip_and_pinned_preimage() {
         assert_eq!(
-            friend_cert_preimage("did:hum:srv", "AABB", "CCDD", "00112233445566778899aabbccddeeff", "message,trade"),
-            "hum/friend/v2\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\nmessage,trade"
+            friend_cert_preimage("relay.example", "AABB", "CCDD", "00112233445566778899aabbccddeeff", "message,trade"),
+            "hum/friend/v3\nrelay.example\nAABB\nCCDD\n00112233445566778899aabbccddeeff\nmessage,trade"
         );
         let issuer_master = [0x11u8; 32];
         let (issuer, grantee, other) = (key_hex_of(0x11), key_hex_of(0x22), key_hex_of(0x33));
-        let (server, other_server) = (server_did_of(0x55), server_did_of(0x66));
+        let server = "a.example:8443";
         let serial = new_friend_cert_serial().expect("the OS gives randomness");
         assert!(friend_cert_serial_ok(&serial), "a fresh serial is a serial: {serial}");
         // Out of order, with a repeat: minted in the one canonical spelling.
-        let cert = build_friend_cert(&issuer_master, &server, &issuer, &grantee, &serial, &["trade", "message", "trade"])
+        let cert = build_friend_cert(&issuer_master, server, &issuer, &grantee, &serial, &["trade", "message", "trade"])
             .expect("a pass is minted");
-        let pass = verify_friend_cert(&server, &issuer, &grantee, &cert).expect("the pass it minted verifies");
+        let pass = verify_friend_cert(&issuer, &grantee, &cert).expect("the pass it minted verifies");
+        assert_eq!(pass.aud, server, "the address the issuer's app opened");
         assert_eq!(pass.serial, serial);
         assert_eq!(pass.may.wire(), "message,trade");
         assert!(pass.may.allows("message") && pass.may.allows("trade") && !pass.may.allows("call"));
         let bad = Err(FriendCertError::BadSignature);
-        assert_eq!(verify_friend_cert(&other_server, &issuer, &grantee, &cert), bad, "another server");
-        assert_eq!(verify_friend_cert(&server, &issuer, &other, &cert), bad, "another grantee");
-        assert_eq!(verify_friend_cert(&server, &other, &grantee, &cert), bad, "another issuer");
-        assert_eq!(verify_friend_cert(&server, "zz", &grantee, &cert), bad, "not a key");
+        let mut moved: serde_json::Value = serde_json::from_str(&cert).unwrap();
+        moved["aud"] = "b.example".into();
+        assert_eq!(verify_friend_cert(&issuer, &grantee, &moved.to_string()), bad, "another server");
+        assert_eq!(verify_friend_cert(&issuer, &other, &cert), bad, "another grantee");
+        assert_eq!(verify_friend_cert(&other, &grantee, &cert), bad, "another issuer");
+        assert_eq!(verify_friend_cert("zz", &grantee, &cert), bad, "not a key");
         // The defaults when two people become friends: no calls (10b).
-        let defaults = build_friend_cert(&issuer_master, &server, &issuer, &grantee, &serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
-        let pass = verify_friend_cert(&server, &issuer, &grantee, &defaults).unwrap();
+        let defaults = build_friend_cert(&issuer_master, server, &issuer, &grantee, &serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let pass = verify_friend_cert(&issuer, &grantee, &defaults).unwrap();
         assert_eq!(pass.may.wire(), "invite,message,trade,voice_message");
         assert!(!pass.may.allows("call"), "calls come only from people the person chooses");
     }
@@ -1210,24 +1260,29 @@ pub(crate) mod tests {
     /// widened after signing (a friend giving themselves calls) is a bad signature; one with the
     /// same kinds spelled out of order, repeated, empty or naming a kind nobody knows is refused
     /// before any signature is checked, as is a malformed serial, a missing field, a v1 pass
-    /// (bare base64) and a `v` other than 2. The serial is signed too: changing it is a bad
-    /// signature, so a withdrawal of one serial cannot be dodged by renaming the pass.
+    /// (bare base64), a `v` other than 3, and an `aud` that is not an address in its one
+    /// spelling (a did:hum, as v2 named, upper case, a trailing dot, none). The serial and the
+    /// audience are signed too: changing either is a bad signature, so a withdrawal of one serial
+    /// cannot be dodged by renaming the pass, nor a pass moved to another server.
     /// Seen red 2026-10-09 with `may` left out of `friend_cert_preimage`'s words (on both the
     /// minting and the checking side): "a widened may", left `Ok(FriendPass { serial: "0011..",
     /// may: FriendMay(["call", "invite", "message", "trade", "voice_message"]) })`, right
-    /// `Err(BadSignature)`.
+    /// `Err(BadSignature)`. v3: seen red with the audience left out of `friend_cert_preimage`'s
+    /// words (minting and checking alike): "another server", left `Ok(FriendPass { aud:
+    /// "other.example", .. })`, right `Err(BadSignature)`; and with `pass_audience_ok` left out of
+    /// `parse_friend_cert`: "an empty server", left `Err(BadSignature)`, right `Err(Malformed)`.
     #[test]
     fn a_tampered_or_malformed_pass_is_refused() {
         let issuer_master = [0x11u8; 32];
         let (issuer, grantee) = (key_hex_of(0x11), key_hex_of(0x22));
-        let server = server_did_of(0x55);
+        let server = "relay.example";
         let serial = "00112233445566778899aabbccddeeff";
-        let cert = build_friend_cert(&issuer_master, &server, &issuer, &grantee, serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let cert = build_friend_cert(&issuer_master, server, &issuer, &grantee, serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
         let v: serde_json::Value = serde_json::from_str(&cert).unwrap();
         let with = |k: &str, val: serde_json::Value| {
             let mut w = v.clone();
             w[k] = val;
-            verify_friend_cert(&server, &issuer, &grantee, &w.to_string())
+            verify_friend_cert(&issuer, &grantee, &w.to_string())
         };
         assert!(with("may", "invite,message,trade,voice_message".into()).is_ok(), "the untouched pass, rebuilt, still verifies");
         assert_eq!(with("may", "call,invite,message,trade,voice_message".into()), Err(FriendCertError::BadSignature), "a widened may");
@@ -1242,13 +1297,19 @@ pub(crate) mod tests {
         assert_eq!(with("serial", "00112233445566778899AABBCCDDEEFF".into()), bad_serial, "upper case");
         assert_eq!(with("serial", "0011223344556677".into()), bad_serial, "too short");
         assert_eq!(with("serial", "00112233445566778899aabbccddeefg".into()), bad_serial, "not hex");
+        assert_eq!(with("aud", "other.example".into()), Err(FriendCertError::BadSignature), "another server");
         let malformed = Err(FriendCertError::Malformed);
         assert_eq!(with("v", 1.into()), malformed, "v1");
+        assert_eq!(with("v", 2.into()), malformed, "v2");
         assert_eq!(with("sig", serde_json::Value::Null), malformed, "no signature");
-        assert_eq!(verify_friend_cert(&server, &issuer, &grantee, "bm90LWEtc2ln"), malformed, "a bare v1 signature");
-        assert_eq!(verify_friend_cert(&server, &issuer, &grantee, &"x".repeat(FRIEND_CERT_MAX_LEN + 1)), malformed, "too long to read");
-        assert_eq!(verify_friend_cert("", &issuer, &grantee, &cert), malformed, "no server");
-        assert_eq!(verify_friend_cert(&server, &issuer, "a\nb", &cert), malformed, "a line break in an id");
+        assert_eq!(verify_friend_cert(&issuer, &grantee, "bm90LWEtc2ln"), malformed, "a bare v1 signature");
+        assert_eq!(verify_friend_cert(&issuer, &grantee, &"x".repeat(FRIEND_CERT_MAX_LEN + 1)), malformed, "too long to read");
+        assert_eq!(with("aud", serde_json::Value::Null), malformed, "no server");
+        assert_eq!(with("aud", "".into()), malformed, "an empty server");
+        assert_eq!(with("aud", "did:hum:4dQe1bVHyiHm1Vh8rWbx2F".into()), malformed, "a did:hum");
+        assert_eq!(with("aud", "Relay.Example".into()), malformed, "a second spelling");
+        assert_eq!(with("aud", "relay.example.".into()), malformed, "a trailing dot");
+        assert_eq!(verify_friend_cert(&issuer, "a\nb", &cert), malformed, "a line break in an id");
         assert_eq!(with("sig", "bm90LWEtc2ln".into()), Err(FriendCertError::BadSignature), "words that are not a signature");
     }
 
@@ -1261,18 +1322,21 @@ pub(crate) mod tests {
     fn the_minting_refuses_what_the_check_refuses() {
         let m = [0x11u8; 32];
         let (issuer, grantee) = (key_hex_of(0x11), key_hex_of(0x22));
-        let server = server_did_of(0x55);
+        let server = "relay.example";
         let serial = "00112233445566778899aabbccddeeff";
         let mint = |server: &str, issuer: &str, grantee: &str, serial: &str, may: &[&str]| {
             build_friend_cert(&m, server, issuer, grantee, serial, may).err()
         };
-        assert_eq!(mint(&server, &issuer, &grantee, serial, &[]), Some(FriendCertError::BadMay), "nothing allowed");
-        assert_eq!(mint(&server, &issuer, &grantee, serial, &["message", "shout"]), Some(FriendCertError::BadMay), "a kind nobody knows");
-        assert_eq!(mint(&server, &issuer, &grantee, "0011", &["message"]), Some(FriendCertError::BadSerial), "a short serial");
-        assert_eq!(mint(&server, &issuer, &grantee, &serial.to_uppercase(), &["message"]), Some(FriendCertError::BadSerial), "upper case");
+        assert_eq!(mint(server, &issuer, &grantee, serial, &[]), Some(FriendCertError::BadMay), "nothing allowed");
+        assert_eq!(mint(server, &issuer, &grantee, serial, &["message", "shout"]), Some(FriendCertError::BadMay), "a kind nobody knows");
+        assert_eq!(mint(server, &issuer, &grantee, "0011", &["message"]), Some(FriendCertError::BadSerial), "a short serial");
+        assert_eq!(mint(server, &issuer, &grantee, &serial.to_uppercase(), &["message"]), Some(FriendCertError::BadSerial), "upper case");
         assert_eq!(mint("", &issuer, &grantee, serial, &["message"]), Some(FriendCertError::Malformed), "no server");
-        assert_eq!(mint(&server, &issuer, "x\ny", serial, &["message"]), Some(FriendCertError::Malformed), "a line break");
-        assert_eq!(mint(&server, &issuer, &grantee, serial, &FRIEND_PASS_KINDS), None, "every kind at once is a pass");
+        assert_eq!(mint("did:hum:4dQe1bVHyiHm1Vh8rWbx2F", &issuer, &grantee, serial, &["message"]), Some(FriendCertError::Malformed), "a did:hum");
+        assert_eq!(mint("Relay.Example", &issuer, &grantee, serial, &["message"]), Some(FriendCertError::Malformed), "a second spelling");
+        assert_eq!(mint(server, &issuer, "x\ny", serial, &["message"]), Some(FriendCertError::Malformed), "a line break");
+        assert_eq!(mint(server, &issuer, &grantee, serial, &FRIEND_PASS_KINDS), None, "every kind at once is a pass");
+        assert_eq!(mint("[::1]:3210", &issuer, &grantee, serial, &["message"]), None, "a bracketed address is an audience");
         // A wire `may` is read only in its canonical form; the words in any order mint it.
         assert_eq!(FriendMay::parse("call,message").map(|m| m.wire()), Ok("call,message".to_string()));
         assert_eq!(FriendMay::parse("message,call"), Err(FriendCertError::BadMay));
@@ -1298,18 +1362,14 @@ pub(crate) mod tests {
         let issuer = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&master)).public_key());
         let may: Vec<String> = s("may").split(',').map(str::to_string).collect();
         let may: Vec<&str> = may.iter().map(String::as_str).collect();
-        let minted = build_friend_cert(&master, &s("server"), &issuer, &grantee, &s("serial"), &may).unwrap();
-        let pass = verify_friend_cert(&s("server"), &issuer, &grantee, &s("cert")).expect("the frozen pass verifies");
+        let minted = build_friend_cert(&master, &s("aud"), &issuer, &grantee, &s("serial"), &may).unwrap();
+        let pass = verify_friend_cert(&issuer, &grantee, &s("cert")).expect("the frozen pass verifies");
+        assert_eq!(pass.aud, s("aud"));
         assert_eq!(pass.serial, s("serial"));
         assert_eq!(pass.may.wire(), s("may"));
         assert_eq!(minted, s("cert"), "the builder reproduces the frozen pass byte for byte");
     }
 
-    /// A server's `did:hum:` as `Storage::server_did` makes it: from the Dilithium key of its own
-    /// seed.
-    fn server_did_of(seed: u8) -> String {
-        crate::did::did_for_pubkey(&DilithiumKeypair::from_seed(&derive_dilithium_seed(&[seed; 32])).public_key())
-    }
 
     /// A permit serial for these tests (any 16 bytes of lowercase hex is one).
     const PERMIT_SERIAL: &str = "00112233445566778899aabbccddeeff";
@@ -1327,12 +1387,15 @@ pub(crate) mod tests {
     /// `"hum/permit/v2\ndid:hum:srv\np3\ndid:hum:abc\n0"`, right
     /// `"hum/permit/v2\ndid:hum:srv\np3\ndid:hum:abc\n00112233445566778899aabbccddeeff\n0"`.
     /// (v1, 2026-10-05: with the server left out of the words, left
-    /// `"hum/permit/v1\np3\ndid:hum:abc\n0"`.)
+    /// `"hum/permit/v1\np3\ndid:hum:abc\n0"`.) v3 (2026-11-21) names the server by the address the
+    /// giver's app opened, so a did:hum is no audience: seen red with `pass_audience_ok` left out
+    /// of `verify_plot_permit`: "an empty server", left `Some(BadSignature)`, right
+    /// `Some(Malformed)`.
     #[test]
     fn plot_permit_roundtrip_and_pinned_preimage() {
         assert_eq!(
-            plot_permit_preimage("did:hum:srv", "p3", "did:hum:abc", "00112233445566778899aabbccddeeff", 0),
-            "hum/permit/v2\ndid:hum:srv\np3\ndid:hum:abc\n00112233445566778899aabbccddeeff\n0"
+            plot_permit_preimage("relay.example", "p3", "did:hum:abc", "00112233445566778899aabbccddeeff", 0),
+            "hum/permit/v3\nrelay.example\np3\ndid:hum:abc\n00112233445566778899aabbccddeeff\n0"
         );
         let issuer_master = [0x11u8; 32];
         let issuer_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer_master)).public_key());
@@ -1340,7 +1403,7 @@ pub(crate) mod tests {
             &DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x22u8; 32])).public_key(),
         );
         let other_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x33u8; 32])).public_key());
-        let (server, other_server) = (server_did_of(0x55), server_did_of(0x66));
+        let (server, other_server) = ("a.example".to_string(), "b.example".to_string());
         let s = PERMIT_SERIAL;
         let now = 1_760_000_000u64;
         let expiry = now + 30 * 86_400;
@@ -1363,6 +1426,8 @@ pub(crate) mod tests {
         assert_eq!(build_plot_permit(&issuer_master, &server, "p3\ndid:hum:x", "y", s, expiry, now).err(), malformed, "a line break in an id");
         assert_eq!(verify(&issuer_hex, &server, "p3", "", s, expiry, &sig, now).err(), malformed, "an empty grantee");
         assert_eq!(verify(&issuer_hex, "", "p3", &grantee, s, expiry, &sig, now).err(), malformed, "an empty server");
+        assert_eq!(verify(&issuer_hex, &grantee, "p3", &grantee, s, expiry, &sig, now).err(), malformed, "a did:hum for a server");
+        assert_eq!(build_plot_permit(&issuer_master, "did:hum:x", "p3", &grantee, s, expiry, now).err(), malformed, "never minted for a did:hum");
         assert_eq!(verify(&issuer_hex, &server, &"p".repeat(129), &grantee, s, expiry, &sig, now).err(), malformed, "an id over the cap");
         let bad_serial = Some(PlotPermitError::BadSerial);
         for (what, serial) in [("upper case", s.to_uppercase()), ("too short", "0011".to_string()), ("not hex", format!("{}g", humanity_core::text::prefix(&s, 31))), ("none", String::new())] {
@@ -1392,7 +1457,7 @@ pub(crate) mod tests {
         let bo = crate::did::did_for_pubkey(
             &DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x22u8; 32])).public_key(),
         );
-        let (server_a, server_b) = (server_did_of(0x55), server_did_of(0x66));
+        let (server_a, server_b) = ("a.example".to_string(), "b.example".to_string());
         assert_ne!(server_a, server_b, "two servers, two identities");
         let now = 1_760_000_000u64;
         let expiry = now + 30 * 86_400;
@@ -1423,7 +1488,7 @@ pub(crate) mod tests {
         let issuer = DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer_master));
         let issuer_hex = hex::encode(issuer.public_key());
         let grantee = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
-        let server = server_did_of(0x55);
+        let server = "a.example".to_string();
         let (now, day) = (1_760_000_000u64, 86_400u64);
         let check = |expiry: u64| {
             let sig = B64.encode(issuer.sign(plot_permit_preimage(&server, "p3", grantee, PERMIT_SERIAL, expiry).as_bytes()));
@@ -1455,7 +1520,7 @@ pub(crate) mod tests {
         let ada_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&ada_master)).public_key());
         let did = |b: u8| crate::did::did_for_pubkey(&DilithiumKeypair::from_seed(&derive_dilithium_seed(&[b; 32])).public_key());
         let (bo, cy) = (did(0x22), did(0x44));
-        let server = server_did_of(0x55);
+        let server = "a.example".to_string();
         let minted = 1_760_000_000u64;
         let expiry = minted + 7 * 86_400;
         let sig = build_plot_permit(&ada_master, &server, "p1", &cy, PERMIT_SERIAL, expiry, minted).expect("minted for Cy");
@@ -1483,37 +1548,39 @@ pub(crate) mod tests {
     /// Seen red 2026-10-11 with the server left out of `file_pass_preimage`'s words: left
     /// `"hum/file-pass/v1\nAABB\nCCDD\n00112233445566778899aabbccddeeff\n1760604800"`, right
     /// `"hum/file-pass/v1\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\n1760604800"`.
+    /// v2 (2026-11-21, the address the sender's app opened): seen red with the pin still v1:
+    /// left `"hum/file-pass/v2\ndid:hum:srv\n..."`, right `"hum/file-pass/v1\ndid:hum:srv\n..."`.
     #[test]
     fn file_pass_roundtrip_and_pinned_preimage() {
         assert_eq!(
-            file_pass_preimage("did:hum:srv", "AABB", "CCDD", "00112233445566778899aabbccddeeff", 1_760_604_800),
-            "hum/file-pass/v1\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\n1760604800"
+            file_pass_preimage("relay.example", "AABB", "CCDD", "00112233445566778899aabbccddeeff", 1_760_604_800),
+            "hum/file-pass/v2\nrelay.example\nAABB\nCCDD\n00112233445566778899aabbccddeeff\n1760604800"
         );
         let sender_master = [0x11u8; 32];
         let (sender, receiver, other) = (key_hex_of(0x11), key_hex_of(0x22), key_hex_of(0x33));
-        let (server, other_server) = (server_did_of(0x55), server_did_of(0x66));
+        let server = "a.example".to_string();
         let id = new_file_pass_id().expect("the OS gives randomness");
         assert!(file_pass_id_ok(&id), "a fresh id is an id: {id}");
         let now = 1_760_000_000u64;
         let expiry = now + 3 * 86_400;
         let text = build_file_pass(&sender_master, &server, &sender, &receiver, &id, expiry, now).expect("a pass is minted");
-        assert!(text.starts_with(&format!("{{\"v\":1,\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"")), "the spec's key order: {}", humanity_core::text::prefix(&text, 80));
+        assert!(text.starts_with(&format!("{{\"v\":2,\"aud\":\"{server}\",\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"")), "the spec's key order: {}", humanity_core::text::prefix(&text, 80));
         let pass: serde_json::Value = serde_json::from_str(&text).expect("the pass is JSON");
-        assert_eq!(verify_file_pass(&server, &sender, &receiver, &pass, now), Ok(FilePass { id: id.clone(), expiry }));
-        assert!(verify_file_pass(&server, &sender, &receiver, &pass, expiry - 1).is_ok(), "good to its last second");
-        assert_eq!(verify_file_pass(&server, &sender, &receiver, &pass, expiry), Err(FilePassError::Expired), "run out at its expiry");
+        assert_eq!(verify_file_pass(&sender, &receiver, &pass, now), Ok(FilePass { aud: server.clone(), id: id.clone(), expiry }));
+        assert!(verify_file_pass(&sender, &receiver, &pass, expiry - 1).is_ok(), "good to its last second");
+        assert_eq!(verify_file_pass(&sender, &receiver, &pass, expiry), Err(FilePassError::Expired), "run out at its expiry");
         let bad = Err(FilePassError::BadSignature);
-        assert_eq!(verify_file_pass(&other_server, &sender, &receiver, &pass, now), bad, "another server");
-        assert_eq!(verify_file_pass(&server, &other, &receiver, &pass, now), bad, "another issuer");
-        assert_eq!(verify_file_pass(&server, &sender, &other, &pass, now), bad, "another grantee");
-        assert_eq!(verify_file_pass(&server, &receiver, &sender, &pass, now), bad, "the wrong way round");
-        assert_eq!(verify_file_pass(&server, "zz", &receiver, &pass, now), bad, "not a key");
+                assert_eq!(verify_file_pass(&other, &receiver, &pass, now), bad, "another issuer");
+        assert_eq!(verify_file_pass(&sender, &other, &pass, now), bad, "another grantee");
+        assert_eq!(verify_file_pass(&receiver, &sender, &pass, now), bad, "the wrong way round");
+        assert_eq!(verify_file_pass("zz", &receiver, &pass, now), bad, "not a key");
         let with = |k: &str, val: serde_json::Value| {
             let mut w = pass.clone();
             w[k] = val;
-            verify_file_pass(&server, &sender, &receiver, &w, now)
+            verify_file_pass(&sender, &receiver, &w, now)
         };
         assert_eq!(with("id", "ffeeddccbbaa99887766554433221100".into()), bad, "another file");
+        assert_eq!(with("aud", "b.example".into()), bad, "another server");
         assert_eq!(with("expiry", (expiry + 60).into()), bad, "another end date");
         assert_eq!(with("sig", "bm90LWEtc2ln".into()), bad, "words that are not a signature");
     }
@@ -1534,14 +1601,14 @@ pub(crate) mod tests {
         let sender_master = [0x11u8; 32];
         let sender_kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&sender_master));
         let (sender, receiver) = (key_hex_of(0x11), key_hex_of(0x22));
-        let server = server_did_of(0x55);
+        let server = "a.example".to_string();
         let id = "00112233445566778899aabbccddeeff";
         let (now, day) = (1_760_000_000u64, 86_400u64);
         let signed = |expiry: u64| {
             let sig = B64.encode(sender_kp.sign(file_pass_preimage(&server, &sender, &receiver, id, expiry).as_bytes()));
-            serde_json::json!({ "v": 1, "id": id, "expiry": expiry, "sig": sig })
+            serde_json::json!({ "v": 2, "aud": server, "id": id, "expiry": expiry, "sig": sig })
         };
-        let check = |expiry: u64| verify_file_pass(&server, &sender, &receiver, &signed(expiry), now);
+        let check = |expiry: u64| verify_file_pass(&sender, &receiver, &signed(expiry), now);
         assert!(check(now + 7 * day).is_ok(), "7 days, the most a pass may run");
         assert!(check(now + 7 * day + 3600).is_ok(), "minted on a clock an hour ahead of the relay's");
         let too_long = Err(FilePassError::TooLong);
@@ -1565,25 +1632,26 @@ pub(crate) mod tests {
         let with = |k: &str, val: serde_json::Value| {
             let mut w = good.clone();
             w[k] = val;
-            verify_file_pass(&server, &sender, &receiver, &w, now)
+            verify_file_pass(&sender, &receiver, &w, now)
         };
-        assert!(with("v", 1.into()).is_ok(), "the untouched pass, rebuilt, still verifies");
+        assert!(with("v", 2.into()).is_ok(), "the untouched pass, rebuilt, still verifies");
         let malformed = Err(FilePassError::Malformed);
-        assert_eq!(with("v", 2.into()), malformed, "v2");
+        assert_eq!(with("v", 1.into()), malformed, "v1");
         assert_eq!(with("sig", serde_json::Value::Null), malformed, "no signature");
         assert_eq!(with("expiry", "1760086400".into()), malformed, "an end date as text");
         assert_eq!(with("sig", "A".repeat(FILE_PASS_SIG_MAX_LEN + 1).into()), malformed, "too long to read");
         assert_eq!(with("id", "00112233445566778899AABBCCDDEEFF".into()), Err(FilePassError::BadId), "upper case");
         assert_eq!(with("id", "0011".into()), Err(FilePassError::BadId), "too short");
-        assert_eq!(verify_file_pass(&server, &sender, &receiver, &serde_json::json!(good.to_string()), now), malformed, "the pass as text, not an object");
-        assert_eq!(verify_file_pass("", &sender, &receiver, &good, now), malformed, "no server");
-        assert_eq!(verify_file_pass(&server, &sender, "a\nb", &good, now), malformed, "a line break in an id");
+        assert_eq!(verify_file_pass(&sender, &receiver, &serde_json::json!(good.to_string()), now), malformed, "the pass as text, not an object");
+        assert_eq!(with("aud", "".into()), malformed, "no server");
+        assert_eq!(with("aud", "did:hum:EyQ6f83mX2rGSTAXfKF6AN".into()), malformed, "a did:hum for a server");
+        assert_eq!(verify_file_pass(&sender, "a\nb", &good, now), malformed, "a line break in an id");
     }
 
     /// THE SHARED FIXTURE BOTH APPS READ (scripts/tests/fixtures/file-offer-v1.json) IS WHAT THIS
     /// CODE MAKES. ML-DSA signing here is the deterministic variant, so the builder reproduces the
     /// fixture's pass byte for byte from its seeds, and the pass verifies at its minting time with
-    /// this relay's check. The fixture's keys, server DID and preimage text are what the seeds
+    /// this relay's check. The fixture's keys and preimage text are what the seeds and its `aud`
     /// give; its file (made from the rule it states) hashes to its `blake3`, its pieces to
     /// `piece_hashes`, and those to `hashes`; and its three note texts are the spec's shapes
     /// (the shapes part 3) with those values, keys in the spec's order, compact.
@@ -1599,8 +1667,9 @@ pub(crate) mod tests {
         let master = [n("issuer_master_byte") as u8; 32];
         let issuer = key_hex_of(n("issuer_master_byte") as u8);
         let grantee = key_hex_of(n("grantee_master_byte") as u8);
-        let server = server_did_of(n("server_master_byte") as u8);
-        assert_eq!((s("issuer"), s("grantee"), s("server")), (issuer.clone(), grantee.clone(), server.clone()), "the keys and DID the seeds give");
+        let server = s("aud");
+        assert!(pass_audience_ok(&server), "the fixture's server is an address in its one spelling: {server}");
+        assert_eq!((s("issuer"), s("grantee")), (issuer.clone(), grantee.clone()), "the keys the seeds give");
         let (id, expiry, minted_at) = (s("id"), n("expiry"), n("minted_at"));
         assert_eq!(s("preimage"), file_pass_preimage(&server, &issuer, &grantee, &id, expiry), "the words signed");
         let minted = build_file_pass(&master, &server, &issuer, &grantee, &id, expiry, minted_at).expect("minted");
@@ -1608,7 +1677,7 @@ pub(crate) mod tests {
         let pass = fx["pass"].clone();
         assert_eq!(pass, serde_json::from_str::<serde_json::Value>(&minted).unwrap(), "the pass object is the pass text");
         assert_eq!(pass["sig"].as_str(), Some(s("sig").as_str()));
-        assert_eq!(verify_file_pass(&server, &issuer, &grantee, &pass, minted_at), Ok(FilePass { id: id.clone(), expiry }), "the frozen pass verifies");
+        assert_eq!(verify_file_pass(&issuer, &grantee, &pass, minted_at), Ok(FilePass { aud: server.clone(), id: id.clone(), expiry }), "the frozen pass verifies");
 
         // The file: byte i is i mod 251, `size` bytes, cut into `piece`-byte pieces.
         let file = &fx["file"];

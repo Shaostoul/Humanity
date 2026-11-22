@@ -22,9 +22,13 @@ pub const PERMIT_MAX_DAYS: u64 = 90;
 /// plot, on one server, until a date. Held by the grantee and sent with each build or take-down
 /// they make there; the relay checks it without storing it
 /// (`relay::core::pq_crypto::verify_plot_permit`), the friendship certificate's pattern. The
-/// relay rebuilds the signed words from what it knows (its own server id, the frame's plot, the
-/// sender's own id), so `server`, `plot` and `grantee` here only say what the permit claims to be
-/// for: the grantee's game files it by them and shows them.
+/// relay takes `aud` only when it is one of its own names (relay/audience.rs
+/// `OwnNames::admit_pass`) and rebuilds the rest of the signed words from what it knows (the
+/// frame's plot, the sender's own id), so `plot` and `grantee` here only say what the permit
+/// claims to be for: the grantee's game files it by them and shows them.
+///
+/// v3 (2026-11-21): the server is named by the address the giver's app opened (`aud`), no longer
+/// by the server's did:hum (`server`), which the app learned from the server itself.
 ///
 /// v2 (ship homes 5b, amendment A1, 2026-10-12): a permit names a `serial` its giver chose, so
 /// the giver can take it back before its end date: `cert_revoke {serial}` on their own signed-in
@@ -35,9 +39,10 @@ pub const PERMIT_MAX_DAYS: u64 = 90;
 pub struct Permit {
     /// The plot holder's Dilithium3 public key, hex: whose signature this is.
     pub issuer: String,
-    /// The server it was given on: that server's own `did:hum:` (its /api/server-info). Good on
-    /// that server only: one person often holds the same plot id on several servers.
-    pub server: String,
+    /// The server it was given on: the address the giver's app opened to reach it (a canonical
+    /// audience, `signed_request::audience_of`). Good on that server only: one person often holds
+    /// the same plot id on several servers.
+    pub aud: String,
     /// The plot it is for, by its ship-file id (`p3`, not `plot:p3`).
     pub plot: String,
     /// Who it lets build: the grantee's id as a relay holds plots under it (`did:hum:...`,
@@ -49,7 +54,7 @@ pub struct Permit {
     /// When it runs out, Unix seconds; never more than [`PERMIT_MAX_DAYS`] days ahead.
     pub expiry: u64,
     /// The issuer's Dilithium3 signature over
-    /// `hum/permit/v2\n{server}\n{plot}\n{grantee}\n{serial}\n{expiry}`, base64.
+    /// `hum/permit/v3\n{aud}\n{plot}\n{grantee}\n{serial}\n{expiry}`, base64.
     pub sig: String,
 }
 
@@ -68,7 +73,8 @@ pub enum Why {
     PermitExpired,
     /// The permit's signer does not hold the plot (it may have changed hands).
     PermitNotFromHolder,
-    /// The permit is malformed or its signature does not check out.
+    /// The permit is malformed, was given at another server address, or its signature does not
+    /// check out.
     PermitBad,
     /// The permit runs out more than [`PERMIT_MAX_DAYS`] days ahead.
     PermitTooLong,

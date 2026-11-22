@@ -605,9 +605,9 @@ mod tests {
 
         let seed = [9u8; 32];
         let me = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key());
-        let server = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+        let server = "relay.example";
         let cert = build_friend_cert(&seed, server, &me, "ben", &"ab".repeat(16), &intended_may(none)).expect("the pass is minted");
-        assert_eq!(verify_friend_cert(server, &me, "ben", &cert).map(|p| p.may.wire()), Ok("invite".to_string()), "and it checks out");
+        assert_eq!(verify_friend_cert(&me, "ben", &cert).map(|p| p.may.wire()), Ok("invite".to_string()), "and it checks out");
 
         let held = [pass(&may)];
         let rel = Relation { is_me: false, passes: &held, shares_group: false };

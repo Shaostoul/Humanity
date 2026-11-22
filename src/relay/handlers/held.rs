@@ -417,19 +417,17 @@ pub async fn handle(state: &Arc<RelayState>, me: &str, kind: &str, raw: &Value) 
 // A grant (a signed action's object id) is in the held items log, and a part is sealed to the
 // owner AND the successor, so a grant alone must never hand out a part: an admin who is the
 // successor, or anyone an admin passed the grant to, would open it unlogged. Every part route
-// therefore proves its CALLER's key with the project's signed-request pattern (files.rs
-// `check_signed`: Dilithium3 over `purpose\ntimestamp`, five minutes fresh, used once; the purpose
-// starts with core held_seal's CALLER_DOMAIN line), and the caller must be the key the grant
-// belongs to: the owner who signed the export or restore. An owner change has routes of its own,
-// which serve headers alone (handlers/owner.rs, owner_accept.rs).
-// NOT YET CLOSED, said plainly (the owner branch's third review, S6, 2026-11-21): the domain line alone
-// does not keep a signed chat line out today, because a chat message's content may hold a
-// newline, so a chat line whose content is this very purpose is signed over the same
-// `purpose\ntime` and broadcast to everyone, who could replay it within the five minutes. What
-// closes it is the relay refusing every chat line that begins with a `hum/` domain line, which
-// arrives with the signed-requests branch (src/relay/signed_request.rs, round 2); once both
-// branches are merged, the held caller moves onto that request scheme. NOTE to whoever merges the
-// second of the two: make that move then (it is not done here).
+// therefore proves its CALLER's key with the project's signed request (files.rs `check_signed`,
+// signed_request.rs `check`: Dilithium3 over `hum/request/v2\n{audience}\n{purpose}\n{time}`,
+// for this relay's own name as reached, five minutes fresh, used once; the purpose starts with core
+// held_seal's CALLER_DOMAIN line), and the caller must be the key the grant belongs to: the owner
+// who signed the export or restore. An owner change has routes of its own, which serve headers
+// alone (handlers/owner.rs, owner_accept.rs).
+// CLOSED 2026-11-22 by the merge of the signed requests (the owner branch's third review, S6): the
+// caller was signed over `purpose\ntime`, a chat line's shape, so a chat line whose content was
+// this very purpose could be replayed within the five minutes. Both apps now sign the v2 request
+// (net/held.rs `Caller`, chat-held.js `callerHeaders`), which no chat line can equal, and the
+// relay refuses a chat line that begins with a `hum/` domain line anyway.
 
 // The headers and the purpose are the protocol's, shared with the desktop app (core held_seal).
 pub use humanity_protocol::held_seal::{caller_purpose, CALLER_KEY, CALLER_SIG, CALLER_TIME};

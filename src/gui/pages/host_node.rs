@@ -42,8 +42,9 @@ use std::time::{Duration, Instant};
 use egui::{Frame, RichText, CornerRadius, Stroke};
 
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, Hint};
 use crate::gui::{ChatServer, GuiPage, GuiState};
+use crate::relay::audience::owner_port_for;
 
 /// How long we wait for a freshly started node to answer on /health before
 /// calling it a failure. Generous: the first boot opens (or creates) the
@@ -97,10 +98,18 @@ struct LocalNode {
     port_input: String,
     db_input: String,
     name_input: String,
+    /// The Public address field: the names people reach this node by (PUBLIC_HOSTS, C10).
+    public_input: String,
     /// "Only this computer": listen on 127.0.0.1 instead of every interface
     /// (the relay setting BIND_ADDRESS). Off by default, because hosting is
     /// usually for other people on the same network.
     local_only: bool,
+    /// "Also answer on my local network": with a public address, also list the LAN address (M1 of
+    /// the review of the signed requests' round 5, 2026-11-21). Off by default: a forwarder on the
+    /// network that adds no header makes its visitors local ([`node_public_hosts`]).
+    lan_too: bool,
+    /// "This computer is on a Tailscale network" (L3, 2026-11-21): the relay's ON_TAILNET.
+    tailnet: bool,
     /// The saved node was due to start at launch but was held back, because a
     /// script launched this copy of the app (see autostart). The first click
     /// into the window starts it; so does the Start button.
@@ -112,6 +121,10 @@ struct LocalNode {
     running_db: String,
     running_name: String,
     running_local_only: bool,
+    /// The Public address field as the node was started with it: it then lists no loopback name,
+    /// and no LAN name unless `running_lan_too` (H1 and M1, 2026-11-21).
+    running_public: String,
+    running_lan_too: bool,
     started_at: Option<Instant>,
     /// This machine's address on the local network, resolved once per start.
     lan_ip: Option<String>,
@@ -134,12 +147,17 @@ impl LocalNode {
             port_input: "3210".to_string(),
             db_input: default_db_path(),
             name_input: default_server_name(),
+            public_input: String::new(),
             local_only: false,
+            lan_too: false,
+            tailnet: false,
             autostart_waiting: false,
             running_port: 0,
             running_db: String::new(),
             running_name: String::new(),
             running_local_only: false,
+            running_public: String::new(),
+            running_lan_too: false,
             started_at: None,
             lan_ip: None,
             server_pubkey: String::new(),
@@ -148,6 +166,24 @@ impl LocalNode {
             events: None,
         }
     }
+}
+
+/// What the Host a node section remembers between launches (GuiState `host_node`, saved in
+/// AppConfig's `host_node_*` fields): the form as it was when the node last started, and whether it
+/// starts by itself at launch.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HostNodeSettings {
+    pub autostart: bool,
+    pub port: String,
+    pub db: String,
+    pub name: String,
+    /// The Public address field.
+    pub public: String,
+    pub local_only: bool,
+    /// "Also answer on my local network" (M1).
+    pub lan_too: bool,
+    /// "This computer is on a Tailscale network" (L3).
+    pub tailnet: bool,
 }
 
 static NODE: OnceLock<Mutex<LocalNode>> = OnceLock::new();
@@ -216,22 +252,25 @@ pub fn autostart_on_first_click(state: &crate::gui::GuiState) {
 /// opens the app through a script of their own (a launcher, a .bat) gets the
 /// node the moment they click into the window, or with Start.
 fn autostart(n: &mut LocalNode, state: &GuiState, background: bool) {
-    if !state.host_node_autostart {
+    if !state.host_node.autostart {
         return;
     }
     if matches!(n.status, NodeStatus::Running | NodeStatus::Starting) {
         return;
     }
-    if !state.host_node_port.trim().is_empty() {
-        n.port_input = state.host_node_port.clone();
+    if !state.host_node.port.trim().is_empty() {
+        n.port_input = state.host_node.port.clone();
     }
-    if !state.host_node_db.trim().is_empty() {
-        n.db_input = state.host_node_db.clone();
+    if !state.host_node.db.trim().is_empty() {
+        n.db_input = state.host_node.db.clone();
     }
-    if !state.host_node_name.trim().is_empty() {
-        n.name_input = state.host_node_name.clone();
+    if !state.host_node.name.trim().is_empty() {
+        n.name_input = state.host_node.name.clone();
     }
-    n.local_only = state.host_node_local_only;
+    n.public_input = state.host_node.public.clone();
+    n.local_only = state.host_node.local_only;
+    n.lan_too = state.host_node.lan_too;
+    n.tailnet = state.host_node.tailnet;
     if background {
         n.autostart_waiting = true;
         n.message = "Your saved node has not started yet: a program opened this copy of \
@@ -261,17 +300,104 @@ fn resume_held_autostart(n: &mut LocalNode, state: &GuiState) {
     autostart(n, state, false);
 }
 
-/// The loopback URL of the node this app hosts, when it is up.
+/// The address this app reaches the node it hosts by, when it is up: the node's owner's door.
 ///
 /// The Relays page calls this so a running local node shows in the "MY RELAYS"
-/// rail alongside the remote ones, instead of being invisible until you scroll.
+/// rail alongside the remote ones, instead of being invisible until you scroll;
+/// the reconnect fast path (frame_ws_poll.rs) compares the server dialled with it.
+///
+/// THE OWNER'S DOOR (M2 of the review of the signed requests' round 5, 2026-11-21): every node this
+/// page starts also listens on 127.0.0.1 at [`owner_port_for`] its port (the relay's OWNER_PORT),
+/// taking its own names there for this app's key alone (relay/audience.rs). The owner's app comes
+/// in by it, whatever the node answers to on its main port: round 5 had the app connect by the
+/// node's LAN address, but "Add to my servers" saved the loopback address a node with a public
+/// address no longer answers to, and with M1 such a node lists no LAN name either. Why a door and
+/// not the public name: an onion address or a port forward is often not reachable from the
+/// computer itself (no Tor in the app, a router without hairpin), and the app's dozens of ways of
+/// talking to a server would each need telling to dial loopback for it; a second loopback port
+/// works with every one of them unchanged, and its names mean nothing anywhere else.
 pub fn running_local_url() -> Option<String> {
     let n = node().lock().ok()?;
-    if n.status == NodeStatus::Running {
-        Some(format!("http://127.0.0.1:{}", n.running_port))
-    } else {
-        None
+    (n.status == NodeStatus::Running).then(|| owner_url(n.running_port))
+}
+
+/// The address "Copy address to share" offers for the running node: one it answers to that someone
+/// else may use: the public one, else the network one, else for a node for this computer only its
+/// loopback port. Never the owner's door (this app's key alone), and never a network node's
+/// loopback port (round 7, 2026-11-21: with no LAN address found it offered http://127.0.0.1:{port},
+/// which such a node does not answer to): None then, and the page says the local address is not
+/// known yet.
+fn share_url_for(n: &LocalNode) -> Option<String> {
+    if let Some(p) = public_url(&n.running_public) {
+        return Some(p);
     }
+    if n.running_local_only {
+        return Some(format!("http://127.0.0.1:{}", n.running_port));
+    }
+    n.lan_ip.as_ref().map(|ip| format!("http://{ip}:{}", n.running_port))
+}
+
+/// The first address in a Public address field, as a URL to hand out (`http://` unless the entry
+/// names its own scheme); None for an empty field.
+fn public_url(field: &str) -> Option<String> {
+    let first = field.split(',').map(str::trim).find(|e| !e.is_empty())?;
+    Some(if first.contains("://") { first.trim_end_matches('/').to_string() } else { format!("http://{first}") })
+}
+
+/// The owner's door's address for a node on `port`: what "Add to my servers" saves and the "On
+/// this computer" row shows.
+fn owner_url(port: u16) -> String {
+    format!("http://127.0.0.1:{}", owner_port_for(port))
+}
+
+/// Whether this app's own node is serving now (the Relays page's THIS PC dot).
+pub fn node_running() -> bool {
+    node().lock().is_ok_and(|n| n.status == NodeStatus::Running)
+}
+
+/// What a pass minted by this app names when the server it opened is this app's own running node
+/// (C8 and L3, 2026-11-21; engine/dm.rs `pass_audience`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OwnNodePass {
+    /// `opened` is not one of this app's own node's local names: the pass names `opened`.
+    NotOwnNode,
+    /// The node's first public address: the pass names it.
+    Name(String),
+    /// The node has no public address: no pass is made there (the words on the Host a node page,
+    /// `host_node.public_address_note`, say why).
+    NoPass,
+}
+
+/// [`OwnNodePass`] for `opened`. A pass names the address its issuer's app opened, but on its own
+/// node the owner's app opened a name that is the node's alone to use or that tells where the node
+/// is: a loopback name (taken only from this computer, so no friend could present it) or the
+/// node's LAN address (handed to every friend, it shows where the household's network is: L3 of the
+/// review of rounds 3 and 4). So a pass there names only the node's first Public address, a name
+/// the node answers to that a friend elsewhere may use ([`node_public_hosts`]); with none, no pass.
+pub fn own_node_pass_name(opened: &str, public_field: &str) -> OwnNodePass {
+    let (port, local_only, lan) = {
+        let Ok(n) = node().lock() else { return OwnNodePass::NotOwnNode };
+        if n.status != NodeStatus::Running {
+            return OwnNodePass::NotOwnNode;
+        }
+        (n.running_port, n.running_local_only, n.lan_ip.clone())
+    };
+    // Its loopback names on its port and on its owner's door (the address this app opens it by,
+    // M2), and its LAN address.
+    let door = owner_port_for(port);
+    let mut local: Vec<String> = [port, door].iter().flat_map(|p| [format!("127.0.0.1:{p}"), format!("localhost:{p}"), format!("[::1]:{p}")]).collect();
+    local.extend(lan.as_deref().and_then(|ip| humanity_protocol::signed_request::canonical_audience(&format!("{ip}:{port}"))));
+    if !local.iter().any(|l| l == opened) {
+        return OwnNodePass::NotOwnNode;
+    }
+    pass_name_for(port, local_only, public_field, lan.as_deref()).map_or(OwnNodePass::NoPass, OwnNodePass::Name)
+}
+
+/// [`own_node_pass_name`]'s choice for a node on `port`: its first public name, else None (no
+/// pass). The port, the reach and the LAN address are no longer part of it (L3: round 4 fell back
+/// to the LAN address) and are kept so the test reads the call the page makes.
+fn pass_name_for(_port: u16, _local_only: bool, public_field: &str, _lan: Option<&str>) -> Option<String> {
+    public_names(public_field).ok().and_then(|p| p.into_iter().next())
 }
 
 /// Display name for the rail row of the locally hosted node.
@@ -434,8 +560,65 @@ struct NodePlan {
     env: Vec<(&'static str, Option<String>)>,
 }
 
+/// The names a node on `port` answers to on its main port: the Public address field's `public`
+/// names (a port forward, a domain, an onion address: C10, 2026-11-21) when it has any, else the
+/// names of where it listens (this computer's loopback names for a node for this computer only, its
+/// local network address `lan` for a network node). Its owner's app comes in by its own door, never
+/// by these ([`running_local_url`]). The relay takes a loopback name only from this computer and a
+/// LAN name only from that network, by the connection's own address (relay/audience.rs
+/// `peer_may_use`), so the names every home node shares say nothing to a visitor from elsewhere.
+///
+/// A FORWARDER HANDS VISITORS OVER FROM ITS OWN ADDRESS. Whatever forwards a public name's visitors
+/// and adds no header (Tor, a tunnel's agent) gives each the forwarder's address: on this computer
+/// that is 127.0.0.1, on the network a local address. So:
+/// - no loopback name on a node with a public name, nor on a network node (H1 of the review of
+///   rounds 3 and 4, 2026-11-21; the owner's door made them unneeded): a forwarder on this
+///   computer hands over visitors who can use only the public names;
+/// - no LAN name beside a public one unless the owner asks, `lan_too` (M1 of the review of round
+///   5, 2026-11-21: Tor on a router, a Pi or a NAS, Tor pointed at this computer's own LAN address,
+///   a tunnel agent on another device, made every visitor local and round 2's pass-through worked
+///   again). The page says what that risks where the box is ticked (`host_node.lan_too_risk`).
+fn node_public_hosts(port: u16, local_only: bool, lan: Option<&str>, public: &[String], lan_too: bool) -> String {
+    let mut names = public.to_vec();
+    if local_only && public.is_empty() {
+        names.extend([format!("127.0.0.1:{port}"), format!("localhost:{port}")]);
+    }
+    if let (false, Some(ip)) = (local_only, lan) {
+        if public.is_empty() || lan_too {
+            names.push(format!("{ip}:{port}"));
+        }
+    }
+    names.join(",")
+}
+
+/// The Public address field read as names: each comma-separated entry a `host[:port]` or a URL
+/// (its address taken as the app would sign for it), lowercase. The words for the first entry that
+/// is not an address otherwise.
+fn public_names(field: &str) -> Result<Vec<String>, String> {
+    let mut out = Vec::new();
+    for entry in field.split(',').map(str::trim).filter(|e| !e.is_empty()) {
+        let name = if entry.contains("://") {
+            humanity_protocol::signed_request::audience_of(entry)
+        } else {
+            humanity_protocol::signed_request::canonical_audience(entry)
+        };
+        match name {
+            Some(n) if !out.contains(&n) => out.push(n),
+            Some(_) => {}
+            None => return Err(humanity_core::i18n::tf("host_node.public_address_bad", &[("value", &entry)])),
+        }
+    }
+    Ok(out)
+}
+
 /// Check the form and work out the plan, or say what is wrong with it.
 fn plan_start(n: &LocalNode) -> Result<NodePlan, String> {
+    plan_start_for(n, owner_key_for_admin())
+}
+
+/// [`plan_start`] for the owner key `owner` (the app's identity, which the page notes each frame):
+/// the key the node grants the admin role and the only one its owner's door takes.
+fn plan_start_for(n: &LocalNode, owner: Option<String>) -> Result<NodePlan, String> {
     let port: u16 = match n.port_input.trim().parse::<u32>() {
         Ok(p) if (1..=65535).contains(&p) => p as u16,
         _ => {
@@ -455,6 +638,10 @@ fn plan_start(n: &LocalNode) -> Result<NodePlan, String> {
     }
 
     let name = n.name_input.trim().to_string();
+    // A node for this computer only may have a public name since M2: Tor or a tunnel on this
+    // computer forwarding to it is the setup the docs advise, and its owner's app comes in by the
+    // door (round 5 refused it, the owner's app having no name left to use).
+    let public = public_names(&n.public_input)?;
     let bind_ip = node_bind_ip(n.local_only);
     let mut env = vec![
         ("PORT", Some(port.to_string())),
@@ -468,17 +655,32 @@ fn plan_start(n: &LocalNode) -> Result<NodePlan, String> {
         // role in the node's database at startup (operator field test 3: the
         // self-relay's Server Settings showed only the USER section, because
         // nothing had ever granted the owner admin). None clears it.
-        ("HUMANITY_OWNER_ADMIN_KEY", owner_key_for_admin()),
+        (crate::relay::audience::OWNER_KEY_ENV, owner),
+        // The addresses this node answers to, which every request and sign-in made for it must name
+        // (relay/audience.rs, 2026-11-21): [`node_public_hosts`]. Always set, never inherited, like
+        // BIND_ADDRESS. The dev switch for loopback names (HUMANITY_DEV_LOOPBACK_NAMES) is cleared:
+        // the names here are the list.
+        (crate::relay::audience::PUBLIC_HOSTS_ENV, Some(node_public_hosts(port, n.local_only, lan_address().as_deref(), &public, n.lan_too))),
+        (crate::relay::audience::DEV_LOOPBACK_NAMES_ENV, None),
+        // The owner's door (M2): the way this app comes in, on 127.0.0.1 at the next port, for the
+        // owner's key alone (the key above, HUMANITY_OWNER_ADMIN_KEY).
+        (crate::relay::audience::OWNER_PORT_ENV, Some(owner_port_for(port).to_string())),
+        // Tailscale reach (L3): only when the owner says this computer is on a Tailscale network.
+        (crate::relay::audience::TAILNET_ENV, n.tailnet.then(|| "1".to_string())),
     ];
     if !name.is_empty() {
         env.push(("SERVER_NAME", Some(name.clone())));
     }
+    // The door's port is test-bound too, after the main port's addresses (on loopback only, so it
+    // raises no firewall prompt): a squatter there is told in words before anything starts.
+    let mut preflight = preflight_addrs(bind_ip, port);
+    preflight.push(std::net::SocketAddr::from(([127, 0, 0, 1], owner_port_for(port))));
     Ok(NodePlan {
         port,
         db,
         name,
         bind_ip,
-        preflight: preflight_addrs(bind_ip, port),
+        preflight,
         env,
     })
 }
@@ -520,12 +722,16 @@ fn start_with(
     // There is a small window between this check and the relay's own bind in
     // which another program could take the port; catch_unwind below is the net
     // for that rarer case.
-    if let Some((_, e)) = port_check(&preflight) {
+    if let Some((busy, e)) = port_check(&preflight) {
         n.status = NodeStatus::Failed;
-        n.message = format!(
-            "Port {port} is not available ({e}). Another program is already using it, \
-             possibly a node you started earlier. Try a different port."
-        );
+        n.message = if busy.port() == port {
+            format!(
+                "Port {port} is not available ({e}). Another program is already using it, \
+                 possibly a node you started earlier. Try a different port."
+            )
+        } else {
+            humanity_core::i18n::tf("host_node.door_port_busy", &[("port", &busy.port().to_string()), ("error", &e.to_string())])
+        };
         return;
     }
 
@@ -548,12 +754,7 @@ fn start_with(
     }
 
     // Hand the relay its settings (what each one is for: plan_start).
-    for (key, value) in &env {
-        match value {
-            Some(v) => std::env::set_var(key, v),
-            None => std::env::remove_var(key),
-        }
-    }
+    apply_env(&env);
 
     let (ev_tx, ev_rx): (Sender<NodeEvent>, Receiver<NodeEvent>) = std::sync::mpsc::channel();
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel::<()>();
@@ -657,12 +858,25 @@ fn start_with(
     n.running_db = db;
     n.running_name = name;
     n.running_local_only = bind_ip.is_loopback();
+    n.running_public = n.public_input.trim().to_string();
+    n.running_lan_too = n.lan_too;
     n.started_at = None;
     // A node for this computer only has no network address to hand out (and
     // the LAN probe's UDP socket is not worth opening for it).
     n.lan_ip = if bind_ip.is_loopback() { None } else { lan_address() };
     n.stop_tx = Some(stop_tx);
     n.events = Some(ev_rx);
+}
+
+/// Hand the relay the plan's settings: set each one (Some) or clear it (None) in this process's
+/// environment, which the relay reads at start (relay/mod.rs `run_relay`, audience.rs `from_env`).
+fn apply_env(env: &[(&'static str, Option<String>)]) {
+    for (key, value) in env {
+        match value {
+            Some(v) => std::env::set_var(key, v),
+            None => std::env::remove_var(key),
+        }
+    }
 }
 
 /// Ask the node to stop. The thread reports back with an `Exited` event.
@@ -878,6 +1092,19 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
             );
             field(
                 ui,
+                &humanity_core::i18n::t("host_node.public_address"),
+                &humanity_core::i18n::t("host_node.public_address_hint"),
+                &mut n.public_input,
+                &humanity_core::i18n::t("host_node.public_address_placeholder"),
+            );
+            // What a public address changes, said where it is set (H1 and L3, 2026-11-21).
+            ui.label(
+                RichText::new(humanity_core::i18n::t("host_node.public_address_note"))
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            field(
+                ui,
                 "Port",
                 "The number people include in the address. 3210 unless it is taken.",
                 &mut n.port_input,
@@ -907,6 +1134,7 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                     );
                 });
             });
+            draw_reach_choices(ui, theme, n, field_w, starting);
             field(
                 ui,
                 "Database file",
@@ -949,7 +1177,7 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
             // Autostart: the field-test failure was simply "the node is not
             // running after an app restart". Starting the node turns this on
             // (Stop turns it off); the checkbox is the manual override.
-            let mut auto = state.host_node_autostart;
+            let mut auto = state.host_node.autostart;
             if ui
                 .checkbox(&mut auto, "Start this node automatically when the app opens")
                 .on_hover_text(
@@ -958,7 +1186,7 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                 )
                 .changed()
             {
-                state.host_node_autostart = auto;
+                state.host_node.autostart = auto;
                 crate::config::AppConfig::from_gui_state(state).save();
             }
             ui.add_space(theme.spacing_xs);
@@ -972,11 +1200,14 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                     if n.status != NodeStatus::Failed {
                         // Remember the running shape + arm autostart so an
                         // app restart brings this server back by itself.
-                        state.host_node_autostart = true;
-                        state.host_node_port = n.port_input.clone();
-                        state.host_node_db = n.db_input.clone();
-                        state.host_node_name = n.name_input.clone();
-                        state.host_node_local_only = n.local_only;
+                        state.host_node.autostart = true;
+                        state.host_node.port = n.port_input.clone();
+                        state.host_node.db = n.db_input.clone();
+                        state.host_node.name = n.name_input.clone();
+                        state.host_node.public = n.public_input.clone();
+                        state.host_node.local_only = n.local_only;
+                        state.host_node.lan_too = n.lan_too;
+                        state.host_node.tailnet = n.tailnet;
                         crate::config::AppConfig::from_gui_state(state).save();
                     }
                 }
@@ -987,7 +1218,10 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                     n.port_input = "3210".to_string();
                     n.db_input = default_db_path();
                     n.name_input = default_server_name();
+                    n.public_input.clear();
                     n.local_only = false;
+                    n.lan_too = false;
+                    n.tailnet = false;
                     n.message.clear();
                     n.status = NodeStatus::Stopped;
                 }
@@ -1021,9 +1255,80 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
         });
 }
 
+/// "Add to my servers": the running node in the Chat server list, by its owner's door (M2), the
+/// one address it always takes this app's key at. Once.
+fn add_to_my_servers(state: &mut GuiState, n: &LocalNode) {
+    let url = owner_url(n.running_port);
+    // The node's own earlier entry by its main port on loopback (round 5 saved that, and a network
+    // node no longer answers to it, round 6): replaced in its place by the door, never left beside
+    // it (round 7, 2026-11-21), and the server being used follows.
+    let norm = crate::gui::pages::chat::norm_server_url;
+    let old: Vec<String> = ["127.0.0.1", "localhost", "[::1]"].iter().map(|h| norm(&format!("http://{h}:{}", n.running_port))).collect();
+    let was_old = |u: &str| old.contains(&norm(u));
+    if was_old(&state.server_url) {
+        state.server_url = url.clone();
+        state.settings_dirty = true;
+    }
+    if let Some(i) = state.chat_servers.iter().position(|s| was_old(&s.url)) {
+        if state.chat_servers.iter().any(|s| s.url == url) {
+            state.chat_servers.remove(i);
+        } else {
+            state.chat_servers[i].url = url.clone();
+            state.chat_servers[i].id = format!("srv_{url}");
+        }
+        state.settings_dirty = true;
+    }
+    state.chat_servers.retain(|s| !was_old(&s.url));
+    if state.chat_servers.iter().any(|s| s.url == url) {
+        return;
+    }
+    let name = if n.running_name.trim().is_empty() { "My node".to_string() } else { n.running_name.trim().to_string() };
+    state.chat_servers.push(ChatServer {
+        id: format!("srv_{url}"),
+        name,
+        url,
+        connected: false,
+        channels: Vec::new(),
+        voice_channels: Vec::new(),
+    });
+    state.settings_dirty = true; // saved servers persist now
+}
+
+/// The two reach choices under "Who can connect", each saying what it changes and what it risks:
+/// "Also answer on my local network" beside a public address (M1, 2026-11-21) and "This computer
+/// is on a Tailscale network" (L3).
+fn draw_reach_choices(ui: &mut egui::Ui, theme: &Theme, n: &mut LocalNode, field_w: f32, starting: bool) {
+    use humanity_core::i18n::t;
+    let note = |ui: &mut egui::Ui, words: String| {
+        ui.label(RichText::new(words).size(theme.font_size_small).color(theme.text_muted()));
+    };
+    widgets::form_row(ui, theme, "", |ui| {
+        ui.vertical(|ui| {
+            ui.set_max_width(field_w);
+            // Only meaningful with a public address on a network node: without one the LAN address
+            // is the node's name anyway, and a node for this computer only has none to give.
+            let has_public = !n.public_input.trim().is_empty();
+            ui.add_enabled_ui(!starting && has_public && !n.local_only, |ui| {
+                ui.checkbox(&mut n.lan_too, t("host_node.lan_too")).hint("host_node.lan_too_hint");
+            });
+            note(ui, if n.lan_too && has_public { t("host_node.lan_too_risk") } else { t("host_node.lan_too_off") }.to_string());
+            ui.add_space(theme.spacing_xs);
+            ui.add_enabled_ui(!starting, |ui| {
+                ui.checkbox(&mut n.tailnet, t("host_node.tailnet")).hint("host_node.tailnet_hint");
+            });
+            note(ui, if n.tailnet { t("host_node.tailnet_on") } else { t("host_node.tailnet_off") }.to_string());
+        });
+    });
+}
+
 /// What a serving node looks like: the addresses to hand out, and Stop.
 fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut LocalNode) {
-    let local_url = format!("http://127.0.0.1:{}", n.running_port);
+    // This app's own way in (M2): the owner's door, the one address here the node always answers
+    // this app's key at, whatever else it answers to.
+    let local_url = owner_url(n.running_port);
+    let public_first = public_url(&n.running_public);
+    // The LAN address, when the node answers to it (M1: beside a public address only when asked).
+    let lan_answered = public_first.is_none() || n.running_lan_too;
     let lan_url = n
         .lan_ip
         .as_ref()
@@ -1052,6 +1357,16 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
                 row(ui, "Server name", &n.running_name.clone(), false);
             }
             row(ui, "On this computer", &local_url, true);
+            widgets::form_row(ui, theme, "", |ui| {
+                ui.label(
+                    RichText::new(humanity_core::i18n::t("host_node.owner_door_note"))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            });
+            if let Some(p) = &public_first {
+                row(ui, &humanity_core::i18n::t("host_node.public_address"), p, true);
+            }
             match &lan_url {
                 _ if n.running_local_only => row(
                     ui,
@@ -1059,6 +1374,7 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
                     "not shared: this node accepts this computer only",
                     false,
                 ),
+                _ if !lan_answered => row(ui, "On your network", &humanity_core::i18n::t("host_node.lan_not_answered"), false),
                 Some(u) => row(ui, "On your network", u, true),
                 None => row(
                     ui,
@@ -1095,7 +1411,12 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
 
     ui.add_space(theme.spacing_sm);
     // Who can reach it depends on how it was started ("Who can connect").
-    let reach = if n.running_local_only {
+    let public_reach;
+    let reach = if public_first.is_some() {
+        // Where its visitors must come from (M1): a forwarder pointed at this computer.
+        public_reach = humanity_core::i18n::tf("host_node.reach_public", &[("port", &n.running_port.to_string())]);
+        public_reach.as_str()
+    } else if n.running_local_only {
         "This node was started for this computer only, so no other device can reach it. \
          To share it, stop it, choose \"Devices on my network\", and start it again."
     } else {
@@ -1116,7 +1437,10 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
     ui.add_space(theme.spacing_md);
 
     let stopping = n.status == NodeStatus::Stopping;
-    let share_url = lan_url.clone().unwrap_or_else(|| local_url.clone());
+    // An address the node answers to that someone else may use: the public one, else the network
+    // one, else (this computer only) its loopback port. Never the owner's door, which takes this
+    // app's key alone.
+    let share_url = share_url_for(n);
     ui.horizontal(|ui| {
         if widgets::Button::danger(if stopping { "Stopping..." } else { "Stop node" })
             .disabled(stopping)
@@ -1127,7 +1451,7 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
             stop(n);
             // An explicit Stop means "I do not want this running": disarm
             // autostart too, or the next launch would resurrect it.
-            state.host_node_autostart = false;
+            state.host_node.autostart = false;
             crate::config::AppConfig::from_gui_state(state).save();
         }
         if widgets::Button::secondary("Add to my servers")
@@ -1135,29 +1459,19 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
             .tooltip("Puts this node in your Chat server list so you can connect to it like any other.")
             .show(ui, theme)
         {
-            let url = local_url.clone();
-            if !state.chat_servers.iter().any(|s| s.url == url) {
-                let name = if n.running_name.trim().is_empty() {
-                    "My node".to_string()
-                } else {
-                    n.running_name.trim().to_string()
-                };
-                state.chat_servers.push(ChatServer {
-                    id: format!("srv_{url}"),
-                    name,
-                    url,
-                    connected: false,
-                    channels: Vec::new(),
-                    voice_channels: Vec::new(),
-                });
-                state.settings_dirty = true; // saved servers persist now
-            }
+            add_to_my_servers(state, n);
             state.go(GuiPage::Chat, crate::gui::How::Beside);
         }
-        if widgets::Button::ghost("Copy address to share").show(ui, theme) {
-            ui.ctx().copy_text(share_url.clone());
+        if widgets::Button::ghost("Copy address to share").disabled(share_url.is_none()).show(ui, theme) {
+            if let Some(u) = &share_url {
+                ui.ctx().copy_text(u.clone());
+            }
         }
     });
+    // A network node whose local address is not known yet has none to share (round 7).
+    if share_url.is_none() {
+        ui.label(RichText::new(humanity_core::i18n::t("host_node.share_unknown")).size(theme.font_size_small).color(theme.text_muted()));
+    }
 
     ui.add_space(theme.spacing_sm);
     // The owner review's finding 8: the first-admin claim is gone; whoever holds the claim code
@@ -1405,7 +1719,104 @@ mod tests {
         for plan in [&local, &network] {
             assert_eq!(setting(plan, "PORT").as_deref(), Some("3210"));
             assert_eq!(setting(plan, "DATABASE_PATH"), Some(scratch_db()));
+            // The names the node answers to (2026-11-21). Red evidence: without the PUBLIC_HOSTS pair,
+            // None here, and a node on every interface refused its own owner's sign-in.
+            let names = setting(plan, crate::relay::audience::PUBLIC_HOSTS_ENV).expect("the node is told its names");
+            // The owner's door, the way this app comes in (M2, 2026-11-21). Red evidence: without the
+            // OWNER_PORT pair, "every node opens its owner's door" failed, left None.
+            assert_eq!(setting(plan, crate::relay::audience::OWNER_PORT_ENV).as_deref(), Some("3211"), "every node opens its owner's door");
+            // Red evidence (2026-11-21, round 5's main-port names put back, loopback names on a
+            // network node): failed for the network plan, left true, right false.
+            let loopback = names.split(',').any(|n| n == "127.0.0.1:3210");
+            assert_eq!(loopback, plan.bind_ip.is_loopback(), "a loopback name on the main port for this computer only, never on a network node: {names}");
         }
+    }
+
+    /// A node with no public address answers to where it listens: a network node to its LAN address
+    /// alone (its owner's app comes in by the door, M2, so no loopback name on the main port a
+    /// forwarder on this computer could hand visitors to), a node for this computer only to its
+    /// loopback names. Red evidence (2026-11-21, round 5's list put back): "a network node lists no
+    /// loopback name" failed, left "127.0.0.1:3210,localhost:3210,192.168.1.5:3210".
+    #[test]
+    fn a_network_node_answers_to_its_local_address() {
+        assert_eq!(node_public_hosts(3210, false, Some("192.168.1.5"), &[], false), "192.168.1.5:3210", "a network node lists no loopback name");
+        assert_eq!(node_public_hosts(3210, true, Some("192.168.1.5"), &[], false), "127.0.0.1:3210,localhost:3210", "a node for this computer only names no other");
+        assert_eq!(node_public_hosts(4000, false, None, &[], false), "", "no LAN address found: no name but the door");
+    }
+
+    /// H1 (the review of rounds 3 and 4, 2026-11-21) and M1 (the review of round 5, the same day): a
+    /// node with a public address (a port forward, a domain, an onion address) lists no loopback name,
+    /// because whatever forwards its visitors on this computer hands them over from 127.0.0.1, and no
+    /// LAN name unless its owner ticks "Also answer on my local network", because a forwarder on the
+    /// network that adds no header hands them over from a local address. A node for this computer
+    /// only may have one now (Tor on this computer pointed at it, the setup the docs advise): its
+    /// owner's app comes in by the door (M2).
+    /// Red evidence: (2026-11-21, before H1) "a node with a public address lists no loopback name"
+    /// failed, left "abcdefghijklmnop.onion,127.0.0.1:3210,localhost:3210,192.168.1.5:3210"; (M1,
+    /// round 5's rule put back, the LAN address listed whenever the node is on the network) "no LAN
+    /// name beside a public one unless asked" failed, left "abcdefghijklmnop.onion,192.168.1.5:3210".
+    #[test]
+    fn a_node_with_a_public_address_lists_no_loopback_name() {
+        let onion = ["abcdefghijklmnop.onion".to_string()];
+        assert_eq!(node_public_hosts(3210, false, Some("192.168.1.5"), &onion, false), "abcdefghijklmnop.onion", "no LAN name beside a public one unless asked");
+        assert_eq!(node_public_hosts(3210, false, Some("192.168.1.5"), &onion, true), "abcdefghijklmnop.onion,192.168.1.5:3210", "the owner asked");
+        assert_eq!(node_public_hosts(3210, true, Some("192.168.1.5"), &onion, true), "abcdefghijklmnop.onion", "for this computer only: the public name alone");
+        let mut n = LocalNode::new();
+        n.port_input = "3210".to_string();
+        n.db_input = scratch_db();
+        n.public_input = "abcdefghijklmnop.onion".to_string();
+        n.local_only = true;
+        let plan = plan_start(&n).expect("a node for this computer only may have a public address");
+        assert!(plan.bind_ip.is_loopback());
+    }
+
+    /// C8 (2026-11-21), L3 (the review of rounds 3 and 4, the same day): a pass the owner's app mints
+    /// on its own node names the node's first Public address, a name the node answers to that a
+    /// friend elsewhere may use, and nothing else: with no public address no pass is made there, so
+    /// the node's LAN address (or another of its names) is never handed to every friend. The choice
+    /// is one of the names the node is told ([`node_public_hosts`]).
+    /// Red evidence: with `pass_name_for` returning None always, "the first public address" failed,
+    /// left None; with round 4's LAN fallback (L3), "no public address, no pass" failed, left
+    /// Some("192.168.1.5:3210").
+    #[test]
+    fn a_pass_minted_on_the_own_node_names_only_its_public_address() {
+        let public = "Home.Example:8443, http://other.example";
+        assert_eq!(pass_name_for(3210, false, public, Some("192.168.1.5")).as_deref(), Some("home.example:8443"), "the first public address");
+        assert_eq!(pass_name_for(3210, false, "", Some("192.168.1.5")), None, "no public address, no pass");
+        assert_eq!(pass_name_for(3210, true, "", Some("192.168.1.5")), None, "a node for this computer only makes none");
+        assert_eq!(pass_name_for(3210, false, "", None), None);
+        let told = node_public_hosts(3210, false, Some("192.168.1.5"), &public_names(public).unwrap(), false);
+        let chosen = pass_name_for(3210, false, public, Some("192.168.1.5")).unwrap();
+        assert!(told.split(',').any(|n| n == chosen), "{chosen} is one of the node's names: {told}");
+    }
+
+    /// C10 (2026-11-21, signed requests round 3): the Public address field sets the names the
+    /// relay answers to, read the way the relay reads them; junk is refused in words; the dev
+    /// switch for loopback names is cleared. Red evidence (2026-11-21, before the field existed:
+    /// `public_names` and its plan line absent): "the field's names reach the relay" failed, the
+    /// relay's names held only the loopback pair.
+    #[test]
+    fn the_public_address_field_sets_the_relays_names() {
+        let mut n = LocalNode::new();
+        n.port_input = "3210".to_string();
+        n.db_input = scratch_db();
+        n.public_input = " Node.Example.org:3210 , https://abcdefghijklmnop.onion/ ,node.example.org:3210".to_string();
+        let plan = plan_start(&n).expect("a valid form");
+        let names = plan.env.iter().find(|(k, _)| *k == crate::relay::audience::PUBLIC_HOSTS_ENV).and_then(|(_, v)| v.clone()).unwrap();
+        let own = crate::relay::audience::OwnNames::from_settings(
+            |k| (k == crate::relay::audience::PUBLIC_HOSTS_ENV).then(|| names.clone()),
+            "0.0.0.0:3210".parse().unwrap(),
+        );
+        assert!(own.accepts("node.example.org:3210") && own.accepts("abcdefghijklmnop.onion"), "the field's names reach the relay: {names}");
+        assert_eq!(names.matches("node.example.org").count(), 1, "once each: {names}");
+        assert!(!names.contains("127.0.0.1") && !names.contains("localhost"), "no loopback name beside a public one (H1): {names}");
+        // Red evidence (2026-11-21, round 5's rule put back, M1): failed, left 3 (the LAN address
+        // listed), right 2.
+        assert_eq!(names.split(',').count(), 2, "and no LAN name unless asked (M1): {names}");
+        assert!(plan.env.iter().any(|(k, v)| *k == crate::relay::audience::DEV_LOOPBACK_NAMES_ENV && v.is_none()), "the dev switch is cleared");
+        n.public_input = "node.example.org, not an address".to_string();
+        let words = plan_start(&n).err().expect("junk is refused");
+        assert!(words.contains("not an address"), "{words}");
     }
 
     // start() must test the addresses the plan lists, loopback first, and not
@@ -1445,8 +1856,11 @@ mod tests {
                 Some(&loopback),
                 "start() must test loopback first (local_only = {local_only})"
             );
+            // The owner's door's port is tested last, on loopback too (M2).
+            let door = std::net::SocketAddr::from(([127, 0, 0, 1], 3211));
+            assert_eq!(asked.last(), Some(&door), "the owner's door is tested too: {asked:?}");
             if local_only {
-                assert_eq!(asked, vec![loopback], "a node for this computer only tests loopback alone");
+                assert_eq!(asked, vec![loopback, door], "a node for this computer only tests loopback alone");
             } else {
                 assert!(asked.contains(&wildcard), "a network node tests its own address too: {asked:?}");
             }
@@ -1462,11 +1876,11 @@ mod tests {
     /// visible, and nothing ever listens, let alone on the wildcard.
     fn saved_node_on(port: u16) -> GuiState {
         let mut s = GuiState::default();
-        s.host_node_autostart = true;
-        s.host_node_port = port.to_string();
-        s.host_node_db = scratch_db();
-        s.host_node_name = "Test node".to_string();
-        s.host_node_local_only = true;
+        s.host_node.autostart = true;
+        s.host_node.port = port.to_string();
+        s.host_node.db = scratch_db();
+        s.host_node.name = "Test node".to_string();
+        s.host_node.local_only = true;
         s
     }
 
@@ -1616,3 +2030,7 @@ mod tests {
         assert!(n.message.contains("it died"));
     }
 }
+
+#[cfg(test)]
+#[path = "host_node_owner_tests.rs"]
+mod owner_tests;

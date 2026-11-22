@@ -2717,12 +2717,8 @@ pub struct GuiState {
     /// Host-a-node autostart (operator field test 2: "I can't seem to
     /// reconnect to my self-relay when I restart the app" -- the node was
     /// simply not running). Set when the node is started, cleared on Stop;
-    /// the saved port/db/name reproduce the exact node at next launch.
-    pub host_node_autostart: bool,
-    pub host_node_port: String,
-    pub host_node_db: String,
-    pub host_node_name: String,
-    pub host_node_local_only: bool,
+    /// the saved form reproduces the exact node at next launch (host_node.rs `HostNodeSettings`).
+    pub host_node: crate::gui::pages::host_node::HostNodeSettings,
     /// Whether the danger-zone confirm-delete prompt is showing.
     pub server_settings_confirm_action: Option<String>,
 
@@ -4112,11 +4108,7 @@ impl Default for GuiState {
             vps_console_rx: None,
             vps_console_running: false,
             admin_console: AdminConsoleState::default(),
-            host_node_autostart: false,
-            host_node_port: String::new(),
-            host_node_db: String::new(),
-            host_node_name: String::new(),
-            host_node_local_only: false,
+            host_node: Default::default(),
             server_settings_confirm_action: None,
             show_help_modal: false,
             debug_console_visible: false,

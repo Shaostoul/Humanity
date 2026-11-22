@@ -19,9 +19,10 @@
 //! note and shows nothing.
 //!
 //! WHO A PERMIT IS KEPT FROM ([`judge_arrival`]): only from the friend it names as its issuer, the
-//! DM's checked sender (a permit forwarded by someone else is dropped), only for this server
-//! (the DM store's server identity), only when it names me as grantee, and only when its words
-//! check out against those facts and the clock. The relay checks it again, by its own facts and
+//! DM's checked sender (a permit forwarded by someone else is dropped), only when it names me as
+//! grantee, and only when its words check out against those facts, the server address it names
+//! (v3, 2026-11-21: the address the giver's app opened; whether that address is the relay's own is
+//! the relay's to judge) and the clock. The relay checks it again, by its own names and facts and
 //! against who holds the plot now, before any door opens (`game_permit_check`).
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -77,7 +78,8 @@ pub fn parse_note(text: &str) -> Option<Permit> {
     let fits = issuer_ok
         && !p.sig.is_empty()
         && p.sig.len() <= SIG_MAX_LEN
-        && [&p.server, &p.plot, &p.grantee].into_iter().all(|s| id_ok(s))
+        && humanity_protocol::pq_crypto::pass_audience_ok(&p.aud)
+        && [&p.plot, &p.grantee].into_iter().all(|s| id_ok(s))
         && friend_cert_serial_ok(&p.serial);
     fits.then_some(p)
 }
@@ -89,11 +91,6 @@ pub fn parse_note(text: &str) -> Option<Permit> {
 pub enum Arrival {
     /// Its issuer is not the DM's sender: someone forwarded a permit another person gave.
     NotFromItsIssuer,
-    /// This device does not know the server's identity yet (mail is fetched after the server's
-    /// `identify_challenge` names it, so this is not seen in practice).
-    NoServerYet,
-    /// It was given on another server.
-    OtherServer,
     /// It names someone else as grantee.
     NotForMe,
     /// It has run out.
@@ -105,23 +102,20 @@ pub enum Arrival {
 }
 
 /// Keep `p`, which arrived in a DM from `sender` (the DM's checked sender, a Dilithium3 key in
-/// hex)? `pass_server` is the server identity this DM store holds (`DmStore::pass_server`),
-/// `my_did` my own `did:hum:` as the relay holds plots under it (`plot_owner_id` of my key), and
-/// `now_s` my clock. The checks, in order: the issuer is the sender, the server is known and is
-/// this one, I am the grantee, and the words check out (the signature is checked against the
-/// SENDER's key and these facts, never anything else the permit claims).
-pub fn judge_arrival(p: &Permit, sender: &str, pass_server: Option<&str>, my_did: &str, now_s: u64) -> Result<(), Arrival> {
+/// hex)? `my_did` is my own `did:hum:` as the relay holds plots under it (`plot_owner_id` of my
+/// key), and `now_s` my clock. The checks, in order: the issuer is the sender, I am the grantee,
+/// and the words check out (the signature is checked against the SENDER's key, these facts and the
+/// server address the permit names, never anything else it claims). Which server that address is
+/// stays the relay's question (v3, 2026-11-21): a permit given at another server is refused there
+/// (`permit_bad`), and the app cannot know every name a server answers to.
+pub fn judge_arrival(p: &Permit, sender: &str, my_did: &str, now_s: u64) -> Result<(), Arrival> {
     if !p.issuer.eq_ignore_ascii_case(sender) {
         return Err(Arrival::NotFromItsIssuer);
-    }
-    let Some(server) = pass_server.filter(|s| !s.is_empty()) else { return Err(Arrival::NoServerYet) };
-    if p.server != server {
-        return Err(Arrival::OtherServer);
     }
     if p.grantee != my_did {
         return Err(Arrival::NotForMe);
     }
-    verify_plot_permit(sender, server, &p.plot, my_did, &p.serial, p.expiry, &p.sig, now_s).map_err(|e| match e {
+    verify_plot_permit(sender, &p.aud, &p.plot, my_did, &p.serial, p.expiry, &p.sig, now_s).map_err(|e| match e {
         PlotPermitError::Expired => Arrival::RanOut,
         PlotPermitError::TooLong => Arrival::TooLong,
         PlotPermitError::Malformed | PlotPermitError::BadSerial | PlotPermitError::BadSignature => Arrival::DoesNotCheckOut,
@@ -470,8 +464,8 @@ pub(crate) mod tests {
     /// "Now" for these tests, Unix seconds.
     pub(crate) const NOW: u64 = 1_760_000_000;
     pub(crate) const DAY: u64 = 86_400;
-    /// The server these permits are given on.
-    pub(crate) const SERVER: &str = "did:hum:ThisServer11111111111";
+    /// The server address these permits name (v3, 2026-11-21: the address the giver's app opened).
+    pub(crate) const SERVER: &str = "relay.example";
 
     /// The key (Dilithium3, hex) of the person whose seed is `[n; 32]`.
     pub(crate) fn key(n: u8) -> String {

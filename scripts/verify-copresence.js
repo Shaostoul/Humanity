@@ -4504,7 +4504,8 @@ async function runHouseholdOnce(runStamp, cleanups) {
       prefix: "verify-copresence-relay-",
       config: { server_name: "verify-copresence household relay" },
     });
-    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line), server_did: null };
+    // `audience`: the address the game opens, which every permit it gives names (permit v3, 2026-11-21).
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line), server_did: null, audience: SP.audienceOf(relay.url) };
     manifest.steps_ok.relay = relay.health
       ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}); ${loopbackNote(relay)}` }
       : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };

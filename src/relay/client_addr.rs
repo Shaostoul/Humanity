@@ -169,6 +169,47 @@ pub fn client_ip(peer: Option<IpAddr>, headers: &HeaderMap, trusted: &TrustedPro
     Some(real.or(forwarded.first().copied()).unwrap_or(peer))
 }
 
+/// The connection's own address for deciding REACH (audience.rs: whether a client is on this
+/// computer or on this local network), when the request came straight from the client; None when
+/// it came through a proxy (H1, the review of the signed requests' rounds 3 and 4, 2026-11-21).
+///
+/// [`client_ip`] is right for COUNTING (limits, the Files page's counts): a trusted proxy's header
+/// names the visitor. It is wrong for REACH: through any proxy on this computer the client is the
+/// proxy's own 127.0.0.1 or whatever the visitor wrote, so a Tor visitor counted as this computer
+/// and a written `X-Real-IP` put a stranger on the local network. So for reach:
+/// - any forwarding header present (`X-Real-IP`, `X-Forwarded-For`, `Forwarded`, `Via`): None, a
+///   header never makes a client local;
+/// - a connection from a trusted proxy that is not this computer (a `TRUSTED_PROXIES` network): None;
+/// - otherwise the connection's own address. A loopback connection with no header is "this
+///   computer", which a Tor-style forwarder (it passes no header) also is: audience.rs takes it for
+///   this computer's names only, never a LAN name, and a node with a forwarded name lists no
+///   loopback name at all (host_node.rs `node_public_hosts`).
+pub fn direct_peer(peer: Option<IpAddr>, headers: &HeaderMap, trusted: &TrustedProxies) -> Option<IpAddr> {
+    let peer = plain(peer?);
+    let forwarded = [REAL_IP, FORWARDED_FOR, "forwarded", "via"].iter().any(|h| headers.contains_key(*h));
+    if forwarded || (trusted.trusts(peer) && !peer.is_loopback()) {
+        return None;
+    }
+    Some(peer)
+}
+
+/// The edge's [`direct_peer`] decision (ip_limit.rs `edge`, made before it rewrites the headers),
+/// carried to the handlers as a request extension for audience.rs `Arrival::from_parts`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DirectPeer(pub Option<IpAddr>);
+
+/// Test builds only: the header a test sends to stand in for a client connecting from another
+/// address (every test connection comes from 127.0.0.1). The edge takes it as the connection's own
+/// address and removes it. No product build has it.
+#[cfg(test)]
+pub const TEST_RAW_PEER: &str = "x-hum-test-raw-peer";
+
+/// Test builds only: the address a test's [`TEST_RAW_PEER`] header names, removed from `headers`.
+#[cfg(test)]
+pub fn take_test_raw_peer(headers: &mut HeaderMap) -> Option<IpAddr> {
+    headers.remove(TEST_RAW_PEER).and_then(|v| v.to_str().ok().and_then(|t| t.trim().parse().ok()))
+}
+
 /// What a request with no address counts as: one shared bucket, which can only be stricter.
 pub const UNKNOWN: &str = "unknown";
 

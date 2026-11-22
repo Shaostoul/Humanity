@@ -3,11 +3,14 @@
 
 use super::*;
 
+/// The server the test signer signs for.
+const SIGNER_SERVER: &str = "http://127.0.0.1:3210";
+
 /// A signer from a fixed seed, with the public key the relay would hold for it.
 fn signer() -> Signer {
     let seed = [7u8; 32];
     let key = crate::net::identity::derive_pq_identity(&seed).expect("derive").dilithium_hex;
-    Signer::new(&key, &seed)
+    Signer::new(SIGNER_SERVER, &key, &seed)
 }
 
 fn body(req: &Request) -> serde_json::Value {
@@ -15,11 +18,12 @@ fn body(req: &Request) -> serde_json::Value {
 }
 
 /// Whether the relay would accept `req`'s signature over `purpose` (its own check,
-/// handlers/broadcast.rs `verify_dilithium_signature`, the one `check_signed` runs).
+/// `relay::signed_request::verify`, the one `check_signed` runs).
 fn relay_accepts(req: &Request, purpose: &str) -> bool {
     let b = body(req);
-    crate::relay::handlers::broadcast::verify_dilithium_signature(
+    crate::relay::signed_request::verify(
         b["key"].as_str().unwrap_or(""),
+        &humanity_protocol::signed_request::audience_of(SIGNER_SERVER).unwrap(),
         purpose,
         b["timestamp"].as_u64().unwrap_or(0),
         b["sig"].as_str().unwrap_or(""),
@@ -119,9 +123,19 @@ fn every_signed_request_names_its_target_and_the_relay_accepts_it() {
     assert_eq!(parsed.categories[1].id, None, "a new category has no id");
     assert!(relay_accepts(&cats, &relay_purpose));
 
-    // The reads and the suggestion keep their plain purposes.
+    // A suggestion names its name and note (C7, 2026-11-21): the relay's purpose for the words as
+    // sent, so the same signature is no good for another suggestion. This pins the desktop to the
+    // relay's own `suggest_purpose`; the gate seen red is the relay's
+    // `suggestions_and_overrides_name_their_targets` (signed_request_tests.rs).
+    let sug = suggest_request(&s, " Builds ", "Ships and homes");
+    let relay_purpose = crate::relay::files::suggest_purpose("Builds", "Ships and homes");
+    assert_eq!(sug.purpose.as_deref(), Some(relay_purpose.as_str()), "a suggestion names what it suggests");
+    assert!(relay_accepts(&sug, &relay_purpose));
+    assert_ne!(relay_purpose, crate::relay::files::suggest_purpose("Builds", "Other"));
+    assert_ne!(crate::relay::files::suggest_purpose("a\nb", ""), crate::relay::files::suggest_purpose("a", "b"));
+
+    // The reads keep their plain purposes.
     for (req, purpose) in [
-        (suggest_request(&s, "Builds", "Ships and homes"), "media_suggest"),
         (suggestions_request(&s), "media_suggestions"),
         (usage_request(&s), "media_usage"),
         (mine_request(&s), "media_mine"),
@@ -135,13 +149,13 @@ fn every_signed_request_names_its_target_and_the_relay_accepts_it() {
 /// NO TWO SIGNATURES SHARE A TIMESTAMP: the relay refuses a (key, purpose, timestamp) it has seen
 /// (its replay memory), so two reads in one millisecond would have the second refused.
 ///
-/// Seen red 2026-10-11 with `next_timestamp` allowed to repeat the last value (`now.max(prev)`):
+/// Seen red 2026-10-11 with the clock (now `net::identity::next_request_timestamp`) allowed to repeat the last value (`now.max(prev)`):
 /// "two timestamps in a row differ (1791708446270 then 1791708446270)".
 #[test]
 fn no_two_signatures_share_a_timestamp() {
     let mut last = 0;
     for _ in 0..2000 {
-        let t = next_timestamp();
+        let t = crate::net::identity::next_request_timestamp();
         assert!(t > last, "two timestamps in a row differ ({last} then {t})");
         last = t;
     }

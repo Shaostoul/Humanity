@@ -255,7 +255,11 @@ impl IpLimits {
                     e.held_until.is_some_and(|until| until > now) || now.saturating_duration_since(e.seen) < IDLE_AFTER
                 });
             }
-            if table.entries.len() >= self.cap {
+            // The owner's door keeps its own entry even when the table is full: its keys come only
+            // from its own loopback listener, so they are few, and sending them to the shared
+            // overflow bucket let a flood of new addresses lock the owner out (audience.rs
+            // `is_owner_door_key`, the review of signed requests round 7).
+            if table.entries.len() >= self.cap && !crate::relay::audience::is_owner_door_key(bucket) {
                 table.overflowed += 1;
                 key = (class, OVERFLOW.to_string());
             }
@@ -323,12 +327,21 @@ impl IpLimits {
 /// `Retry-After` when it is spent.
 pub async fn edge(State(state): State<Arc<RelayState>>, mut req: Request, next: Next) -> Response {
     let peer = req.extensions().get::<ConnectInfo<std::net::SocketAddr>>().map(|c| c.0.ip());
+    // Test builds only: a test standing in for a client at another address (client_addr.rs).
+    #[cfg(test)]
+    let peer = client_addr::take_test_raw_peer(req.headers_mut()).or(peer);
     let trusted = state.ip_limits.trusted();
     let ip = client_addr::client_ip(peer, req.headers(), &trusted);
+    // Reach is decided from the connection itself, before the headers are rewritten (H1,
+    // 2026-11-21): a header never makes a client local (client_addr.rs `direct_peer`).
+    let direct = client_addr::direct_peer(peer, req.headers(), &trusted);
     client_addr::rewrite(req.headers_mut(), ip);
+    req.extensions_mut().insert(client_addr::DirectPeer(direct));
     let class = Class::of(req.method(), req.uri().path());
     let via_proxy = ip.is_some_and(|ip| trusted.trusts(ip));
-    let bucket = client_addr::bucket(ip);
+    // The owner's door keeps its own allowance (audience.rs `door_key`, round 7).
+    let door = req.extensions().get::<crate::relay::audience::Door>().copied().unwrap_or_default();
+    let bucket = crate::relay::audience::door_key(client_addr::bucket(ip), door);
     match state.ip_limits.take(class, &bucket, via_proxy, Instant::now()) {
         Verdict::Go => next.run(req).await,
         Verdict::Wait(secs) => {

@@ -506,7 +506,7 @@ test("build and unbuild commands parse", () => {
   assert.equal(sp.parseCommand("   "), null, "an empty line is no command");
   assert.deepEqual(sp.parseCommand("permit p1 did:hum:4dQe1bVHyiHm1Vh8rWbx2F 30"), { kind: "permit", plot: "p1", grantee: "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", days: 30 });
   // A permit rides along as the JSON the walker that minted it logged.
-  const permit = { issuer: "ab12", server: "did:hum:srv", plot: "p1", grantee: "did:hum:x", serial: "00112233445566778899aabbccddeeff", expiry: 1900000000, sig: "c2ln" };
+  const permit = { issuer: "ab12", aud: "relay.example", plot: "p1", grantee: "did:hum:x", serial: "00112233445566778899aabbccddeeff", expiry: 1900000000, sig: "c2ln" };
   assert.deepEqual(sp.parseCommand(`build wood_wall@plot:p1:46,0.2,36,1 permit ${JSON.stringify(permit)}`).permit, permit);
   assert.deepEqual(sp.parseCommand(`unbuild 7 permit ${JSON.stringify(permit)}`), { kind: "unbuild", pieceId: 7, permit });
   for (const [bad, why] of [
@@ -521,7 +521,7 @@ test("build and unbuild commands parse", () => {
     ["build wood_wall@plot:p1:1,0,1,0 permit {not json", /permit must be/],
     ['build wood_wall@plot:p1:1,0,1,0 permit {"issuer":"ab"}', /permit must be/],
     // A permit that names no server (the words before Wave 0's 6e0174cd7) is not one.
-    [`unbuild 7 permit ${JSON.stringify({ ...permit, server: undefined })}`, /permit must be/],
+    [`unbuild 7 permit ${JSON.stringify({ ...permit, aud: undefined })}`, /permit must be/],
     // Nor one that names no serial (v1, before ship homes 5b).
     [`unbuild 7 permit ${JSON.stringify({ ...permit, serial: undefined })}`, /permit must be/],
     ["permit plot:p1 did:hum:x 30", /permit wants/],
@@ -645,25 +645,28 @@ test("permitPreimage equals the Rust KAT string", async () => {
   const issuer = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "permit issuer", "TestBotIssuer"));
   const expiry = 1900000000;
   const server = "did:hum:7Xq1server2DidHere3Abc";
-  const permit = sp.mintPermit(issuer, { server, plot: "p1", grantee: "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", expiry });
+  // The address the walker opened, which the permit names (v3, 2026-11-21), never the did:hum.
+  const aud = "relay.example";
+  const permit = sp.mintPermit(issuer, { aud, plot: "p1", grantee: "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", expiry });
   assert.deepEqual(Object.keys(permit), fields, "the contract's fields in its order, the order its words are signed in");
   assert.deepEqual(Object.keys(permit).sort(), fields.sort(), "the permit's fields are the contract's");
   assert.equal(permit.issuer, issuer.publicKeyHex);
-  assert.equal(permit.server, server);
+  assert.equal(permit.aud, aud);
   assert.match(permit.serial, /^[0-9a-f]{32}$/, "a fresh serial: 16 bytes in lowercase hex");
   const words = (srv, plot, serial = permit.serial) => new TextEncoder().encode(sp.permitPreimage(srv, plot, permit.grantee, serial, expiry));
   const pk = new Uint8Array(Buffer.from(issuer.publicKeyHex, "hex"));
   const sig = new Uint8Array(Buffer.from(permit.sig, "base64"));
-  assert.ok(noble.ml_dsa65.verify(sig, words(server, "p1"), pk), "the issuer's signature over the permit's words");
-  assert.ok(!noble.ml_dsa65.verify(sig, words(server, "p2"), pk), "and not over another plot's");
-  assert.ok(!noble.ml_dsa65.verify(sig, words("did:hum:another", "p1"), pk), "nor over the same plot on another server");
-  assert.ok(!noble.ml_dsa65.verify(sig, words(server, "p1", "ffeeddccbbaa99887766554433221100"), pk), "nor under another serial");
-  const again = sp.mintPermit(issuer, { server, plot: "p1", grantee: permit.grantee, expiry });
+  assert.ok(noble.ml_dsa65.verify(sig, words(aud, "p1"), pk), "the issuer's signature over the permit's words");
+  assert.ok(!noble.ml_dsa65.verify(sig, words(aud, "p2"), pk), "and not over another plot's");
+  assert.ok(!noble.ml_dsa65.verify(sig, words("another.example", "p1"), pk), "nor over the same plot on another server");
+  assert.ok(!noble.ml_dsa65.verify(sig, words(aud, "p1", "ffeeddccbbaa99887766554433221100"), pk), "nor under another serial");
+  const again = sp.mintPermit(issuer, { aud, plot: "p1", grantee: permit.grantee, expiry });
   assert.notEqual(again.serial, permit.serial, "each permit gets a serial of its own");
-  const named = sp.mintPermit(issuer, { server, plot: "p1", grantee: permit.grantee, expiry, serial: "00112233445566778899aabbccddeeff" });
+  const named = sp.mintPermit(issuer, { aud, plot: "p1", grantee: permit.grantee, expiry, serial: "00112233445566778899aabbccddeeff" });
   assert.equal(named.serial, "00112233445566778899aabbccddeeff", "a serial given is the one signed");
-  assert.throws(() => sp.mintPermit(issuer, { server, plot: "p1", grantee: permit.grantee, expiry, serial: "00112233445566778899AABBCCDDEEFF" }), /serial is 16 bytes/, "never a serial the relay refuses");
-  assert.throws(() => sp.mintPermit(issuer, { plot: "p1", grantee: permit.grantee, expiry }), /needs the server's did:hum/, "no permit without the server it is good on");
+  assert.throws(() => sp.mintPermit(issuer, { aud, plot: "p1", grantee: permit.grantee, expiry, serial: "00112233445566778899AABBCCDDEEFF" }), /serial is 16 bytes/, "never a serial the relay refuses");
+  assert.throws(() => sp.mintPermit(issuer, { plot: "p1", grantee: permit.grantee, expiry }), /needs the server's address/, "no permit without the server it is good on");
+  assert.throws(() => sp.mintPermit(issuer, { aud: server, plot: "p1", grantee: permit.grantee, expiry }), /needs the server's address/, "nor one naming its did:hum (v2's words)");
   // The server's did:hum, read where the relay shows it (/api/server-info `server_did`), from a
   // stand-in served by this process (no relay booted).
   const http = require("node:http");
@@ -955,6 +958,8 @@ const HOUSEHOLD_RS = fs.readFileSync(path.join(REPO, "src", "net", "household.rs
 // The game's own sealed permit note (lane 1A of ship homes 5b; absent until it merges).
 const PERMIT_NOTE_FIXTURE = process.env.SEALED_DM_FIXTURE || path.join(__dirname, "fixtures", "permit-note-v1.json");
 const SERVER_DID = "did:hum:EyQ6f83mX2rGSTAXfKF6AN";
+// The address the walkers opened: what every pass and permit names since v3 (2026-11-21).
+const AUD = "relay.example";
 const seeded = (b) => new Uint8Array(32).fill(b);
 
 // Red check run 2026-10-12, restored afterwards: both verbs renamed in parseCommand, as before they
@@ -997,7 +1002,7 @@ test("the walker's permit note is the game's", async (t) => {
   const noble = await sp.loadNoble();
   const game = sp.deriveIdentity(noble, seeded(11));
   const ada = sp.deriveIdentity(noble, seeded(22));
-  const permit = sp.mintPermit(game, { server: SERVER_DID, plot: "p2", grantee: sp.didFor(noble, ada.publicKeyHex), expiry: 1900000000 });
+  const permit = sp.mintPermit(game, { aud: AUD, plot: "p2", grantee: sp.didFor(noble, ada.publicKeyHex), expiry: 1900000000 });
   const note = sp.permitNoteText(permit);
   const at = PERMIT_RS.indexOf("pub struct Permit {");
   const fields = [...PERMIT_RS.slice(at, PERMIT_RS.indexOf("\n}", at)).matchAll(/^\s*pub ([a-z_]+):/gm)].map((m) => m[1]);
@@ -1021,7 +1026,7 @@ test("the walker's permit note is the game's", async (t) => {
     "a plot with a line break": variant((v) => (v.plot = "p2\nx")),
     "an issuer that is not hex": variant((v) => (v.issuer = `zz${v.issuer.slice(2)}`)),
     "an empty signature": variant((v) => (v.sig = "")),
-    "a server id over 128 bytes": variant((v) => (v.server = `did:hum:${"A".repeat(130)}`)),
+    "a server named by a did:hum, not an address": variant((v) => (v.aud = SERVER_DID)),
     "a body over 16,384 bytes": variant((v) => (v.sig = "A".repeat(16400))),
     "no expiry": variant((v) => delete v.expiry),
   };
@@ -1084,17 +1089,17 @@ async function dmCast({ nowMs = Date.UTC(2026, 9, 12, 12) } = {}) {
   const lines = [];
   let refs = 0;
   const dms = sp.makeDms({
-    noble, identity: ada, name: "TestBotAda", serverDid: SERVER_DID,
+    noble, identity: ada, name: "TestBotAda", serverDid: SERVER_DID, audience: AUD,
     kyberOf: (k) => kyber.get(k) || null, send: (m) => sent.push(m), log: (s) => lines.push(`second-player: ${s}`),
     now: () => nowMs, newRef: () => `${(++refs).toString(16).padStart(32, "0")}`,
   });
   // What one of the others sends Ada: a signed, sealed DM, as the desktop app makes it.
   const dmFrom = (who, text, cert = null, ts = nowMs) => ({ type: "dm_new", id: 1, content: DM.sealV2(noble, ada.kyberPublicB64, DM.signedInner(who, { to: ada.publicKeyHex, ts, text, cert })) });
   // A friendship pass `who` gives Ada on `server` (the relay's own words, /shared/friend-pass.js).
-  const passFrom = (who, server = SERVER_DID, serial = "0123456789abcdef0123456789abcdef") => {
+  const passFrom = (who, aud = AUD, serial = "0123456789abcdef0123456789abcdef") => {
     const may = FRIEND_PASS.friendPassMay(FRIEND_PASS.FRIEND_PASS_DEFAULT_MAY);
-    const sig = who.sign(new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(server, who.publicKeyHex, ada.publicKeyHex, serial, may)));
-    return FRIEND_PASS.friendPassJson(serial, may, Buffer.from(sig).toString("base64"));
+    const sig = who.sign(new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(aud, who.publicKeyHex, ada.publicKeyHex, serial, may)));
+    return FRIEND_PASS.friendPassJson(aud, serial, may, Buffer.from(sig).toString("base64"));
   };
   const open = (who, put) => DM.verifyInner(noble, DM.openV2(noble, who.kyberSecretKey, put.content));
   return { noble, ada, game, cy, dms, sent, lines, dmFrom, passFrom, open, nowMs, nowS: Math.floor(nowMs / 1000) };
@@ -1123,7 +1128,8 @@ test("befriended, a pass and a follow arrive, and permits go both ways as the ap
   const parsed = REACH.contactRequestParse(req.text);
   const pass = FRIEND_PASS.friendPassParse(parsed.pass);
   assert.equal(pass.may, "invite,message,trade,voice_message", "the default pass: everything but calls");
-  const words = new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(SERVER_DID, c.ada.publicKeyHex, c.game.publicKeyHex, pass.serial, pass.may));
+  assert.equal(pass.aud, AUD, "her pass names the address her walker opened");
+  const words = new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(AUD, c.ada.publicKeyHex, c.game.publicKeyHex, pass.serial, pass.may));
   assert.ok(c.noble.ml_dsa65.verify(new Uint8Array(Buffer.from(pass.sig, "base64")), words, new Uint8Array(Buffer.from(c.ada.publicKeyHex, "hex"))), "her pass for the game checks out on this server");
   assert.ok(!c.dms.isFollowing(c.game.publicKeyHex), "not counted as sent before the server took it");
   assert.equal(c.dms.received({ type: "dm_put_ok", ref: asked.ref }), true);
@@ -1157,8 +1163,8 @@ test("befriended, a pass and a follow arrive, and permits go both ways as the ap
   const note = c.open(c.game, put);
   assert.equal(note.text, sp.permitNoteText(gave.permit), "[[hum:permit:v1]] then the permit's JSON");
   const p = sp.parsePermitNote(note.text);
-  assert.deepEqual([p.issuer, p.server, p.plot, p.grantee, p.expiry], [c.ada.publicKeyHex, SERVER_DID, "p1", sp.didFor(c.noble, c.game.publicKeyHex), c.nowS + 30 * 86400]);
-  assert.equal(sp.judgePermit(c.noble, p, { sender: note.from, serverDid: SERVER_DID, myDid: sp.didFor(c.noble, c.game.publicKeyHex), nowS: c.nowS }), null, "it checks out as the game will check it");
+  assert.deepEqual([p.issuer, p.aud, p.plot, p.grantee, p.expiry], [c.ada.publicKeyHex, AUD, "p1", sp.didFor(c.noble, c.game.publicKeyHex), c.nowS + 30 * 86400]);
+  assert.equal(sp.judgePermit(c.noble, p, { sender: note.from, myDid: sp.didFor(c.noble, c.game.publicKeyHex), nowS: c.nowS }), null, "it checks out as the game will check it");
   const sentPermit = c.lines.find((l) => sp.PERMIT_SENT_RE.test(l)).match(sp.PERMIT_SENT_RE);
   assert.deepEqual(sentPermit.slice(1, 4), [k12(c.game), "p1", gave.ref]);
   assert.deepEqual(JSON.parse(sentPermit[4]), gave.permit, "the sent line carries the permit");
@@ -1169,7 +1175,7 @@ test("befriended, a pass and a follow arrive, and permits go both ways as the ap
   assert.deepEqual(c.dms.given(), [], "and counts nothing as given");
 
   // 4. The game gives Ada a permit for its plot.
-  const toAda = sp.mintPermit(c.game, { server: SERVER_DID, plot: "p2", grantee: sp.didFor(c.noble, c.ada.publicKeyHex), expiry: c.nowS + 30 * 86400 });
+  const toAda = sp.mintPermit(c.game, { aud: AUD, plot: "p2", grantee: sp.didFor(c.noble, c.ada.publicKeyHex), expiry: c.nowS + 30 * 86400 });
   c.dms.received(c.dmFrom(c.game, sp.permitNoteText(toAda)));
   const got = c.lines.find((l) => sp.PERMIT_RECEIVED_RE.test(l)).match(sp.PERMIT_RECEIVED_RE)[1];
   assert.deepEqual(JSON.parse(got), toAda, "permit received: {json} carries it whole");
@@ -1197,18 +1203,18 @@ test("a permit that does not check out is refused, saying why, and never held", 
   c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, c.passFrom(c.game)));
   c.dms.received(c.dmFrom(c.cy, DM.CTL_FRIEND_CERT, c.passFrom(c.cy)));
   const adaDid = sp.didFor(c.noble, c.ada.publicKeyHex);
-  const mint = (who, over = {}) => sp.mintPermit(who, { server: SERVER_DID, plot: "p2", grantee: adaDid, expiry: c.nowS + 7 * 86400, ...over });
+  const mint = (who, over = {}) => sp.mintPermit(who, { aud: AUD, plot: "p2", grantee: adaDid, expiry: c.nowS + 7 * 86400, ...over });
   const good = mint(c.game);
   const rows = [
     ["a permit Cy forwarded from the game", c.cy, good, "not_from_its_issuer"],
-    ["one given on another server", c.game, mint(c.game, { server: "did:hum:AnotherServer1" }), "other_server"],
+    ["one moved to another server address after it was signed", c.game, { ...good, aud: "elsewhere.example" }, "does_not_check_out"],
     ["one naming someone else", c.game, mint(c.game, { grantee: sp.didFor(c.noble, c.cy.publicKeyHex) }), "not_for_me"],
     ["one that ran out", c.game, { ...good, expiry: c.nowS - 1 }, "ran_out"],
     ["one 92 days long", c.game, { ...good, expiry: c.nowS + 92 * 86400 }, "too_long"],
     ["one whose signature is not its words'", c.game, { ...good, plot: "p3" }, "does_not_check_out"],
   ];
   for (const [what, sender, permit, why] of rows) {
-    assert.equal(sp.judgePermit(c.noble, permit, { sender: sender.publicKeyHex, serverDid: SERVER_DID, myDid: adaDid, nowS: c.nowS }), why, what);
+    assert.equal(sp.judgePermit(c.noble, permit, { sender: sender.publicKeyHex, myDid: adaDid, nowS: c.nowS }), why, what);
     const n = c.lines.length;
     c.dms.received(c.dmFrom(sender, sp.permitNoteText(permit)));
     const fresh = c.lines.slice(n);
@@ -1216,9 +1222,8 @@ test("a permit that does not check out is refused, saying why, and never held", 
     assert.deepEqual(fresh.filter((l) => sp.PERMIT_REFUSED_RE.test(l)).map((l) => l.match(sp.PERMIT_REFUSED_RE)[1]), [why], `${what}: refused as ${why}`);
     assert.ok(!fresh.some((l) => sp.PERMIT_OK_RE.test(l)), `${what}: never "checks out"`);
   }
-  assert.equal(sp.judgePermit(c.noble, good, { sender: c.game.publicKeyHex, serverDid: null, myDid: adaDid, nowS: c.nowS }), "no_server_yet");
-  assert.equal(sp.judgePermit(c.noble, good, { sender: c.game.publicKeyHex.toUpperCase(), serverDid: SERVER_DID, myDid: adaDid, nowS: c.nowS }), null, "the issuer compared as the game compares it, case aside");
-  assert.equal(sp.judgePermit(c.noble, { ...good, expiry: c.nowS + 91 * 86400 }, { sender: c.game.publicKeyHex, serverDid: SERVER_DID, myDid: adaDid, nowS: c.nowS }), "does_not_check_out", "a day past 90 is within the clock slack, so only its signature refuses it");
+  assert.equal(sp.judgePermit(c.noble, good, { sender: c.game.publicKeyHex.toUpperCase(), myDid: adaDid, nowS: c.nowS }), null, "the issuer compared as the game compares it, case aside");
+  assert.equal(sp.judgePermit(c.noble, { ...good, expiry: c.nowS + 91 * 86400 }, { sender: c.game.publicKeyHex, myDid: adaDid, nowS: c.nowS }), "does_not_check_out", "a day past 90 is within the clock slack, so only its signature refuses it");
   // From someone who gave Ada no pass: a stranger's permit is not kept.
   const stranger = sp.deriveIdentity(c.noble, sp.masterSeedFrom(c.noble, "household stranger", "TestBotStranger"));
   const n = c.lines.length;
@@ -1239,8 +1244,9 @@ test("a permit that does not check out is refused, saying why, and never held", 
 test("a pass that does not check out, an unfollow, a stranger's request, my own copies", async () => {
   const c = await dmCast();
   const k12 = (id) => id.publicKeyHex.slice(0, 12);
-  c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, c.passFrom(c.game, "did:hum:AnotherServer1")));
-  assert.equal(c.dms.passFrom(c.game.publicKeyHex), null, "a pass given on another server is not kept");
+  const moved = JSON.stringify({ ...JSON.parse(c.passFrom(c.game)), aud: "elsewhere.example" });
+  c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, moved));
+  assert.equal(c.dms.passFrom(c.game.publicKeyHex), null, "a pass moved to another server address after signing is not kept");
   assert.ok(c.lines.some((l) => /dm: a friend pass from \w{12} did not check out/.test(l)));
   assert.ok(!c.lines.some((l) => sp.DM_PASS_RE.test(l)), "and never logged as a friend pass");
   c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, c.passFrom(c.game)));

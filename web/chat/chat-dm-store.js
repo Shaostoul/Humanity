@@ -44,13 +44,16 @@ const hosDmStore = {
   // the encrypted meta box and built from sealed control messages.
   following: new Set(),
   followers: new Set(),
-  // ── Friendship passes v2 (2026-10-09, blocking-and-safe-mode.md 10b). Saved
-  // under new names (passesFrom / passesSent): the v1 certsFrom / certsSent a
-  // store from before holds are not read, so they are gone on the next save and
-  // the pass sweep (chat-social.js sweepFriendPasses) mints v2 for every mutual
-  // follow.
-  passServer: '',      // did:hum of the server these passes name
-  certsFrom: {},       // peer -> the pass THEY gave ME (v2 JSON), presented whenever I reach them
+  // ── Friendship passes v3 (v2 2026-10-09, blocking-and-safe-mode.md 10b; v3
+  // 2026-11-21). Saved under new names each time (passesFromV3 / passesSentV3 /
+  // passesUnsureV3): the v1 certsFrom / certsSent and the v2 passesFrom /
+  // passesSent / passesUnsure a store from before holds (passes naming the
+  // server's did:hum, which no relay takes now: a pass names the address the
+  // page opened) are not read, so they are gone on the next save and the pass
+  // sweep (chat-social.js sweepFriendPasses) mints v3 for every mutual follow. A
+  // withdrawal still waiting (serials only) keeps its name and still goes out.
+  passServer: '',      // did:hum of the server these passes were given on (a changed one voids them)
+  certsFrom: {},       // peer -> the pass THEY gave ME (v3 JSON), presented whenever I reach them
   certsSent: {},       // peer -> [{serial, may}] passes I gave them that still stand
   withdrawalsPending: [], // serials I withdrew that the relay has not confirmed yet
   // ── A pass counts as given only once the server took it (10l, 2026-10-10).
@@ -262,10 +265,10 @@ const hosDmStore = {
           if (m && Array.isArray(m.following)) this.following = new Set(m.following);
           if (m && Array.isArray(m.followers)) this.followers = new Set(m.followers);
           if (m && typeof m.passServer === 'string') this.passServer = m.passServer;
-          if (m && m.passesFrom && typeof m.passesFrom === 'object') this.certsFrom = m.passesFrom;
-          if (m && m.passesSent && typeof m.passesSent === 'object') this.certsSent = m.passesSent;
+          if (m && m.passesFromV3 && typeof m.passesFromV3 === 'object') this.certsFrom = m.passesFromV3;
+          if (m && m.passesSentV3 && typeof m.passesSentV3 === 'object') this.certsSent = m.passesSentV3;
           if (m && Array.isArray(m.withdrawalsPending)) this.withdrawalsPending = m.withdrawalsPending;
-          if (m && m.passesUnsure && typeof m.passesUnsure === 'object') this.passesUnsure = m.passesUnsure;
+          if (m && m.passesUnsureV3 && typeof m.passesUnsureV3 === 'object') this.passesUnsure = m.passesUnsureV3;
           if (m && m.passChoice && typeof m.passChoice === 'object') this.passChoice = m.passChoice;
           if (m && Array.isArray(m.choiceNotesPending)) this.choiceNotesPending = m.choiceNotesPending;
           if (m && Array.isArray(m.unfollowsPending)) this.unfollowsPending = m.unfollowsPending;
@@ -323,10 +326,10 @@ const hosDmStore = {
       following: Array.from(this.following),
       followers: Array.from(this.followers),
       passServer: this.passServer,
-      passesFrom: this.certsFrom,
-      passesSent: this.certsSent,
+      passesFromV3: this.certsFrom,
+      passesSentV3: this.certsSent,
       withdrawalsPending: this.withdrawalsPending,
-      passesUnsure: this.passesUnsure,
+      passesUnsureV3: this.passesUnsure,
       passChoice: this.passChoice,
       choiceNotesPending: this.choiceNotesPending,
       unfollowsPending: this.unfollowsPending,

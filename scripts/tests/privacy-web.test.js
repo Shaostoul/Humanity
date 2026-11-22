@@ -171,7 +171,7 @@ async function settingsPage(opts = {}) {
     assert.ok(ws, "the page opened its own connection");
     assert.equal(ws.url, "wss://united-humanity.us/ws");
     ws.open();
-    ws.receive({ type: "identify_challenge", nonce: "n0nce" });
+    ws.receive({ type: "identify_challenge", nonce: "0123456789abcdef".repeat(4) }); // a relay's shape (64 hex), the only one signed
     await settle();
     ws.receive({ type: "peer_list", peers: [{ public_key: ME, role: "verified" }] });
     await settle();

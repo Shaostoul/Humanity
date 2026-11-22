@@ -6573,7 +6573,7 @@ mod household_ipc_tests {
         let serial = "0a".repeat(16);
         let permit = Permit {
             issuer: ada.clone(),
-            server: "did:hum:ProbeServer".into(),
+            aud: "household-probe.example".into(),
             plot: "p1".into(),
             grantee: crate::relay::storage::plot_owner_id(&me),
             serial: serial.clone(),

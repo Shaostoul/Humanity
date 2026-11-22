@@ -154,8 +154,9 @@ fn an_admins_remove_sends_the_signed_decide_with_the_right_purpose() {
     let reads = wait_for(&ctx, &theme, &mut state, &seen, "POST /api/files/takedowns/open ");
     let read: Value = serde_json::from_str(reads[0].strip_prefix("POST /api/files/takedowns/open ").unwrap()).unwrap();
     assert!(
-        crate::relay::handlers::broadcast::verify_dilithium_signature(
+        crate::relay::signed_request::verify(
             read["key"].as_str().unwrap_or(""),
+            &humanity_protocol::signed_request::audience_of(&base).unwrap(),
             crate::relay::files_takedown::OPEN_PURPOSE,
             read["timestamp"].as_u64().unwrap_or(0),
             read["sig"].as_str().unwrap_or("")
@@ -176,8 +177,9 @@ fn an_admins_remove_sends_the_signed_decide_with_the_right_purpose() {
     let relay_purpose = crate::relay::files_takedown::decide_purpose(5, crate::relay::files_takedown::Outcome::Removed);
     assert_eq!(relay_purpose, "media_takedown:5:removed");
     assert!(
-        crate::relay::handlers::broadcast::verify_dilithium_signature(
+        crate::relay::signed_request::verify(
             body["key"].as_str().unwrap_or(""),
+            &humanity_protocol::signed_request::audience_of(&base).unwrap(),
             &relay_purpose,
             body["timestamp"].as_u64().unwrap_or(0),
             body["sig"].as_str().unwrap_or("")

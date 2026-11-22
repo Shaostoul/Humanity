@@ -8,7 +8,6 @@
 
 use std::sync::Arc;
 
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use futures::{SinkExt, StreamExt};
 use serde_json::Value;
 use tokio_tungstenite::tungstenite::Message as WsMsg;
@@ -17,9 +16,12 @@ use crate::relay::relay::RelayState;
 
 async fn spawn_relay(tag: &str) -> u16 {
     let state = Arc::new(RelayState::new(crate::relay::storage::Storage::open_temp(&format!("reserved_{tag}"))));
-    let app = crate::relay::build_router(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
+    // Its own names, the loopback ones on its port: a sign-in names the address its socket opened
+    // (audience.rs, since the signed requests were merged, 2026-11-22).
+    let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap()));
+    let app = crate::relay::build_router(state);
     tokio::spawn(async move {
         let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
     });
@@ -35,8 +37,8 @@ async fn identify(port: u16, seed: [u8; 32], name: &str) -> Value {
     let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
     assert_eq!(challenge["type"], "identify_challenge", "{challenge}");
     let nonce = challenge["nonce"].as_str().unwrap();
-    let sig = B64.encode(dil.sign(format!("hum/identify/v1\n{nonce}\n{pubkey}").as_bytes()));
-    sock.send(WsMsg::Text(serde_json::json!({ "type": "identify_response", "sig_b64": sig }).to_string().into())).await.unwrap();
+    let proof = crate::relay::audience::test_identify_response(&dil, &format!("127.0.0.1:{port}"), nonce, &pubkey);
+    sock.send(WsMsg::Text(proof.to_string().into())).await.unwrap();
     let mut seen = Vec::new();
     let got = tokio::time::timeout(std::time::Duration::from_secs(10), async {
         while let Some(frame) = sock.next().await {

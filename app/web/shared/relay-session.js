@@ -12,7 +12,7 @@
 // the way the Trade and Tasks pages do (trade-app.js, tasks-app.js):
 //   1. it sends `identify` with the person's Dilithium3 public key;
 //   2. the relay answers `identify_challenge {nonce}`;
-//   3. the page signs "hum/identify/v1\n{nonce}\n{public_key}" and answers
+//   3. the page signs "hum/identify/v2\n{audience}\n{nonce}\n{public_key}" and answers
 //      `identify_response {sig_b64}` (src/relay/relay.rs, Inc3b);
 //   4. `peer_list` arrives once the relay accepted the proof: the person's own
 //      entry carries the upload token, the role and the upload limit.
@@ -33,15 +33,24 @@
   // Whose role definition a role reads as: the owner's is the Admin row (BUG-332's sweep).
   const ROLES = typeof module === 'object' && module && module.exports ? require('./roles.js') : root.HosRoles;
 
-  const IDENTIFY_DOMAIN = 'hum/identify/v1';
+  const IDENTIFY_DOMAIN = 'hum/identify/v2';
   // The relay's per-connection throttle closes the socket; the close handler backs off.
   const THROTTLE_PREFIX = 'Too many connection attempts';
   const RETRY_FIRST_MS = 5000;
   const RETRY_MAX_MS = 60000;
 
-  /** The exact words the relay verifies: format!("hum/identify/v1\n{}\n{}", nonce, public_key). */
-  function identifyPreimage(nonce, publicKeyHex) {
-    return IDENTIFY_DOMAIN + '\n' + nonce + '\n' + publicKeyHex;
+  /**
+   * The exact words the relay verifies (2026-11-21): hum/identify/v2, the audience (the address this
+   * page opened its socket at: location.host, lowercase), the relay's nonce, the key. The twin of
+   * pq.js pqIdentifyPreimage and the Rust identify_preimage (scripts/tests/fixtures/signed-request-v2.json).
+   */
+  function identifyPreimage(audience, nonce, publicKeyHex) {
+    return IDENTIFY_DOMAIN + '\n' + audience + '\n' + nonce + '\n' + publicKeyHex;
+  }
+
+  /** Whether `nonce` has a relay's challenge shape (64 lowercase hex): nothing else is signed. */
+  function isIdentifyNonce(nonce) {
+    return typeof nonce === 'string' && /^[0-9a-f]{64}$/.test(nonce);
   }
 
   /** Standard base64 (what the relay's B64.decode expects), one byte at a time. */
@@ -135,10 +144,13 @@
       // ── Sign-in phase: nothing else counts until the relay accepts the proof ──
       if (state.status !== 'bound') {
         if (m.type === 'identify_challenge') {
-          const preimage = new TextEncoder().encode(identifyPreimage(m.nonce, identity.dilithiumPublicHex));
+          // Signed for the address this page opened, never one the server names (2026-11-21).
+          const audience = String((o.location && o.location.host) || '').toLowerCase();
+          if (!audience || !isIdentifyNonce(m.nonce)) { refuse(sock, 'the server\'s sign-in check is not one this page signs.'); return; }
+          const preimage = new TextEncoder().encode(identifyPreimage(audience, m.nonce, identity.dilithiumPublicHex));
           Promise.resolve(o.signBytes(identity.dilithiumSecret, preimage)).then((sig) => {
             if (!sig || !sig.length) { refuse(sock, 'this page could not sign the server\'s sign-in check with your identity.'); return; }
-            if (isOpen(sock) && ws === sock) sock.send(JSON.stringify({ type: 'identify_response', sig_b64: bytesToB64(sig) }));
+            if (isOpen(sock) && ws === sock) sock.send(JSON.stringify({ type: 'identify_response', sig_b64: bytesToB64(sig), audience }));
           }, () => refuse(sock, 'this page could not sign the server\'s sign-in check with your identity.'));
         } else if (m.type === 'peer_list') {
           // The relay sends peer_list first thing after it binds the socket.
@@ -255,7 +267,7 @@
     };
   }
 
-  const api = { IDENTIFY_DOMAIN, identifyPreimage, createRelaySession };
+  const api = { IDENTIFY_DOMAIN, identifyPreimage, isIdentifyNonce, createRelaySession };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else Object.assign(root, api);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -38,8 +38,15 @@ pub struct OverrideRequest {
     pub key: String,
     /// Unix millis; must be within 5 minutes of server time.
     pub timestamp: u64,
-    /// Dilithium3 signature hex over `agent_override\n{timestamp}`.
+    /// Dilithium3 signature hex over the request [`override_purpose`] (signed_request.rs).
     pub sig: String,
+}
+
+/// The purpose an override is signed over: `agent_override\n{scope_id}\n{status}` (2026-11-21,
+/// signed requests round 3, C7: the bare `agent_override` named no target, so one admin signature
+/// could set any scope to any status inside its window).
+pub fn override_purpose(scope_id: &str, status: &str) -> String {
+    format!("agent_override\n{scope_id}\n{status}")
 }
 
 /// Scope ids come from agent_registry.ron and are written back into
@@ -112,37 +119,13 @@ pub async fn set_agent_override(
     State(state): State<Arc<RelayState>>,
     Json(req): Json<OverrideRequest>,
 ) -> impl IntoResponse {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-
     // Admin-only (v0.698.0). This endpoint WRITES a coordination file and
     // posts to #announcements; it shipped unauthenticated at v0.118.0 and
-    // was caught in the 2026-07-04 page-access audit. Same key/timestamp/sig
-    // scheme as /api/admin/stats.
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    if now_ms.saturating_sub(req.timestamp) > 5 * 60 * 1000 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "Timestamp too old."})),
-        )
-            .into_response();
-    }
-    let vk = req.key.clone();
-    let vsig = req.sig.clone();
-    let vts = req.timestamp;
-    let sig_ok = tokio::task::spawn_blocking(move || {
-        verify_dilithium_signature(&vk, "agent_override", vts, &vsig)
-    })
-    .await
-    .unwrap_or(false);
-    if !sig_ok {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "Signature verification failed."})),
-        )
-            .into_response();
+    // was caught in the 2026-07-04 page-access audit. Fresh, signed as a
+    // request (never a chat line's shape), used once (signed_request.rs).
+    let purpose = override_purpose(&req.scope_id, &req.status);
+    if let Err(why) = crate::relay::signed_request::check(&state, &req.key, req.timestamp, &req.sig, &purpose, "agent_override").await {
+        return (why.status(), Json(serde_json::json!({ "error": why.words() }))).into_response();
     }
     if !crate::relay::handlers::msg_handlers::is_admin_role(&state.db.get_role(&req.key).unwrap_or_default()) {
         return (

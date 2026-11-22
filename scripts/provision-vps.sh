@@ -190,6 +190,10 @@ set_relay_env() {
 }
 set_relay_env TURN_PORT "$CALL_PORT"
 set_relay_env TURN_PUBLIC_HOST "$CALL_HOST"
+# The names people's apps reach this relay by (src/relay/audience.rs, 2026-11-21): every signed
+# request and sign-in names one, and the relay refuses any other. Written once; an onion address
+# scripts/tor-onion-setup.sh adds later stays.
+grep -q '^PUBLIC_HOSTS=' "$REPO/.env" || printf 'PUBLIC_HOSTS=%s,%s\n' "$DOMAIN" "$CHAT_DOMAIN" >> "$REPO/.env"
 # ── The relay binary: FETCH if we can, build only if we must ────────────────
 #
 # Measured on the live VPS: RUNNING the relay costs 19.7 MB RSS, 0.5% of one
@@ -241,10 +245,20 @@ else
   fi
   rm -rf "$tmp"
 fi
+# time-sync.target means a real clock sync only while systemd-time-wait-sync is enabled; its wait
+# is capped so a box without network time still starts the relay (2026-11-21).
+if systemctl cat systemd-time-wait-sync.service >/dev/null 2>&1; then
+  mkdir -p /etc/systemd/system/systemd-time-wait-sync.service.d
+  printf '[Service]\nTimeoutStartSec=90\n' > /etc/systemd/system/systemd-time-wait-sync.service.d/humanity-limit.conf
+  systemctl enable systemd-time-wait-sync.service >/dev/null 2>&1 || true
+fi
 cat > /etc/systemd/system/humanity-relay.service <<UNIT
 [Unit]
 Description=Humanity Network Relay
-After=network.target
+# Once the clock is set (2026-11-21): the relay refuses a signed request made before its own
+# start, so a start on a clock still wrong at boot refused everything until it caught up.
+After=network.target time-sync.target
+Wants=time-sync.target
 
 [Service]
 Type=simple

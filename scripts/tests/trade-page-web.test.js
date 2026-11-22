@@ -50,6 +50,9 @@ const fp = require(path.join(WEB, "shared", "friend-pass.js"));
 
 const hex = (u8) => Buffer.from(u8).toString("hex");
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The address the page opened (pq.js `pqAudience`, stubbed here): what every pass names since v3
+// (2026-11-21), never the did:hum the server claims.
+const AUD = "chat.example";
 const HOST = "localhost";
 const OLD_KEY = "ed25519-key-from-before-the-cutover";
 
@@ -264,13 +267,13 @@ async function chatKeeps({ storage, idb, me, passes }) {
   }
 }
 
-// The pass `issuer` gives `grantee` on SERVER, really signed: what Chat receives and keeps.
+// The pass `issuer` gives `grantee` at the server address AUD, really signed: what Chat receives and keeps.
 async function realPass(issuer, grantee) {
   const n = await noble();
   const serial = "00112233445566778899aabbccddeeff";
   const may = "invite,message,trade,voice_message";
-  const sig = n.ml_dsa65.sign(new TextEncoder().encode(fp.friendPassPreimage(SERVER, issuer.key, grantee.key, serial, may)), issuer.sk);
-  return fp.friendPassJson(serial, may, Buffer.from(sig).toString("base64"));
+  const sig = n.ml_dsa65.sign(new TextEncoder().encode(fp.friendPassPreimage(AUD, issuer.key, grantee.key, serial, may)), issuer.sk);
+  return fp.friendPassJson(AUD, serial, may, Buffer.from(sig).toString("base64"));
 }
 
 // ── The Trade page ──────────────────────────────────────────────────────
@@ -409,10 +412,13 @@ test("the page answers the challenge with a real signature over the exact words,
   await until(() => ws.sent.length === 2, "the identify_response");
   const resp = ws.sent[1];
   assert.equal(resp.type, "identify_response");
-  assert.ok(await relayAccepts(me.key, "hum/identify/v1\n" + nonce + "\n" + me.key, resp.sig_b64),
-    "the relay's check passes: ML-DSA-65 over \"hum/identify/v1\\n{nonce}\\n{public_key}\" under the identified key");
-  assert.ok(!(await relayAccepts(me.key, "hum/identify/v1\n" + "00".repeat(32) + "\n" + me.key, resp.sig_b64)),
+  assert.equal(resp.audience, HOST, "the sign-in names the address the page opened");
+  assert.ok(await relayAccepts(me.key, "hum/identify/v2\n" + HOST + "\n" + nonce + "\n" + me.key, resp.sig_b64),
+    "the relay's check passes: ML-DSA-65 over \"hum/identify/v2\\n{audience}\\n{nonce}\\n{public_key}\" under the identified key");
+  assert.ok(!(await relayAccepts(me.key, "hum/identify/v2\n" + HOST + "\n" + "00".repeat(32) + "\n" + me.key, resp.sig_b64)),
     "and fails for another nonce, so the check means something");
+  assert.ok(!(await relayAccepts(me.key, "hum/identify/v2\nother.example\n" + nonce + "\n" + me.key, resp.sig_b64)),
+    "and for another server (2026-11-21: a server cannot pass another's challenge through)");
 
   // Before peer_list: no button, and every action sends nothing.
   assert.ok(!page.newTradeShown(), "New trade still hidden before peer_list");
@@ -538,8 +544,9 @@ test("a trade request to a friend carries the pass Chat keeps, to anyone else no
   const pass = fp.friendPassParse(out[0].friend_cert);
   const n = await noble();
   assert.ok(n.ml_dsa65.verify(Buffer.from(pass.sig, "base64"),
-    new TextEncoder().encode(fp.friendPassPreimage(SERVER, ann.key, me.key, pass.serial, pass.may)), ann.pub),
-  "and the pass checks out the way the relay checks it: this server, Ann as issuer, the signed-in key as grantee");
+    new TextEncoder().encode(fp.friendPassPreimage(pass.aud, ann.key, me.key, pass.serial, pass.may)), ann.pub),
+  "and the pass checks out the way the relay checks it: the address it names, Ann as issuer, the signed-in key as grantee");
+  assert.equal(pass.aud, AUD, "the address Ann's page opened");
   assert.equal(page.el("trade-request-modal").style.display, "none", "the form closes");
 
   // To Ann, by name: looked up to the same key, pass and all.
@@ -593,9 +600,10 @@ test("an order book sell order is signed the way the relay checks it", async () 
   const body = JSON.parse(post.opts.body);
   assert.equal(body.public_key, me.key);
   const n = await noble();
-  // api_market.rs: format!("trade_order\n{}\n{}\n{}", item_type, quantity, price_per_unit), then
-  // verify_dilithium_signature adds "\n{timestamp}"; the signature is hex.
-  const words = "trade_order\nwood\n5\n2.5\n" + body.timestamp;
+  // api_market.rs trade_order_purpose: the item, its id, the quantity, the price and the currency
+  // (2026-11-21: every field the order carries), signed as a request for this server (hum/request/v2,
+  // the audience, that purpose, the time); the signature is hex.
+  const words = "hum/request/v2\n" + HOST + "\ntrade_order\nwood\n\n5\n2.5\ncredits\n" + body.timestamp;
   assert.ok(n.ml_dsa65.verify(Buffer.from(body.signature, "hex"), new TextEncoder().encode(words), me.pub),
     "a Dilithium3 signature over the relay's words");
 });

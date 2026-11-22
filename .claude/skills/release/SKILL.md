@@ -25,13 +25,16 @@ share this checkout: stage by name, never sweep.
 ```bash
 LAST=$(git describe --tags --abbrev=0 --match 'v*')   # game tags only: asset releases (assets-*) are tags too
 git diff --quiet "$LAST"..HEAD -- src Cargo.toml && KIND=patch || KIND=minor   # Rust changed: minor
-node scripts/bump-version.js $KIND
+mkdir -p target && node scripts/bump-version.js $KIND --changed-list target/release-bump-files.txt
 V=$(node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\"(.+?)\"/m)[1]")
 [ -n "$V" ] || exit 1
 ```
 
-Never type the version from memory. The bump touches eight files (Cargo.toml, Cargo.lock, and the
-six web stamps `scripts/bump-version.js` lists).
+Never type the version from memory. The bump writes the version into Cargo.toml, Cargo.lock and the
+web stamps `scripts/bump-version.js` lists, then gives each web script it stamped (shell.js,
+settings-app.js) a fresh `?v=` on every page that loads it at one and records it in
+`scripts/tests/fixtures/script-versions.json`, so `script-versions-web.test.js` stays green and
+browsers fetch the new copy. It lists every file it changed in `target/release-bump-files.txt`.
 
 ## 2. Web bundle and release build
 
@@ -70,8 +73,7 @@ Write the notes to a file in the scratchpad (what changed for a person using it,
 `git log --oneline $LAST..HEAD`; no em dashes; never a line about signing). Then:
 
 ```bash
-git add -- Cargo.toml Cargo.lock web/shared/sw.js web/pages/settings-app.js web/pages/ops.html \
-  web/shared/shell.js web/pages/download.html web/pages/index.html
+git add -- $(cat target/release-bump-files.txt)   # every file the bump changed, pages and table included
 git add -A -- app/web                              # scoped: only the bundle
 git commit -F <msg-file>                           # never -m; ends with the Co-Authored-By line
 git push origin main

@@ -14,7 +14,7 @@ package; do not edit it by hand. Each package's licence files are reproduced as 
 carries them (line endings and trailing spaces aside). A text many packages share is printed once
 and named by its number.
 
-Fingerprint: 61a949931c9b0b48182426b425da9a83b5b228c9a0312755e808558ff19fcc73
+Fingerprint: 0d65c642be8bc526b363883149bc6341e18e2276d283ad353c72963b39ebb662
 Body checksum: 6203a6dfa7c79a603c6dc7ab5bd881712f1250212c995bd698dc24c1fe80147d
 ================================================================================
 PART 1. RUST PACKAGES BUILT INTO THE PROGRAMS (759)

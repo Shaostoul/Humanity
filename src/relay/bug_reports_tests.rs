@@ -21,10 +21,6 @@ fn person(seed_byte: u8) -> (DilithiumKeypair, String) {
     (dil, key)
 }
 
-fn now_ms() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64
-}
-
 fn public(st: &Arc<RelayState>) -> serde_json::Value {
     let q = BugsQuery { status: None, severity: None, category: None, limit: None, offset: None };
     let Json(v) = tokio::runtime::Runtime::new().unwrap().block_on(get_bugs(State(st.clone()), Query(q)));
@@ -33,8 +29,9 @@ fn public(st: &Arc<RelayState>) -> serde_json::Value {
 
 /// `POST /api/bugs/details` signed by `dil` in the name of `key`.
 fn details(st: &Arc<RelayState>, dil: &DilithiumKeypair, key: &str) -> Result<serde_json::Value, StatusCode> {
-    let ts = now_ms();
-    let sig = hex::encode(dil.sign(format!("{BUG_DETAILS_PURPOSE}\n{ts}").as_bytes()));
+    // Each read its own millisecond: the relay takes a signed request once (signed_request.rs).
+    let ts = crate::relay::signed_request::next_test_timestamp();
+    let sig = hex::encode(dil.sign(crate::relay::signed_request::request_preimage(crate::relay::audience::TEST_AUDIENCE, &BUG_DETAILS_PURPOSE, ts).as_bytes()));
     let req: BugDetailsRequest = serde_json::from_value(serde_json::json!({ "key": key, "timestamp": ts, "sig": sig, "limit": 10 })).unwrap();
     tokio::runtime::Runtime::new()
         .unwrap()

@@ -230,10 +230,10 @@ fn person(seed_byte: u8) -> (Vec<u8>, String) {
 fn file_pass(state: &RelayState, issuer: &(Vec<u8>, String), grantee: &str, id: &str, expiry: u64) -> serde_json::Value {
     use humanity_protocol::pq_crypto::{derive_dilithium_seed, file_pass_preimage, DilithiumKeypair};
     use base64::Engine;
-    let server = state.db.server_did().unwrap();
+    let server = crate::relay::audience::test_pass_audience(state);
     let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer.0));
     let sig = base64::engine::general_purpose::STANDARD.encode(kp.sign(file_pass_preimage(&server, &issuer.1, grantee, id, expiry).as_bytes()));
-    serde_json::json!({ "v": 1, "id": id, "expiry": expiry, "sig": sig })
+    serde_json::json!({ "v": 2, "aud": server, "id": id, "expiry": expiry, "sig": sig })
 }
 
 fn file(id: &str, peer: &str, pass: Option<&serde_json::Value>) -> serde_json::Value {

@@ -9,7 +9,10 @@ use crate::net::reach::{Audience, ContactRequest, ReachKind};
 use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use std::io::{Read, Write};
 
-const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The server these tests' apps are on, by the address passes and permits name (C8, 2026-11-21:
+// a pass names the address the app opened; the DM store's identity, `set_pass_server`, takes it
+// too, any text standing for the server's did:hum there).
+const SERVER: &str = "relay.example";
 
 fn identity(n: u8) -> (Vec<u8>, String) {
     let seed = vec![n; 32];
@@ -722,7 +725,7 @@ fn the_setup_stays_out_of_the_self_sync_notes_and_the_export() {
         assert!(!text.to_lowercase().contains("protect") && !text.contains(&verifier.salt) && !text.contains(&verifier.hash), "no frame carries the setup: {text}");
     }
 
-    let export = crate::gui::pages::settings::account_export_request(&me, &seed, 1_791_504_000_000);
+    let export = crate::gui::pages::settings::account_export_request("https://united-humanity.us", &me, &seed, 1_791_504_000_000);
     let mut keys: Vec<&str> = export.as_object().unwrap().keys().map(String::as_str).collect();
     keys.sort();
     assert_eq!(keys, ["key", "sig", "timestamp"], "the export request is the key, the time and the signature");

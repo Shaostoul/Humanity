@@ -771,9 +771,10 @@ verify-live-screen *ARGS:
 
 # Publish a test pattern to a LOCAL relay by hand, to watch a wall screen play
 # something while you work on it. Start a relay first, e.g.
-#   BIND_ADDRESS=127.0.0.1 PORT=3399 DATABASE_PATH=.probe-rig/live-screen/relay/relay.db \
+#   BIND_ADDRESS=127.0.0.1 HUMANITY_DEV_LOOPBACK_NAMES=1 PORT=3399 DATABASE_PATH=.probe-rig/live-screen/relay/relay.db \
 #       target/release/HumanityOS.exe --headless
-# (BIND_ADDRESS=127.0.0.1 keeps Windows from raising a firewall prompt for it.)
+# (BIND_ADDRESS=127.0.0.1 keeps Windows from raising a firewall prompt for it;
+# HUMANITY_DEV_LOOPBACK_NAMES=1 makes it answer to 127.0.0.1, src/relay/audience.rs.)
 # then point the app at http://127.0.0.1:3399 and run this. It refuses any
 # server that is not loopback unless given --allow-remote.
 live-publish *ARGS:
@@ -1258,8 +1259,9 @@ build-relay:
 # a dev relay listening on every interface raises a Windows Firewall prompt for
 # each new exe path (docs/INCIDENT-PLAYBOOK.md, 2026-10-03). To try it from a
 # phone on your Wi-Fi, run the cargo line by hand with BIND_ADDRESS=0.0.0.0.
+# HUMANITY_DEV_LOOPBACK_NAMES=1: it answers to 127.0.0.1:3210 (src/relay/audience.rs).
 run-relay:
-    BIND_ADDRESS=127.0.0.1 cargo run --features relay --no-default-features -- --headless
+    BIND_ADDRESS=127.0.0.1 HUMANITY_DEV_LOOPBACK_NAMES=1 cargo run --features relay --no-default-features -- --headless
 
 # cargo fmt is BANNED in this repo (Incident v0.390): it reformats ~240 files and
 # moves inline `// theme-exempt` markers onto their own line, silently breaking
@@ -1614,7 +1616,8 @@ new-page name:
 release kind title notes:
     #!/usr/bin/env bash
     set -euo pipefail
-    node scripts/bump-version.js {{kind}}
+    BUMPED=$(mktemp)
+    node scripts/bump-version.js {{kind}} --changed-list "$BUMPED"
     VER=$(node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\"(.+?)\"/m)[1]")
     # Refresh Cargo.lock's own version stamp so it never ships stale.
     cargo check --features relay --no-default-features -q 2>/dev/null || cargo check --features relay --no-default-features
@@ -1622,14 +1625,16 @@ release kind title notes:
     { echo "v${VER} - {{title}}"; echo; cat "{{notes}}"; echo; echo "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; } > "$MSG"
     # Stage ONLY the version stamps; stage your own files by name BEFORE calling this
     # (just mine). It used `git add -u`, which in a shared checkout swept every other
-    # session's tracked edits into the release commit (flagged 2026-10-19).
-    git add -- Cargo.toml Cargo.lock web/shared/sw.js web/pages/settings-app.js web/pages/ops.html web/shared/shell.js web/pages/download.html
+    # session's tracked edits into the release commit (flagged 2026-10-19). The list is
+    # the bump's own (2026-11-21): every file it changed, the pages whose script ?v= it
+    # moved and the script-version table included.
+    git add -- $(cat "$BUMPED")
     git commit -F "$MSG"
     git push origin main
     # The tag through scripts/tag-release.js: it reads the version back from the committed
     # Cargo.toml and refuses an empty version, an existing tag, or a HEAD not on origin/main.
     node scripts/tag-release.js --release "{{notes}}"
-    rm -f "$MSG"
+    rm -f "$MSG" "$BUMPED"
     echo "RELEASED v${VER}"
 
 # Tag HEAD v<version> with the version READ from Cargo.toml, and push the tag.

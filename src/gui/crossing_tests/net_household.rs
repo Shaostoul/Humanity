@@ -24,11 +24,11 @@ fn did(n: u8) -> String {
     plot_owner_id(&key(n))
 }
 
-/// The permit `giver` mints on `server` for `grantee` on `plot`, running out at `expiry`,
-/// minted at `minted`, named `serial`.
-fn permit_on(server: &str, giver: u8, plot: &str, grantee: u8, serial: &str, expiry: u64, minted: u64) -> Permit {
-    let sig = build_plot_permit(&[giver; 32], server, plot, &did(grantee), serial, expiry, minted).expect("minted");
-    Permit { issuer: key(giver), server: server.into(), plot: plot.into(), grantee: did(grantee), serial: serial.into(), expiry, sig }
+/// The permit `giver` mints at the server its app opened as `aud` for `grantee` on `plot`,
+/// running out at `expiry`, minted at `minted`, named `serial`.
+fn permit_on(aud: &str, giver: u8, plot: &str, grantee: u8, serial: &str, expiry: u64, minted: u64) -> Permit {
+    let sig = build_plot_permit(&[giver; 32], aud, plot, &did(grantee), serial, expiry, minted).expect("minted");
+    Permit { issuer: key(giver), aud: aud.into(), plot: plot.into(), grantee: did(grantee), serial: serial.into(), expiry, sig }
 }
 
 /// [`permit_on`] this server, minted now, named [`SERIAL`].
@@ -40,7 +40,7 @@ fn permit(giver: u8, plot: &str, grantee: u8, expiry: u64) -> Permit {
 fn unsigned(from: &str, plot: &str, serial: &str, expiry: u64, at: u64) -> HeldPermit {
     let permit = Permit {
         issuer: from.into(),
-        server: SERVER.into(),
+        aud: SERVER.into(),
         plot: plot.into(),
         grantee: "did:hum:me".into(),
         serial: serial.into(),
@@ -64,7 +64,7 @@ fn the_permit_note_round_trips_and_a_bad_one_is_still_a_note() {
     let p = permit(1, "p1", 2, NOW + 30 * DAY);
     let text = note_text(&p);
     assert!(text.starts_with("[[hum:permit:v1]]{\"issuer\":\""), "the marker, then the permit's JSON: {:?}", humanity_core::text::prefix(&text, 40));
-    let order: Vec<usize> = ["\"issuer\":", "\"server\":", "\"plot\":", "\"grantee\":", "\"serial\":", "\"expiry\":", "\"sig\":"]
+    let order: Vec<usize> = ["\"issuer\":", "\"aud\":", "\"plot\":", "\"grantee\":", "\"serial\":", "\"expiry\":", "\"sig\":"]
         .iter()
         .map(|k| text.find(k).unwrap_or_else(|| panic!("{k} in the note")))
         .collect();
@@ -104,11 +104,12 @@ fn the_permit_note_round_trips_and_a_bad_one_is_still_a_note() {
 
 /// WHO A PERMIT IS KEPT FROM (plan section 3.1). I am Bo; Ada gives me a 30-day permit for
 /// her p1 on this server, and it is kept. Not kept, each for its own reason: the same permit
-/// forwarded by Cy (`NotFromItsIssuer`), one Ada gave on another server (`OtherServer`), one
-/// she gave Cy (`NotForMe`), one that ran out (`RanOut`), one signed for 92 days (`TooLong`),
-/// one whose signature is not one and one whose serial is not the one signed
-/// (`DoesNotCheckOut`), and any permit before this device knows the server's identity
-/// (`NoServerYet`).
+/// forwarded by Cy (`NotFromItsIssuer`), one she gave Cy (`NotForMe`), one that ran out
+/// (`RanOut`), one signed for 92 days (`TooLong`), one whose signature is not one, one whose
+/// serial is not the one signed and one whose server address is not the one signed
+/// (`DoesNotCheckOut`). Which server an address is stays the relay's to judge (v3, 2026-11-21:
+/// a permit names the address its giver's app opened, and the relay refuses one naming another
+/// server's), so this side no longer asks whether it knows the server's identity.
 /// Seen red 2026-10-12 with the issuer-equals-sender line removed from `judge_arrival`:
 /// "a permit Cy forwarded from Ada: Err(DoesNotCheckOut), expected Err(NotFromItsIssuer)" (the
 /// signature, checked against the sender's key, still refused it).
@@ -126,32 +127,24 @@ fn a_permit_is_kept_only_from_its_giver_for_me_on_this_server() {
         p.sig = B64.encode(signer.sign(plot_permit_preimage(SERVER, "p1", &me, SERIAL, p.expiry).as_bytes()));
         p
     };
-    let rows: Vec<(&str, Permit, &str, Option<&str>, Result<(), Arrival>)> = vec![
-        ("Ada's permit, from Ada", good.clone(), ada, Some(SERVER), Ok(())),
-        ("a permit Cy forwarded from Ada", good.clone(), cy, Some(SERVER), Err(Arrival::NotFromItsIssuer)),
-        (
-            "a permit Ada gave on another server",
-            permit_on("did:hum:AnotherServer1111111", 1, "p1", 2, SERIAL, NOW + DAY, NOW),
-            ada,
-            Some(SERVER),
-            Err(Arrival::OtherServer),
-        ),
-        ("a permit Ada gave Cy", permit(1, "p1", 3, NOW + DAY), ada, Some(SERVER), Err(Arrival::NotForMe)),
-        ("a permit that ran out", permit_on(SERVER, 1, "p1", 2, SERIAL, NOW - DAY, NOW - 10 * DAY), ada, Some(SERVER), Err(Arrival::RanOut)),
-        ("a permit signed for 92 days", too_long, ada, Some(SERVER), Err(Arrival::TooLong)),
-        ("a permit whose signature is not one", Permit { sig: "bm90LWEtc2ln".into(), ..good.clone() }, ada, Some(SERVER), Err(Arrival::DoesNotCheckOut)),
+    let rows: Vec<(&str, Permit, &str, Result<(), Arrival>)> = vec![
+        ("Ada's permit, from Ada", good.clone(), ada, Ok(())),
+        ("a permit Cy forwarded from Ada", good.clone(), cy, Err(Arrival::NotFromItsIssuer)),
+        ("a permit Ada gave Cy", permit(1, "p1", 3, NOW + DAY), ada, Err(Arrival::NotForMe)),
+        ("a permit that ran out", permit_on(SERVER, 1, "p1", 2, SERIAL, NOW - DAY, NOW - 10 * DAY), ada, Err(Arrival::RanOut)),
+        ("a permit signed for 92 days", too_long, ada, Err(Arrival::TooLong)),
+        ("a permit whose signature is not one", Permit { sig: "bm90LWEtc2ln".into(), ..good.clone() }, ada, Err(Arrival::DoesNotCheckOut)),
         (
             "a permit whose serial is not the one signed",
             Permit { serial: "ffeeddccbbaa99887766554433221100".into(), ..good.clone() },
             ada,
-            Some(SERVER),
             Err(Arrival::DoesNotCheckOut),
         ),
-        ("Ada's permit before the server is known", good, ada, None, Err(Arrival::NoServerYet)),
+        ("a permit whose server address is not the one signed", Permit { aud: "elsewhere.example".into(), ..good }, ada, Err(Arrival::DoesNotCheckOut)),
     ];
     let mut wrong = Vec::new();
-    for (what, p, sender, server, want) in &rows {
-        let got = judge_arrival(p, sender, *server, &me, NOW);
+    for (what, p, sender, want) in &rows {
+        let got = judge_arrival(p, sender, &me, NOW);
         if got != *want {
             wrong.push(format!("{what}: {got:?}, expected {want:?}"));
         }

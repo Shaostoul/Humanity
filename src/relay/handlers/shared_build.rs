@@ -17,10 +17,12 @@
 //! [`may_remove`]):
 //! - on your own plot you build, and you take down anything that stands on it;
 //! - on someone else's plot, only with a household permit its holder signed for you on THIS
-//!   server, checked without storing it (`relay::core::pq_crypto::verify_plot_permit`, given the
-//!   relay's own facts: its server DID, the frame's plot and the sender's own id, never what the
-//!   permit says it is for) and not taken back by its holder (the withdrawal list friendship
-//!   passes use), and there you take down only what you put up;
+//!   server (its `aud` one of this relay's own names that the sender may use, audience.rs
+//!   `OwnNames::admit_pass`, 2026-11-21), checked without storing it
+//!   (`relay::core::pq_crypto::verify_plot_permit`, given the relay's own facts: the frame's plot
+//!   and the sender's own id, never what the permit says it is for) and not taken back by its
+//!   holder (the withdrawal list friendship passes use), and there you take down only what you
+//!   put up;
 //! - in the ship's shared spaces, only with the server's `can_edit_ship` rank
 //!   (`Storage::has_ship_rank`), and with it you take down any piece there;
 //! - the server's admins and its owner take down anything, anywhere (`take_down_any`);
@@ -107,9 +109,6 @@ pub struct PieceBook {
     /// view. Made on their join ([`on_join`]), forgotten when they leave
     /// (`GameWorld::despawn_player`).
     views: HashMap<u64, Viewer>,
-    /// This relay's own `did:hum:` (`Storage::server_did`, its /api/server-info `server_did`): the
-    /// server a household permit must name to be good here.
-    server_did: String,
 }
 
 /// One frame's pieces and its count of changes.
@@ -142,7 +141,6 @@ impl Default for PieceBook {
             blueprints: BlueprintRegistry::new(),
             by_frame: BTreeMap::new(),
             views: HashMap::new(),
-            server_did: String::new(),
         }
     }
 }
@@ -242,14 +240,10 @@ fn load_blueprints(data: &std::path::Path) -> BlueprintRegistry {
 }
 
 /// Fill `world`'s piece book from the database when the relay starts (relay.rs `RelayState::new`):
-/// this relay's own `did:hum:` (what a permit must name), and every piece kept on this ship. A
+/// every piece kept on this ship. A
 /// piece whose frame has left the ship file, or whose blueprint has left basic.ron, is left out
 /// with a log line and its row kept, so putting the frame or the blueprint back brings it back.
 pub fn load_pieces(world: &mut GameWorld, db: &Storage) {
-    match db.server_did() {
-        Ok(did) => world.pieces.server_did = did,
-        Err(e) => tracing::error!("Game: this relay's did:hum could not be read ({e}); no household permit will be accepted"),
-    }
     let ship = world.ship_plots.ship_id.clone();
     if ship.is_empty() {
         return;
@@ -294,13 +288,20 @@ pub struct Asker {
     pub home_plot: Option<String>,
     /// What they may do beyond their own plot ([`ranks_of`]).
     pub ranks: Ranks,
+    /// The relay's own names (audience.rs `of`): a permit's `aud` must be one of them.
+    pub names: crate::relay::audience::OwnNames,
+    /// Where their socket came from (audience.rs `presenter_peer`): a permit naming a loopback or
+    /// LAN name of this relay is taken only from a client there.
+    pub peer: Option<std::net::IpAddr>,
 }
 
 impl Asker {
-    /// The player with `key`, None when they are not in the shared world.
-    pub fn in_world(world: &GameWorld, key: &str, ranks: Ranks) -> Option<Asker> {
+    /// The player with `key`, None when they are not in the shared world; `names` the relay's own
+    /// names, and their address the socket's whose frame is being handled.
+    pub fn in_world(world: &GameWorld, key: &str, ranks: Ranks, names: crate::relay::audience::OwnNames) -> Option<Asker> {
         let e = world.entities.get(&world.find_player_entity(key)?)?;
-        Some(Asker { key: key.to_string(), did: plot_owner_id(key), home_plot: home_plot_id(e), ranks })
+        let peer = crate::relay::audience::presenter_peer();
+        Some(Asker { key: key.to_string(), did: plot_owner_id(key), home_plot: home_plot_id(e), ranks, names, peer })
     }
 }
 
@@ -327,7 +328,6 @@ pub fn ranks_of(state: &Arc<RelayState>, key: &str) -> Ranks {
 ///   with no plot of their own;
 /// - a shared space: only with the `can_edit_ship` rank, else `ship_rank`.
 pub fn may_build(
-    book: &PieceBook,
     db: &Storage,
     world_id: &str,
     frame: &BuildFrame,
@@ -344,7 +344,7 @@ pub fn may_build(
                 return Ok(());
             }
             match permit {
-                Some(p) => permit_lets_in(book, db, world_id, plot, who, p, now_s),
+                Some(p) => permit_lets_in(db, world_id, plot, who, p, now_s),
                 None if who.home_plot.is_none() => Err(Refusal::not_allowed(Why::Guest)),
                 None => Err(Refusal::not_allowed(Why::NotYourPlot)),
             }
@@ -360,7 +360,6 @@ pub fn may_build(
 /// - a shared space: anyone with the `can_edit_ship` rank, else `ship_rank`.
 #[allow(clippy::too_many_arguments)]
 pub fn may_remove(
-    book: &PieceBook,
     db: &Storage,
     world_id: &str,
     frame: &BuildFrame,
@@ -381,7 +380,7 @@ pub fn may_remove(
                 return Ok(());
             }
             let Some(p) = permit else { return Err(Refusal::not_allowed(Why::NotYourPlot)) };
-            permit_lets_in(book, db, world_id, plot, who, p, now_s)?;
+            permit_lets_in(db, world_id, plot, who, p, now_s)?;
             if piece.owner_did == who.did {
                 Ok(())
             } else {
@@ -391,17 +390,19 @@ pub fn may_remove(
     }
 }
 
-/// Does `p` let `who` onto `plot`? Its signature must be its issuer's over the words this relay
-/// rebuilds from its OWN facts (its own server DID, this plot, the sender's own id), so a permit
-/// given on another server, for another plot or to someone else does not check out
-/// (`permit_bad`); it must not have run out (`permit_expired`) nor run more than 90 days ahead
+/// Does `p` let `who` onto `plot`? Its `aud` must be one of this relay's own names that `who` may
+/// use (audience.rs `OwnNames::admit_pass`), so a permit given at another server address does not
+/// check out (`permit_bad`), and its signature must be its issuer's over the words this relay
+/// rebuilds from that audience and its OWN facts (this plot, the sender's own id), so a permit for
+/// another plot or to someone else does not check out either (`permit_bad`); it must not have run out (`permit_expired`) nor run more than 90 days ahead
 /// (`permit_too_long`); its issuer must not have taken its serial back (`permit_withdrawn`, the
 /// withdrawal list friendship passes use, `Storage::friend_cert_withdrawn`, which says yes when it
 /// cannot know); and its issuer must hold the plot now, so a permit stops working when the plot
 /// changes hands (`permit_not_from_holder`). The signature comes first, so nothing is looked up
 /// for a permit that is not the asker's own.
-fn permit_lets_in(book: &PieceBook, db: &Storage, world_id: &str, plot: &str, who: &Asker, p: &Permit, now_s: u64) -> Result<(), Refusal> {
-    verify_plot_permit(&p.issuer, &book.server_did, plot, &who.did, &p.serial, p.expiry, &p.sig, now_s).map_err(|e| {
+fn permit_lets_in(db: &Storage, world_id: &str, plot: &str, who: &Asker, p: &Permit, now_s: u64) -> Result<(), Refusal> {
+    let Some(aud) = who.names.admit_pass(&p.aud, who.peer) else { return Err(Refusal::not_allowed(Why::PermitBad)) };
+    verify_plot_permit(&p.issuer, &aud, plot, &who.did, &p.serial, p.expiry, &p.sig, now_s).map_err(|e| {
         Refusal::not_allowed(match e {
             PlotPermitError::Expired => Why::PermitExpired,
             PlotPermitError::TooLong => Why::PermitTooLong,
@@ -484,7 +485,7 @@ pub fn judge_build(world: &GameWorld, db: &Storage, who: &Asker, ask: &BuildAsk,
         return Err(refused(Refusal::new(Reason::NotShared, format!("{} is not marked shared in basic.ron", bp.id))));
     }
     let exact = shared::pose_in_frame(bp, frame, &ask.local).map_err(refused)?;
-    may_build(book, db, &world.ship_plots.ship_id, frame, who, ask.permit.as_ref(), now_s).map_err(refused)?;
+    may_build(db, &world.ship_plots.ship_id, frame, who, ask.permit.as_ref(), now_s).map_err(refused)?;
     let here = book.by_frame.get(&frame.id);
     if here.is_some_and(|f| f.pieces.values().any(|p| shared::same_box(&local_pose(p), &exact))) {
         return Err(refused(Refusal::new(Reason::Occupied, format!("a piece with that box stands on {} already", frame.id))));
@@ -538,7 +539,7 @@ pub fn judge_unbuild(world: &GameWorld, db: &Storage, who: &Asker, piece_id: u64
     let Some(frame) = book.frames.get(&piece.frame) else {
         return Err(Refused::of(&name, Refusal::new(Reason::BadFrame, format!("piece {piece_id} stands in no frame of this ship"))));
     };
-    may_remove(book, db, &world.ship_plots.ship_id, frame, piece, who, permit, now_s).map_err(|r| Refused::of(&name, r))?;
+    may_remove(db, &world.ship_plots.ship_id, frame, piece, who, permit, now_s).map_err(|r| Refused::of(&name, r))?;
     Ok(piece.clone())
 }
 
@@ -839,7 +840,7 @@ fn read_request(raw: &serde_json::Value) -> Result<ToRelay, Refusal> {
     let fits = |p: &Permit| {
         p.issuer.len() <= PERMIT_ISSUER_MAX_LEN
             && p.sig.len() <= PERMIT_SIG_MAX_LEN
-            && [&p.server, &p.plot, &p.grantee, &p.serial].iter().all(|s| s.len() <= humanity_protocol::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
+            && [&p.aud, &p.plot, &p.grantee, &p.serial].iter().all(|s| s.len() <= humanity_protocol::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
     };
     let permit_ok = |p: &Option<Permit>| p.as_ref().is_none_or(fits);
     match &msg {
@@ -914,7 +915,7 @@ async fn build(state: &Arc<RelayState>, key: &str, raw: &serde_json::Value) {
     }
     let ranks = ranks_of(state, key);
     let mut world = state.game_world.write().await;
-    let Some(who) = Asker::in_world(&world, key, ranks) else {
+    let Some(who) = Asker::in_world(&world, key, ranks, crate::relay::audience::of(state)) else {
         return no(Refusal::new(Reason::NotInGame, "the sender is not in the shared world"));
     };
     let ask = match read_request(raw) {
@@ -950,7 +951,7 @@ async fn unbuild(state: &Arc<RelayState>, key: &str, raw: &serde_json::Value) {
     }
     let ranks = ranks_of(state, key);
     let mut world = state.game_world.write().await;
-    let Some(who) = Asker::in_world(&world, key, ranks) else {
+    let Some(who) = Asker::in_world(&world, key, ranks, crate::relay::audience::of(state)) else {
         return no(Refusal::new(Reason::NotInGame, "the sender is not in the shared world"));
     };
     let (piece_id, permit) = match read_request(raw) {
@@ -1036,8 +1037,9 @@ fn pieces_request_allowed(state: &RelayState, key: &str) -> bool {
 ///   refused `bad_frame`; to the asker it is a permit that does not check out);
 /// - the asker's own plot works without a word, whatever the permit says;
 /// - anything else is [`permit_lets_in`], exactly as a build on that plot with that permit is
-///   judged: the signature over the relay's OWN facts (its server DID, this plot, the asker's
-///   own id) first, so a permit not made out to the asker is `permit_bad` before the withdrawal
+///   judged: its audience one of the relay's own names, and the signature over that audience and
+///   the relay's OWN facts (this plot, the asker's own id) first, so a permit given at another
+///   server address or not made out to the asker is `permit_bad` before the withdrawal
 ///   list or the plot's holder is read, and nothing is learned about anyone else's permit or
 ///   about who holds a plot; then the end date, the withdrawal list and the holder.
 ///
@@ -1049,7 +1051,7 @@ pub fn judge_permit_check(book: &PieceBook, db: &Storage, world_id: &str, who: &
     if who.home_plot.as_deref() == Some(p.plot.as_str()) {
         return Ok(());
     }
-    permit_lets_in(book, db, world_id, &p.plot, who, p, now_s)
+    permit_lets_in(db, world_id, &p.plot, who, p, now_s)
 }
 
 /// The `game_permit_status` that answers check `req_id` about `plot`, from what the check found:
@@ -1108,7 +1110,7 @@ async fn permit_check(state: &Arc<RelayState>, key: &str, raw: &serde_json::Valu
     }
     let world = state.game_world.read().await;
     // Ranks play no part in a permit (a rank never gives a plot), so none is read.
-    let Some(who) = Asker::in_world(&world, key, Ranks::default()) else {
+    let Some(who) = Asker::in_world(&world, key, Ranks::default(), crate::relay::audience::of(state)) else {
         return say(&plot_said, Err(Refusal::new(Reason::NotInGame, "the sender is not in the shared world")));
     };
     let p = match read_request(raw) {

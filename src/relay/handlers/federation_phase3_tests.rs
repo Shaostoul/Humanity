@@ -12,7 +12,6 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message as WsMsg;
@@ -108,8 +107,7 @@ async fn sign_in(r: &Relay, seed: u8, name: &str) -> Sock {
     sock.send(WsMsg::Text(json!({ "type": "identify", "public_key": key, "display_name": name }).to_string().into())).await.unwrap();
     let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
     let nonce = challenge["nonce"].as_str().expect("a challenge").to_string();
-    let sig = B64.encode(kp.sign(format!("hum/identify/v1\n{nonce}\n{key}").as_bytes()));
-    sock.send(WsMsg::Text(json!({ "type": "identify_response", "sig_b64": sig }).to_string().into())).await.unwrap();
+    sock.send(WsMsg::Text(crate::relay::audience::test_identify_response(&kp, &format!("127.0.0.1:{}", r.port), &nonce, &key).to_string().into())).await.unwrap();
     frame_where(&mut sock, "signed in", |f| f["type"] == "peer_list" || f["type"] == "channel_list").await;
     r.state.db.with_conn(|c| c.execute("UPDATE registered_names SET registered_at = 0 WHERE public_key = ?1", [&key])).unwrap();
     sock
@@ -390,21 +388,23 @@ async fn a_pause_and_a_flood() {
     assert!(view["flow"]["pauses"].as_u64().unwrap() >= 2, "the flood was paused: {view}");
     assert!(view["flow"]["slowed_ms_total"].as_u64().unwrap() > 0, "and slowed first: {view}");
 
-    // The admins see it through the API (the web admin page's federation panel reads this).
+    // The admins see it through the admin action registry (both apps' federation panels read this;
+    // the older POST /api/admin/federation was deleted 2026-11-21).
     let (admin_kp, admin) = keypair(52);
     b.state.db.set_role(&admin, "admin").unwrap();
     let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-    let sig = hex::encode(admin_kp.sign(format!("admin_federation\n{ts}").as_bytes()));
+    let base = format!("http://127.0.0.1:{}", b.port);
+    let sig = crate::relay::audience::test_request_sig(&admin_kp, &base, &crate::relay::admin::run_purpose("federation.list", "{}"), ts);
     let answer: Value = reqwest::Client::new()
-        .post(format!("http://127.0.0.1:{}/api/admin/federation", b.port))
-        .json(&json!({ "key": admin, "timestamp": ts, "sig": sig, "action": "list" }))
+        .post(format!("{base}/api/admin/actions/run"))
+        .json(&json!({ "key": admin, "timestamp": ts, "sig": sig, "action": "federation.list", "inputs": "{}" }))
         .send()
         .await
         .unwrap()
         .json()
         .await
         .unwrap();
-    let row = answer["servers"].as_array().unwrap().iter().find(|s| s["name"] == "Server A").expect("A's row").clone();
+    let row = answer["data"]["peers"].as_array().unwrap_or_else(|| panic!("the peers: {answer}")).iter().find(|s| s["name"] == "Server A").expect("A's row").clone();
     assert!(row["link"]["flow"]["pauses"].as_u64().unwrap() >= 2, "the admin API shows the pause: {row}");
     assert_eq!(row["link"]["cursor"]["seq"], json!(a.state.db.fed_outbox_bounds().unwrap().1), "and where B is in A's log");
 }
@@ -453,8 +453,7 @@ async fn a_member_is_told_their_own_line_limit() {
     send(&mut sock, json!({ "type": "identify", "public_key": key, "display_name": "Cy" })).await;
     let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
     let nonce = challenge["nonce"].as_str().expect("a challenge").to_string();
-    let sig = B64.encode(kp.sign(format!("hum/identify/v1\n{nonce}\n{key}").as_bytes()));
-    send(&mut sock, json!({ "type": "identify_response", "sig_b64": sig })).await;
+    send(&mut sock, crate::relay::audience::test_identify_response(&kp, &format!("127.0.0.1:{}", r.port), &nonce, &key)).await;
     let f = frame_where(&mut sock, "my limits", |f| f["type"] == "my_limits").await;
     let want = r.state.db.role_def(&r.state.db.get_role(&key).unwrap_or_default()).max_chars as u64;
     assert_eq!(f["max_chars"].as_u64(), Some(want), "the limit is the role's own: {f}");

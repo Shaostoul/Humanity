@@ -38,6 +38,8 @@ const ADA = "b2".repeat(40);
 const ADA_DID = "did:hum:4AdaXq9WmZ7r3TfKp2VbN8";
 const GAME_DID = "did:hum:7GameYp2QsL5c8HdRu4Ej1";
 const SERVER_DID = "did:hum:9RelayKt3MwB6x2NzPq7Fa";
+// The address the game opened: what a permit names since v3 (2026-11-21).
+const RELAY_AUD = "127.0.0.1:3210";
 
 const T0 = 1791240000000; // the game's Give, ms since 1970
 const T_SHARE = T0 + 20000; // Ada's build on the game's plot
@@ -61,9 +63,9 @@ const BLUEPRINTS = {
   wood_wall: { name: "Wood Wall", size: [4, 3, 0.2], build_time: 4, materials: [["wood_plank_0", 6]] },
 };
 
-const permitGiven = { issuer: ME, server: SERVER_DID, plot: "p2", grantee: ADA_DID, serial: "11".repeat(16), expiry: Math.floor(T0 / 1000) + 30 * 86400 + 2, sig: "c2lnMQ==" };
+const permitGiven = { issuer: ME, aud: RELAY_AUD, plot: "p2", grantee: ADA_DID, serial: "11".repeat(16), expiry: Math.floor(T0 / 1000) + 30 * 86400 + 2, sig: "c2lnMQ==" };
 const permitRenewed = { ...permitGiven, serial: "22".repeat(16), expiry: Math.floor(T_RENEW / 1000) + 30 * 86400 + 1, sig: "c2lnMg==" };
-const permitHeld = { issuer: ADA, server: SERVER_DID, plot: "p1", grantee: GAME_DID, serial: "33".repeat(16), expiry: Math.floor(T_HELD / 1000) + 30 * 86400, sig: "c2lnMw==" };
+const permitHeld = { issuer: ADA, aud: RELAY_AUD, plot: "p1", grantee: GAME_DID, serial: "33".repeat(16), expiry: Math.floor(T_HELD / 1000) + 30 * 86400, sig: "c2lnMw==" };
 
 /** The game's household block as lane 2A's probe writes it, in the plan's names. */
 function household(over = {}) {
@@ -136,7 +138,7 @@ function goodRun() {
       joined: { ok: true, detail: "joined and welcomed on p2" },
       walker: { ok: true, detail: "TestBotAda in the world as entity 1, holding p1" },
     },
-    relay: { server_did: SERVER_DID },
+    relay: { server_did: SERVER_DID, audience: RELAY_AUD },
     frames: FRAMES,
     blueprints: BLUEPRINTS,
     walkers: { ada: { name: "TestBotAda", id: 1, plot: "p1", key: ADA, key16: ADA.slice(0, 16), did: ADA_DID } },
@@ -361,7 +363,7 @@ const CASES = [
   ["the given row for another plot", (r) => (hh(r.give).given[0].plot = "p1"), "give_through_the_page"],
   ["Ada never received a permit", (r) => (r.give.received = null), ["give_arrived", "give_lets_her_build", "renew_one_press"]],
   ["Ada's permit names another person", (r) => (r.give.received.permit = { ...permitGiven, grantee: GAME_DID }), "give_arrived"],
-  ["Ada's permit names another server", (r) => (r.give.received.permit = { ...permitGiven, server: "did:hum:Other" }), "give_arrived"],
+  ["Ada's permit names another server", (r) => (r.give.received.permit = { ...permitGiven, aud: "elsewhere.example" }), "give_arrived"],
   ["Ada's permit from someone other than the game", (r) => (r.give.received.permit = { ...permitGiven, issuer: "c3".repeat(40) }), "give_arrived"],
   ["Ada's permit for another plot", (r) => (r.give.received.permit = { ...permitGiven, plot: "p3" }), "give_arrived"],
   ["Ada's own check refused it", (r) => Object.assign(r.give, { checks_out: null, refused: "does_not_check_out" }), "give_arrived"],

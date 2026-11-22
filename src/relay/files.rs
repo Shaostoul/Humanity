@@ -35,7 +35,9 @@
 //! 5's `media_edit:<item id>:<BLAKE3 hex of the edit as sent>`,
 //! `media_file_add:<item id>:<upload>:<file|cover>` and `media_file_remove:<item id>:<file number>`
 //! (relay/files_edit.rs). A new
-//! category suggestion keeps plain `media_suggest` (the design names no target for it), and the
+//! category suggestion is `media_suggest:<BLAKE3 hex of the name>:<BLAKE3 hex of the note>`
+//! (2026-11-21, signed requests round 3, C7: it named no target, so one signature could carry any
+//! suggestion; [`suggest_purpose`]), and the
 //! reads keep `media_list` (the list, and one person's picks by POST, A3), `media_usage`,
 //! `media_suggestions` and `media_mine` (A4). The role checks happen after the signature, on the
 //! proven key. A write that names an item by number also names its file (`filename`), and is
@@ -68,11 +70,9 @@ use crate::relay::storage::files::{
 };
 use crate::relay::storage::{media_visibility_of, ServerSettings, Storage};
 
-/// How old a signed request's timestamp may be.
-pub const SIGNED_WINDOW_MS: u64 = 5 * 60 * 1000;
-/// How far ahead of the relay's clock a signed request's timestamp may be (F5): small, so a
-/// request is never accepted after the replay memory (six minutes from first sight) forgets it.
-pub const SIGNED_AHEAD_MS: u64 = 30 * 1000;
+/// How old, and how far ahead, a signed request's timestamp may be (F5): the one window every
+/// signed request has (`signed_request.rs`).
+pub use crate::relay::signed_request::{SIGNED_AHEAD_MS, SIGNED_WINDOW_MS};
 const MIB: i64 = 1024 * 1024;
 
 type Refused = (StatusCode, String);
@@ -174,30 +174,14 @@ fn now_ms() -> u64 {
 }
 
 /// Prove the caller holds `key`: the timestamp at most [`SIGNED_WINDOW_MS`] old and at most
-/// [`SIGNED_AHEAD_MS`] ahead of the relay's clock, the Dilithium signature over
-/// `purpose\ntimestamp` (off the async executor; a panic fails closed), and a (key, purpose,
-/// timestamp) the relay has not seen in the window. A write's `purpose` names its target (F5).
+/// [`SIGNED_AHEAD_MS`] ahead of the relay's clock, the Dilithium signature over the request
+/// `purpose` (`signed_request::check`: `hum/request/v2\n{audience}\n{purpose}\n{timestamp}`, never a chat
+/// line's shape), and a (key, purpose, timestamp) the relay has not seen in the window. A write's
+/// `purpose` names its target (F5).
 pub async fn check_signed(state: &RelayState, key: &str, timestamp: u64, sig: &str, purpose: &str) -> Result<(), Refused> {
-    let now = now_ms();
-    if now.saturating_sub(timestamp) > SIGNED_WINDOW_MS {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
-    }
-    if timestamp.saturating_sub(now) > SIGNED_AHEAD_MS {
-        return Err((StatusCode::BAD_REQUEST, "Timestamp is in the future: check this device's clock.".into()));
-    }
-    let (k, s, p) = (key.to_string(), sig.to_string(), purpose.to_string());
-    let ok = tokio::task::spawn_blocking(move || {
-        crate::relay::handlers::broadcast::verify_dilithium_signature(&k, &p, timestamp, &s)
-    })
-    .await
-    .unwrap_or(false);
-    if !ok {
-        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
-    }
-    if !state.auth_nonce_fresh(key, purpose, timestamp) {
-        return Err((StatusCode::CONFLICT, "Duplicate request rejected (replay).".into()));
-    }
-    Ok(())
+    crate::relay::signed_request::check(state, key, timestamp, sig, purpose, "files")
+        .await
+        .map_err(crate::relay::signed_request::SignedRefusal::plain_replay_conflict)
 }
 
 /// The server settings as the Files page reads them: a read that fails counts as members only,
@@ -1293,8 +1277,14 @@ pub struct SuggestBody {
     pub note: String,
 }
 
+/// The purpose a category suggestion is signed over: the name and the note as sent, each hashed
+/// (two hashes, so no name and note can be read as another pair).
+pub fn suggest_purpose(name: &str, note: &str) -> String {
+    format!("media_suggest:{}:{}", blake3::hash(name.as_bytes()).to_hex(), blake3::hash(note.as_bytes()).to_hex())
+}
+
 pub async fn suggest(State(state): State<Arc<RelayState>>, Json(b): Json<SuggestBody>) -> Answer {
-    check_signed(&state, &b.key, b.timestamp, &b.sig, "media_suggest").await?;
+    check_signed(&state, &b.key, b.timestamp, &b.sig, &suggest_purpose(&b.name, &b.note)).await?;
     suggest_core(&state.db, &b.key, &b.name, &b.note)
 }
 

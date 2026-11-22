@@ -3,8 +3,8 @@
 //! the server's answers read into plain structs.
 //!
 //! EVERY WRITE IS SIGNED the way the relay checks it (`check_signed`): Dilithium over
-//! `purpose\ntimestamp`, the same signature every other identity-keyed request of the desktop
-//! makes (`net::identity::pq_sign_chat`), with a purpose that names its target, so a signature is
+//! `hum/request/v2\n{audience}\n{purpose}\n{timestamp}`, the same request signature every other identity-keyed
+//! request of the desktop makes (`net::identity::pq_sign_request`), with a purpose that names its target, so a signature is
 //! good for one thing (the relay's F5): `media_publish:<file name>:<licence id>:<0|1>` (Media round
 //! 5: the licence and the game tick are signed with the publish), `media_remove:<item id or file
 //! name>`, `media_pick:<item id>` (pick and unpick), `media_feature:<item id>:<main|category|none>`
@@ -13,8 +13,8 @@
 //! file purposes are in files/api_items.rs. A new suggestion keeps
 //! plain `media_suggest`, and the reads keep `media_list`, `media_usage`, `media_mine` and
 //! `media_suggestions`. The relay also refuses a (key, purpose, timestamp) it has seen, so every
-//! signature here takes a fresh timestamp from [`next_timestamp`], which never hands out the same
-//! millisecond twice.
+//! signature here takes a fresh timestamp from `net::identity::next_request_timestamp`, which never
+//! hands out the same millisecond twice.
 //!
 //! EVERY ACTION ON AN ITEM NAMES ITS FILE TOO (the relay's W5, 2026-10-11): remove by number,
 //! pick, unpick, feature and keep carry `filename`, the item's stored file name, so a tile left on
@@ -595,28 +595,13 @@ pub fn remove_words(item: &Item) -> &'static str {
 
 // ── Signing ────────────────────────────────────────────────────────────────────────────────
 
-/// A timestamp in Unix milliseconds that is never the same as one handed out before in this
-/// run: the relay refuses a (key, purpose, timestamp) it has seen, and two requests in one
-/// millisecond (a Refresh and a More) would otherwise share one.
-pub fn next_timestamp() -> u64 {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static LAST: AtomicU64 = AtomicU64::new(0);
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    let mut prev = LAST.load(Ordering::SeqCst);
-    loop {
-        let next = now.max(prev + 1);
-        match LAST.compare_exchange(prev, next, Ordering::SeqCst, Ordering::SeqCst) {
-            Ok(_) => return next,
-            Err(seen) => prev = seen,
-        }
-    }
-}
-
 /// Who signs: the person's Dilithium public key (hex) and the seed it comes from.
 #[derive(Clone)]
 pub struct Signer {
     pub key: String,
     seed: Vec<u8>,
+    /// The server the requests go to, which each signature names (2026-11-21).
+    server: String,
 }
 
 impl std::fmt::Debug for Signer {
@@ -626,14 +611,14 @@ impl std::fmt::Debug for Signer {
 }
 
 impl Signer {
-    pub fn new(key: &str, seed: &[u8]) -> Self {
-        Signer { key: key.to_string(), seed: seed.to_vec() }
+    pub fn new(server: &str, key: &str, seed: &[u8]) -> Self {
+        Signer { key: key.to_string(), seed: seed.to_vec(), server: server.to_string() }
     }
 
     /// `body` with `key`, `timestamp` and `sig` over `purpose` added.
     pub fn signed(&self, purpose: &str, mut body: Value) -> Value {
-        let ts = next_timestamp();
-        let sig = crate::net::identity::pq_sign_chat(&self.seed, purpose, ts);
+        let ts = crate::net::identity::next_request_timestamp();
+        let sig = crate::net::identity::pq_sign_request(&self.seed, &self.server, purpose, ts);
         if !body.is_object() {
             body = json!({});
         }
@@ -650,13 +635,11 @@ pub fn signer_of(state: &crate::gui::GuiState) -> Option<Signer> {
     if state.profile_public_key.is_empty() {
         return None;
     }
-    Some(Signer::new(&state.profile_public_key, seed))
+    Some(Signer::new(&crate::gui::pages::files::base_of(state), &state.profile_public_key, seed))
 }
 
 /// The purpose of a signed list read (and of a signed picks read).
 pub const LIST: &str = "media_list";
-/// The purpose of a new category suggestion.
-pub const SUGGEST: &str = "media_suggest";
 /// The purpose of the suggestions read.
 pub const SUGGESTIONS: &str = "media_suggestions";
 /// The purpose of the admins' usage read.
@@ -896,8 +879,11 @@ pub fn keep_request(signer: &Signer, item: &ItemRef, kept: bool) -> Request {
     post("/api/files/keep", purpose.clone(), signer.signed(&purpose, body))
 }
 
+/// A new category suggestion, signed over its name and note (the relay's `suggest_purpose`, C7).
 pub fn suggest_request(signer: &Signer, name: &str, note: &str) -> Request {
-    post("/api/files/suggest", SUGGEST.to_string(), signer.signed(SUGGEST, json!({ "name": name.trim(), "note": note.trim() })))
+    let (name, note) = (name.trim(), note.trim());
+    let purpose = crate::relay::files::suggest_purpose(name, note);
+    post("/api/files/suggest", purpose.clone(), signer.signed(&purpose, json!({ "name": name, "note": note })))
 }
 
 pub fn suggestions_request(signer: &Signer) -> Request {
@@ -941,8 +927,8 @@ pub fn categories_request(signer: &Signer, list: &[CategoryEdit]) -> Request {
         .collect();
     let cats_text = Value::Array(cats).to_string();
     let purpose = categories_purpose(&cats_text);
-    let ts = next_timestamp();
-    let sig = crate::net::identity::pq_sign_chat(&signer.seed, &purpose, ts);
+    let ts = crate::net::identity::next_request_timestamp();
+    let sig = crate::net::identity::pq_sign_request(&signer.seed, &signer.server, &purpose, ts);
     let body = format!(
         "{{\"key\":{},\"timestamp\":{ts},\"sig\":{},\"categories\":{cats_text}}}",
         Value::from(signer.key.as_str()),

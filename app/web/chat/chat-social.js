@@ -631,10 +631,12 @@ function passPersonChoseFor(peer) {
 }
 window.passPersonChoseFor = passPersonChoseFor;
 
-// ── Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md
-// 10b), mirroring native src/engine/dm.rs. A pass names this server's did:hum
-// (window.hosServerDid, from its identify_challenge), a random serial and what
-// the friend may do; unfollowing withdraws it with `cert_revoke {serial}`,
+// ── Friendship passes v3 (v2 2026-10-09, docs/design/blocking-and-safe-mode.md
+// 10b; v3 2026-11-21), mirroring native src/engine/dm.rs. A pass names the
+// address this page opened (pq.js pqAudience, never the did:hum the server
+// claims), a random serial and what the friend may do; passes are given once the
+// server's identify_challenge named it (window.hosServerDid: a changed identity
+// voids them); unfollowing withdraws it with `cert_revoke {serial}`,
 // which the relay honours at once and answers with `cert_revoked`.
 //
 // What a pass lets a friend do is my CHOICE for them (10n, 2026-10-10): the

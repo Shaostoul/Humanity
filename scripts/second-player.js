@@ -21,7 +21,8 @@
 //   client -> {"type":"identify", "public_key": <Dilithium3 public key hex>, ...}
 //   relay  -> {"type":"identify_challenge", "nonce": <64 hex chars>}
 //   client -> {"type":"identify_response", "sig_b64": <base64 signature over
-//              the exact text "hum/identify/v1\n" + nonce + "\n" + public_key>}
+//              the exact text "hum/identify/v2\n" + audience + "\n" + nonce + "\n" +
+//              public_key>, "audience": <the host[:port] this script connected to>}
 //   relay  -> {"type":"peer_list", ...}   (you are in)
 //
 // The signing library is the one the chat client already ships, the
@@ -529,10 +530,17 @@ function nameFor(opts, publicKeyHex) {
   return `${opts.name.slice(0, 24 - suffix.length)}${suffix}`;
 }
 
-/** The exact text the relay checks the sign-in signature against
- *  (relay.rs: format!("hum/identify/v1\n{}\n{}", nonce, public_key)). */
-function identifyPreimage(nonce, publicKeyHex) {
-  return `hum/identify/v1\n${nonce}\n${publicKeyHex}`;
+/** The exact text the relay checks the sign-in signature against (2026-11-21:
+ *  humanity_protocol::signed_request::identify_preimage, "hum/identify/v2", the audience, the
+ *  nonce, the key). */
+function identifyPreimage(audience, nonce, publicKeyHex) {
+  return `hum/identify/v2\n${audience}\n${nonce}\n${publicKeyHex}`;
+}
+
+/** The audience for the address this script opened: its host, lowercase, and its port when not
+ *  the scheme's default (the WHATWG URL parser drops 80 and 443 for ws, wss, http and https). */
+function audienceOf(url) {
+  return new URL(url).host.toLowerCase();
 }
 
 /** The exact text the relay checks a chat signature against
@@ -698,16 +706,19 @@ function signIn(serverUrl, identity, name, { timeoutMs = 20000, forwardedFor = n
     const off = client.on((msg) => {
       if (msg.type === "identify_challenge" && typeof msg.nonce === "string") {
         // Prove we hold the key: sign the exact text the relay will check.
-        const sig = identity.sign(new TextEncoder().encode(identifyPreimage(msg.nonce, identity.publicKeyHex)));
-        client.send({ type: "identify_response", sig_b64: Buffer.from(sig).toString("base64") });
+        // Signed for the address this script opened, never one the relay names.
+        const audience = audienceOf(serverUrl);
+        const sig = identity.sign(new TextEncoder().encode(identifyPreimage(audience, msg.nonce, identity.publicKeyHex)));
+        client.send({ type: "identify_response", sig_b64: Buffer.from(sig).toString("base64"), audience });
       } else if (msg.type === "peer_list") {
         // The relay sends the peer list once the socket is bound: we are in.
         finish(null);
       } else if (msg.type === "name_taken") {
         finish(new Error(`the relay refused the name: ${msg.message || "taken"}`));
       } else if (msg.type === "system" && typeof msg.message === "string") {
-        // The relay's refusals during sign-in arrive as plain system text.
-        if (/verification failed|Too many|authentication failed|banned/i.test(msg.message)) {
+        // The relay's refusals during sign-in arrive as plain system text. A refused audience or
+        // signature is one sentence since 2026-11-21 (relay/audience.rs REFUSED_AS_REACHED).
+        if (/verification failed|cannot take this signature|Too many|authentication failed|banned/i.test(msg.message)) {
           finish(new Error(`the relay refused the sign-in: ${msg.message}`));
         }
       }
@@ -1233,7 +1244,7 @@ const MEMBER_KEY_RULE = /^(?:[0-9a-fA-F]{2}){32,4096}$/;
 const PERMIT_MAX_DAYS = 90;
 /** The permit's signature domain: pq_crypto.rs PLOT_PERMIT_DOMAIN (v2 since ship homes 5b: the
  *  words name a serial, so the giver can take a permit back). */
-const PERMIT_DOMAIN = "hum/permit/v2";
+const PERMIT_DOMAIN = "hum/permit/v3";
 /** A permit's serial: 16 bytes in lowercase hex (pq_crypto.rs `friend_cert_serial_ok`, the
  *  friendship pass's shape: both are withdrawn through the same list). */
 const PERMIT_SERIAL_RULE = /^[0-9a-f]{32}$/;
@@ -1350,7 +1361,7 @@ function turnOf(q) {
 }
 
 /** A permit as a build or an unbuild carries it: the JSON a `permit` line logged (shared.rs
- *  `Permit`: issuer, server, plot, grantee, serial, expiry, sig). */
+ *  `Permit`: issuer, aud, plot, grantee, serial, expiry, sig). */
 function parsePermitJson(text) {
   let p = null;
   try {
@@ -1360,15 +1371,15 @@ function parsePermitJson(text) {
     p &&
     typeof p === "object" &&
     typeof p.issuer === "string" &&
-    typeof p.server === "string" &&
+    typeof p.aud === "string" &&
     typeof p.plot === "string" &&
     typeof p.grantee === "string" &&
     typeof p.serial === "string" &&
     Number.isInteger(p.expiry) &&
     p.expiry >= 0 &&
     typeof p.sig === "string";
-  if (!ok) throw new Error(`a permit must be the JSON a "permit" line logged: {"issuer", "server", "plot", "grantee", "serial", "expiry", "sig"}, got ${text}`);
-  return { issuer: p.issuer, server: p.server, plot: p.plot, grantee: p.grantee, serial: p.serial, expiry: p.expiry, sig: p.sig };
+  if (!ok) throw new Error(`a permit must be the JSON a "permit" line logged: {"issuer", "aud", "plot", "grantee", "serial", "expiry", "sig"}, got ${text}`);
+  return { issuer: p.issuer, aud: p.aud, plot: p.plot, grantee: p.grantee, serial: p.serial, expiry: p.expiry, sig: p.sig };
 }
 
 /** One line of the walker's input, as a command: { kind: "build", blueprint, frame, local:
@@ -1608,34 +1619,35 @@ function makeRequests({ send, log, now = () => performance.now(), setTimer = set
 
 /** What a household permit's issuer signs: the relay's own words (crates/humanity-protocol/src/pq_crypto.rs
  *  `plot_permit_preimage`, pinned by its test, which scripts/tests/second-player.test.js reads).
- *  `server` is the did:hum of the server the permit is given on (its /api/server-info
- *  `server_did`, `fetchServerDid`): every server hands out its plots in the ship file's order, so
- *  one person often holds the same plot id on several, and a permit is good on its own server
- *  only (Wave 0's 6e0174cd7). `serial` names the permit, so its giver can take it back (v2,
- *  ship homes 5b). */
-function permitPreimage(server, plot, grantee, serial, expiry) {
-  return `${PERMIT_DOMAIN}\n${server}\n${plot}\n${grantee}\n${serial}\n${expiry}`;
+ *  `aud` is the address the giver's app opened to reach the server the permit is given on
+ *  (`audienceOf` of the URL; v3, 2026-11-21: v2 named the server's did:hum, which the server itself
+ *  claimed): every server hands out its plots in the ship file's order, so one person often holds
+ *  the same plot id on several, and a permit is good on its own server only (Wave 0's 6e0174cd7).
+ *  `serial` names the permit, so its giver can take it back (v2, ship homes 5b). */
+function permitPreimage(aud, plot, grantee, serial, expiry) {
+  return `${PERMIT_DOMAIN}\n${aud}\n${plot}\n${grantee}\n${serial}\n${expiry}`;
 }
 
 /** A household permit `identity` (`deriveIdentity`) signs for `grantee` (their did:hum, `didFor`)
- *  on `plot` (its own id, p1) of the server `server` (its did:hum, `fetchServerDid`) until `expiry`
- *  (Unix seconds), named `serial` (16 random bytes in lowercase hex, fresh when not given):
- *  { issuer, server, plot, grantee, serial, expiry, sig }, the contract's `Permit` in its field
+ *  on `plot` (its own id, p1) of the server this walker opened as `aud` (`audienceOf`) until
+ *  `expiry` (Unix seconds), named `serial` (16 random bytes in lowercase hex, fresh when not given):
+ *  { issuer, aud, plot, grantee, serial, expiry, sig }, the contract's `Permit` in its field
  *  order, its signature base64. Whether `plot` is the issuer's to give is the relay's question,
  *  and it answers it. */
-function mintPermit(identity, { server, plot, grantee, expiry, serial = require("crypto").randomBytes(16).toString("hex") }) {
+function mintPermit(identity, { aud, plot, grantee, expiry, serial = require("crypto").randomBytes(16).toString("hex") }) {
   const fit = (s) => typeof s === "string" && s.length > 0 && !/[\r\n]/.test(s);
-  if (!fit(server) || !PLOT_ID_RULE.test(String(plot)) || !fit(grantee) || !Number.isSafeInteger(expiry) || expiry < 1) {
-    throw new Error(`a permit needs the server's did:hum, a plot id, a grantee and an end date in Unix seconds, got ${JSON.stringify({ server, plot, grantee, expiry })}`);
+  if (!FRIEND_PASS.passAudienceOk(aud) || !PLOT_ID_RULE.test(String(plot)) || !fit(grantee) || !Number.isSafeInteger(expiry) || expiry < 1) {
+    throw new Error(`a permit needs the server's address, a plot id, a grantee and an end date in Unix seconds, got ${JSON.stringify({ aud, plot, grantee, expiry })}`);
   }
   if (!PERMIT_SERIAL_RULE.test(String(serial))) throw new Error(`a permit's serial is 16 bytes in lowercase hex, got ${JSON.stringify(serial)}`);
-  const sig = identity.sign(new TextEncoder().encode(permitPreimage(server, plot, grantee, serial, expiry)));
-  return { issuer: identity.publicKeyHex, server, plot, grantee, serial, expiry, sig: Buffer.from(sig).toString("base64") };
+  const sig = identity.sign(new TextEncoder().encode(permitPreimage(aud, plot, grantee, serial, expiry)));
+  return { issuer: identity.publicKeyHex, aud, plot, grantee, serial, expiry, sig: Buffer.from(sig).toString("base64") };
 }
 
-/** The relay's own did:hum (its /api/server-info `server_did`, src/relay/api.rs), which a household
- *  permit names as the server it is good on. Null when the relay names none (one from before
- *  2026-09-06, when servers had no DID). Rejects when the relay cannot be asked. */
+/** The relay's own did:hum (its /api/server-info `server_did`, src/relay/api.rs): the walker
+ *  gives passes and permits only once the relay has named it, as the apps wait for its
+ *  `identify_challenge` (no pass or permit names it since v3, 2026-11-21: they name the address the
+ *  walker opened). Null when the relay names none. Rejects when the relay cannot be asked. */
 async function fetchServerDid(serverUrl, { timeoutMs = 5000 } = {}) {
   const res = await fetch(`${httpBase(serverUrl)}/api/server-info`, { signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw new Error(`/api/server-info answered ${res.status}`);
@@ -1765,11 +1777,11 @@ const PERMIT_FIELD_MAX = 128;
 const PERMIT_CLOCK_SLACK_S = 86400;
 
 /** The text of the DM that gives `permit`: the marker, then its JSON in the contract's field order
- *  (issuer, server, plot, grantee, serial, expiry, sig), nothing between. The game's
+ *  (issuer, aud, plot, grantee, serial, expiry, sig), nothing between. The game's
  *  net/household.rs `note_text` writes the same bytes (serde_json of shared.rs `Permit`). Pure. */
 function permitNoteText(permit) {
   const p = permit || {};
-  const ordered = { issuer: p.issuer, server: p.server, plot: p.plot, grantee: p.grantee, serial: p.serial, expiry: p.expiry, sig: p.sig };
+  const ordered = { issuer: p.issuer, aud: p.aud, plot: p.plot, grantee: p.grantee, serial: p.serial, expiry: p.expiry, sig: p.sig };
   return `${DM.CTL_PERMIT}${JSON.stringify(ordered)}`;
 }
 
@@ -1781,8 +1793,8 @@ function isPermitNote(text) {
 
 /** The permit a note carries, or null when it does not read as one (household.rs `parse_note`):
  *  not a permit's JSON, a body over PERMIT_NOTE_BODY_MAX bytes, an issuer that is not hex or over
- *  PERMIT_ISSUER_MAX, a signature empty or over PERMIT_SIG_MAX, a server, plot or grantee id
- *  empty, over PERMIT_FIELD_MAX or holding a line break, or a serial that is not 16 bytes of
+ *  PERMIT_ISSUER_MAX, a signature empty or over PERMIT_SIG_MAX, a server address not in its one
+ *  spelling, a plot or grantee id empty, over PERMIT_FIELD_MAX or holding a line break, or a serial that is not 16 bytes of
  *  lowercase hex. Whether it checks out is `judgePermit`'s question. Pure. */
 function parsePermitNote(text) {
   if (!isPermitNote(text)) return null;
@@ -1801,7 +1813,8 @@ function parsePermitNote(text) {
     /^[0-9a-fA-F]+$/.test(p.issuer) &&
     p.sig.length > 0 &&
     p.sig.length <= PERMIT_SIG_MAX &&
-    [p.server, p.plot, p.grantee].every(idOk) &&
+    FRIEND_PASS.passAudienceOk(p.aud) &&
+    [p.plot, p.grantee].every(idOk) &&
     PERMIT_SERIAL_RULE.test(p.serial) &&
     Number.isSafeInteger(p.expiry);
   return fits ? p : null;
@@ -1814,36 +1827,34 @@ function parsePermitNote(text) {
  * grantee (`myDid`), the ids and the serial are well formed, it has not run out and runs at most
  * PERMIT_MAX_DAYS (plus a day's slack) ahead by `nowS`, and the sender's signature covers the
  * permit's words with these facts. Returns null when it checks out, else the game's reason as a
- * word: not_from_its_issuer, no_server_yet, other_server, not_for_me, ran_out, too_long or
- * does_not_check_out.
+ * word: not_from_its_issuer, not_for_me, ran_out, too_long or does_not_check_out. The server
+ * address it names is the relay's to judge (v3, 2026-11-21; the game's `judge_arrival` likewise).
  */
-function judgePermit(noble, permit, { sender, serverDid, myDid, nowS }) {
+function judgePermit(noble, permit, { sender, myDid, nowS }) {
   if (String(permit.issuer).toLowerCase() !== String(sender).toLowerCase()) return "not_from_its_issuer";
-  if (!serverDid) return "no_server_yet";
-  if (permit.server !== serverDid) return "other_server";
   if (permit.grantee !== myDid) return "not_for_me";
   const idOk = (s) => typeof s === "string" && s.length > 0 && Buffer.byteLength(s, "utf8") <= PERMIT_FIELD_MAX && !/[\r\n]/.test(s);
-  if (![serverDid, permit.plot, myDid].every(idOk) || !PERMIT_SERIAL_RULE.test(permit.serial)) return "does_not_check_out";
+  if (!FRIEND_PASS.passAudienceOk(permit.aud) || ![permit.plot, myDid].every(idOk) || !PERMIT_SERIAL_RULE.test(permit.serial)) return "does_not_check_out";
   if (permit.expiry <= nowS) return "ran_out";
   if (permit.expiry - nowS > PERMIT_MAX_DAYS * 86400 + PERMIT_CLOCK_SLACK_S) return "too_long";
   try {
     const pk = new Uint8Array(Buffer.from(sender, "hex"));
     const sig = new Uint8Array(Buffer.from(permit.sig, "base64"));
-    const words = new TextEncoder().encode(permitPreimage(serverDid, permit.plot, myDid, permit.serial, permit.expiry));
+    const words = new TextEncoder().encode(permitPreimage(permit.aud, permit.plot, myDid, permit.serial, permit.expiry));
     return noble.ml_dsa65.verify(sig, words, pk) ? null : "does_not_check_out";
   } catch {
     return "does_not_check_out";
   }
 }
 
-/** Check a friendship pass `issuer` gave `grantee` on the server `serverDid` (the website's
- *  `pqVerifyFriendCert`, the relay's `verify_friend_cert`): { serial, may } when its signature
- *  covers the pass's words with these facts, else null. */
-function checkFriendPass(noble, { issuer, grantee, serverDid, cert }) {
+/** Check a friendship pass `issuer` gave `grantee` (the website's `pqVerifyFriendCert`, the relay's
+ *  `verify_friend_cert`): { serial, may } when its signature covers the pass's words with these
+ *  facts and the server address it names (the relay judges that address), else null. */
+function checkFriendPass(noble, { issuer, grantee, cert }) {
   const pass = FRIEND_PASS.friendPassParse(cert);
-  if (!pass || ![serverDid, issuer, grantee].every(FRIEND_PASS.friendPassFieldOk)) return null;
+  if (!pass || ![issuer, grantee].every(FRIEND_PASS.friendPassFieldOk)) return null;
   try {
-    const words = new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(serverDid, issuer, grantee, pass.serial, pass.may));
+    const words = new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(pass.aud, issuer, grantee, pass.serial, pass.may));
     const ok = noble.ml_dsa65.verify(new Uint8Array(Buffer.from(pass.sig, "base64")), words, new Uint8Array(Buffer.from(issuer, "hex")));
     return ok ? { serial: pass.serial, may: pass.may } : null;
   } catch {
@@ -1882,7 +1893,8 @@ const DM_PUT_REFUSED_RE = /dm put refused: ref ([0-9a-f]+) \(([a-z_]+)\)/;
 /**
  * This walker's part in private messages. `identity` is `deriveIdentity`'s, `name` the name it
  * signed in under (a contact request carries it), `serverDid` the relay's own did:hum (null when it
- * names none: nothing can be given then), `kyberOf(key)` a member's DM key or null (the socket's
+ * names none: nothing can be given then), `audience` the address this walker opened (what every pass
+ * and permit it gives names, `audienceOf`), `kyberOf(key)` a member's DM key or null (the socket's
  * `kyber` map), `send(frame)` puts a frame on the socket, `log(line)` writes a line; `now` (ms) and
  * `newRef` are the clock and the put ids (a test passes its own). Returns:
  *  - received(msg): every relay message; opens a `dm_new` and acts on what it carries, and settles
@@ -1893,7 +1905,7 @@ const DM_PUT_REFUSED_RE = /dm put refused: ref ([0-9a-f]+) \(([a-z_]+)\)/;
  *    saying why it cannot go.
  *  - passFrom(key): the pass that member gave me, or null; and a few readers for tests.
  */
-function makeDms({ noble, identity, name, serverDid, kyberOf, send, log, now = () => Date.now(), newRef = () => require("crypto").randomBytes(16).toString("hex") }) {
+function makeDms({ noble, identity, name, serverDid, audience, kyberOf, send, log, now = () => Date.now(), newRef = () => require("crypto").randomBytes(16).toString("hex") }) {
   const me = identity.publicKeyHex;
   const myDid = didFor(noble, me);
   const k12 = (k) => String(k).slice(0, 12);
@@ -1937,7 +1949,7 @@ function makeDms({ noble, identity, name, serverDid, kyberOf, send, log, now = (
     }
     const text = inner.text;
     if (text === DM.CTL_FRIEND_CERT) {
-      const pass = inner.cert ? checkFriendPass(noble, { issuer: from, grantee: me, serverDid, cert: inner.cert }) : null;
+      const pass = inner.cert ? checkFriendPass(noble, { issuer: from, grantee: me, cert: inner.cert }) : null;
       if (!pass) {
         log(`dm: a friend pass from ${k12(from)} did not check out (${inner.cert ? "its signature or this server's did:hum" : "it carries none"})`);
         return;
@@ -1967,7 +1979,7 @@ function makeDms({ noble, identity, name, serverDid, kyberOf, send, log, now = (
         log(`permit refused: not_a_friend (plot ${permit.plot} from ${k12(from)}: no friend pass from them)`);
         return;
       }
-      const why = judgePermit(noble, permit, { sender: from, serverDid, myDid, nowS: Math.floor(now() / 1000) });
+      const why = judgePermit(noble, permit, { sender: from, myDid, nowS: Math.floor(now() / 1000) });
       if (why) {
         log(`permit refused: ${why} (plot ${permit.plot} from ${k12(from)})`);
         return;
@@ -2008,11 +2020,12 @@ function makeDms({ noble, identity, name, serverDid, kyberOf, send, log, now = (
     if (key === me) throw new Error("a walker cannot befriend itself");
     if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no pass can name the server it is good on");
     const toKyber = sealable(key);
-    if (![serverDid, me, key].every(FRIEND_PASS.friendPassFieldOk)) throw new Error("a pass cannot name these ids");
+    if (!FRIEND_PASS.passAudienceOk(audience)) throw new Error("this walker opened no server address a pass can name");
+    if (![me, key].every(FRIEND_PASS.friendPassFieldOk)) throw new Error("a pass cannot name these ids");
     const may = FRIEND_PASS.friendPassMay(FRIEND_PASS.FRIEND_PASS_DEFAULT_MAY);
     const serial = require("crypto").randomBytes(FRIEND_PASS.FRIEND_PASS_SERIAL_BYTES).toString("hex");
-    const sig = identity.sign(new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(serverDid, me, key, serial, may)));
-    const cert = FRIEND_PASS.friendPassJson(serial, may, Buffer.from(sig).toString("base64"));
+    const sig = identity.sign(new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(audience, me, key, serial, may)));
+    const cert = FRIEND_PASS.friendPassJson(audience, serial, may, Buffer.from(sig).toString("base64"));
     const text = REACH.contactRequestText(name, cert);
     if (!text) throw new Error(`"${name}" is not a name a contact request can carry`);
     const ref = newRef();
@@ -2033,7 +2046,7 @@ function makeDms({ noble, identity, name, serverDid, kyberOf, send, log, now = (
     if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no permit can name the server it is good on");
     const toKyber = sealable(key);
     const expiry = Math.floor(now() / 1000) + Math.round(days * 86400);
-    const permit = mintPermit(identity, { server: serverDid, plot, grantee: didFor(noble, key), expiry });
+    const permit = mintPermit(identity, { aud: audience, plot, grantee: didFor(noble, key), expiry });
     const friendCert = passFrom(key);
     const ref = newRef();
     const puts = DM.dmPuts(noble, identity, { to: key, toKyberB64: toKyber, text: permitNoteText(permit), ts: now(), friendCert, ref });
@@ -2127,7 +2140,7 @@ async function main() {
   }
   // Private messages (ship homes 5b, `makeDms`): every DM the relay delivers is opened and acted
   // on from here on, and `befriend` and `give-permit` on our input send them.
-  const dms = makeDms({ noble, identity, name: opts.name, serverDid, kyberOf: (key) => client.kyber.get(key) || null, send: (m) => client.send(m), log });
+  const dms = makeDms({ noble, identity, name: opts.name, serverDid, audience: audienceOf(opts.server), kyberOf: (key) => client.kyber.get(key) || null, send: (m) => client.send(m), log });
   const stopDms = client.on((msg) => {
     dms.received(msg);
   });
@@ -2240,7 +2253,7 @@ async function main() {
       } else if (cmd.kind === "permit") {
         if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no permit can name the server it is good on");
         const expiry = Math.floor(Date.now() / 1000) + Math.round(cmd.days * 86400);
-        log(`permit: ${JSON.stringify(mintPermit(identity, { server: serverDid, plot: cmd.plot, grantee: cmd.grantee, expiry }))}`);
+        log(`permit: ${JSON.stringify(mintPermit(identity, { aud: audienceOf(opts.server), plot: cmd.plot, grantee: cmd.grantee, expiry }))}`);
       } else if (cmd.kind === "befriend") {
         dms.befriend(cmd.key);
       } else if (cmd.kind === "give-permit") {
@@ -2318,6 +2331,7 @@ module.exports = {
   masterSeedFrom,
   deriveIdentity,
   identifyPreimage,
+  audienceOf,
   chatPreimage,
   buildChatMessage,
   signIn,

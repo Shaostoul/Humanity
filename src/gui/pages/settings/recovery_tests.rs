@@ -147,10 +147,11 @@ fn loopback_relay(tag: &str) -> (String, tokio::runtime::Runtime) {
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let db = crate::relay::storage::Storage::open_temp(&format!("recovery_desktop_{tag}"));
     let state = std::sync::Arc::new(crate::relay::relay::RelayState::new(db));
-    let app = crate::relay::build_router(state);
+    let app = crate::relay::build_router(state.clone());
     let port = rt.block_on(async {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
+        let _ = state.own_names.set(crate::relay::audience::OwnNames::loopback(listener.local_addr().unwrap())); // the names it answers to (audience.rs)
         tokio::spawn(async move {
             let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });

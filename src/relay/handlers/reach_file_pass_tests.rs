@@ -17,18 +17,18 @@ fn unix_now() -> u64 {
 /// The file pass `issuer` gives `grantee` on this relay for transfer `id`, running out a day from
 /// now, minted by the shipped builder: the JSON object a frame carries.
 fn file_pass_from(st: &Arc<RelayState>, issuer: &Person, grantee: &str, id: &str) -> serde_json::Value {
-    let server = st.db.server_did().expect("the relay's own did:hum");
+    let server = crate::relay::audience::test_pass_audience(st);
     let now = unix_now();
     let text = build_file_pass(&issuer.seed, &server, &issuer.key, grantee, id, now + 86_400, now).expect("a pass");
     serde_json::from_str(&text).unwrap()
 }
 
-/// A pass signed by hand with `issuer`'s key over the words for `server`, ending at `expiry`: what
+/// A pass signed by hand with `issuer`'s key over the words for the address `server`, ending at `expiry`: what
 /// a modified app could send, which the shipped builder would refuse to mint.
 fn signed_pass(issuer: &Person, server: &str, grantee: &str, id: &str, expiry: u64) -> serde_json::Value {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     let sig = B64.encode(issuer.keypair().sign(file_pass_preimage(server, &issuer.key, grantee, id, expiry).as_bytes()));
-    serde_json::json!({ "v": 1, "id": id, "expiry": expiry, "sig": sig })
+    serde_json::json!({ "v": 2, "aud": server, "id": id, "expiry": expiry, "sig": sig })
 }
 
 const ID: &str = "00112233445566778899aabbccddeeff";
@@ -53,7 +53,7 @@ fn a_direct_connection_offer_with_a_file_pass_only_from_its_grantee() {
     for p in [&ann, &bo, &cy] {
         connect(&st, &p.key);
     }
-    let server = st.db.server_did().unwrap();
+    let server = crate::relay::audience::test_pass_audience(&st);
     let now = unix_now();
     let anns = file_pass_from(&st, &ann, &bo.key, ID);
 
@@ -90,7 +90,7 @@ fn a_direct_connection_offer_with_a_file_pass_only_from_its_grantee() {
     dropped("a pass for another file", &bo, &ann, "dc_offer", Some(other_file));
     dropped("a pass run out", &bo, &ann, "dc_offer", Some(signed_pass(&ann, &server, &bo.key, ID, now - 1)));
     dropped("a pass of thirty days", &bo, &ann, "dc_offer", Some(signed_pass(&ann, &server, &bo.key, ID, now + 30 * 86_400)));
-    dropped("a pass given on another server", &bo, &ann, "dc_offer", Some(signed_pass(&ann, "did:hum:another", &bo.key, ID, now + 86_400)));
+    dropped("a pass given on another server", &bo, &ann, "dc_offer", Some(signed_pass(&ann, "another.example", &bo.key, ID, now + 86_400)));
     dropped("Ann's pass for Cy, presented by Bo", &bo, &ann, "dc_offer", Some(file_pass_from(&st, &ann, &cy.key, ID)));
     dropped("no pass", &bo, &ann, "dc_offer", None);
     dropped("a pass as text", &bo, &ann, "dc_offer", Some(serde_json::Value::String(anns.to_string())));

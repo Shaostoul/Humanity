@@ -35,6 +35,9 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-11-21: `relay/api.rs` 3_930 -> 3_383. Signed requests (BUG-401) replaced the routes'
+///   hand-rolled freshness, verify and replay copies with one call to `relay/signed_request.rs`
+///   `check` (3_284 lines that day). A new signed route calls `check`, never a copy of it.
 /// - 2026-11-15: `src/lib.rs` 1_930 -> 1_310, the headless sim runner's increment 4: the engine's
 ///   boot (everything the app keeps between frames, built with or without the GPU) moved out of
 ///   `resumed` into `EngineState::boot`, `src/engine/engine_boot.rs` (1_269 lines left that day). lib.rs
@@ -526,7 +529,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("crates/humanity-terrain/src/grass_mesh.rs", 1_000),
     ("crates/humanity-terrain/src/drawn_surface.rs", 1_100),
     ("src/gui/pages/construction.rs", 4_250),
-    ("src/relay/api.rs", 3_930),
+    ("src/relay/api.rs", 3_383),
     ("src/relay/api_market.rs", 800),
     ("src/renderer/mod.rs", 2_800),
     ("src/renderer/celestial.rs", 1_950),

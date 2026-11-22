@@ -1204,9 +1204,9 @@ mod tests {
         assert_eq!(keys(&serde_json::to_value(&mine).unwrap()), sorted(&with_mine), "the builder's own copy says mine");
         assert_eq!(mine.marker("plot:p2"), SharedPiece { piece_id: 42, frame: "plot:p2".into(), mine: true });
 
-        let permit = r#"{"issuer":"aabb","server":"did:hum:srv","plot":"p3","grantee":"did:hum:abc","serial":"00112233445566778899aabbccddeeff","expiry":1767225600,"sig":"c2ln"}"#;
+        let permit = r#"{"issuer":"aabb","aud":"relay.example","plot":"p3","grantee":"did:hum:abc","serial":"00112233445566778899aabbccddeeff","expiry":1767225600,"sig":"c2ln"}"#;
         let p: Permit = serde_json::from_str(permit).expect("the plan's permit parses");
-        assert_eq!(keys(&serde_json::to_value(&p).unwrap()), sorted(&["issuer", "server", "plot", "grantee", "serial", "expiry", "sig"]));
+        assert_eq!(keys(&serde_json::to_value(&p).unwrap()), sorted(&["issuer", "aud", "plot", "grantee", "serial", "expiry", "sig"]));
         // (json text, the variant's type constant, the fields it writes back with)
         let to_relay: Vec<(String, &str, Vec<&str>)> = vec![
             (
@@ -1321,7 +1321,7 @@ mod tests {
     fn the_permit_check_and_its_answer_read_as_the_wire_says() {
         let permit = Permit {
             issuer: "aabb".into(),
-            server: "did:hum:srv".into(),
+            aud: "relay.example".into(),
             plot: "p1".into(),
             grantee: "did:hum:abc".into(),
             serial: "00112233445566778899aabbccddeeff".into(),
@@ -1329,7 +1329,7 @@ mod tests {
             sig: "c2ln".into(),
         };
         let check = ToRelay::PermitCheck { req_id: 4, permit };
-        let check_text = r#"{"type":"game_permit_check","req_id":4,"permit":{"issuer":"aabb","server":"did:hum:srv","plot":"p1","grantee":"did:hum:abc","serial":"00112233445566778899aabbccddeeff","expiry":1767225600,"sig":"c2ln"}}"#;
+        let check_text = r#"{"type":"game_permit_check","req_id":4,"permit":{"issuer":"aabb","aud":"relay.example","plot":"p1","grantee":"did:hum:abc","serial":"00112233445566778899aabbccddeeff","expiry":1767225600,"sig":"c2ln"}}"#;
         assert_eq!(serde_json::to_string(&check).unwrap(), check_text, "the check, exactly");
         assert_eq!(serde_json::from_str::<ToRelay>(check_text).unwrap(), check, "and back");
         assert_eq!(serde_json::to_value(&check).unwrap()["type"], msg::PERMIT_CHECK);

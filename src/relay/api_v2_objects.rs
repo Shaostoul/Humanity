@@ -74,7 +74,7 @@ pub struct GroupReadRequest {
     /// The reader's Dilithium3 public key, hex.
     pub key: String,
     pub timestamp: u64,
-    /// Hex Dilithium3 signature over [`GROUP_READ_PURPOSE`] then the time.
+    /// Hex Dilithium3 request signature over [`GROUP_READ_PURPOSE`] (`signed_request::request_preimage`).
     pub sig: String,
 }
 
@@ -83,24 +83,25 @@ fn refused(code: StatusCode, words: &str) -> axum::response::Response {
     (code, Json(serde_json::json!({ "error": words }))).into_response()
 }
 
-/// The reader's public key, when `req` is fresh and signed by it (the verify off the async
-/// executor, failing closed).
-async fn signed_reader(req: &GroupReadRequest) -> Result<Vec<u8>, axum::response::Response> {
-    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    if now_ms.abs_diff(req.timestamp) > 5 * 60 * 1000 {
-        return Err(refused(StatusCode::BAD_REQUEST, "The signed time is too old or in the future."));
-    }
+/// What a read of `target` is signed over (2026-11-21, D5 of the signed-requests round 2):
+/// [`GROUP_READ_PURPOSE`] then the group or object it reads, or [`MY_GROUPS`] for the list of
+/// one's own groups, so a signature to read one group reads no other (it named no group).
+pub fn group_read_purpose(target: &str) -> String {
+    format!("{GROUP_READ_PURPOSE}\n{target}")
+}
+
+/// The target a read of one's own groups names.
+pub const MY_GROUPS: &str = "mine";
+
+/// The reader's public key, when `req` is fresh, signed by it as a request over
+/// [`group_read_purpose`] of `target` (never a chat line's shape), and not used before
+/// (`signed_request::check`).
+async fn signed_reader(state: &RelayState, req: &GroupReadRequest, target: &str) -> Result<Vec<u8>, axum::response::Response> {
     let Ok(pubkey) = hex::decode(&req.key) else {
         return Err(refused(StatusCode::BAD_REQUEST, "The key is not hex."));
     };
-    let (key, sig, ts) = (req.key.clone(), req.sig.clone(), req.timestamp);
-    let ok = tokio::task::spawn_blocking(move || {
-        crate::relay::handlers::broadcast::verify_dilithium_signature(&key, GROUP_READ_PURPOSE, ts, &sig)
-    })
-    .await
-    .unwrap_or(false);
-    if !ok {
-        return Err(refused(StatusCode::UNAUTHORIZED, "The signature does not verify."));
+    if let Err(why) = crate::relay::signed_request::check(state, &req.key, req.timestamp, &req.sig, &group_read_purpose(target), GROUP_READ_PURPOSE).await {
+        return Err(refused(why.status(), &why.words()));
     }
     Ok(pubkey)
 }
@@ -114,7 +115,7 @@ fn is_member(state: &RelayState, group_id: &str, pubkey: &[u8]) -> bool {
 /// The signed reader of `group_id`'s rows, or the answer that refuses them: 403 for anyone who is
 /// not a member, the same whether or not the group exists here (so nobody learns which do).
 async fn member_of(state: &RelayState, group_id: &str, req: &GroupReadRequest) -> Result<Vec<u8>, axum::response::Response> {
-    let pubkey = signed_reader(req).await?;
+    let pubkey = signed_reader(state, req, group_id).await?;
     if !is_member(state, group_id, &pubkey) {
         return Err(refused(StatusCode::FORBIDDEN, "Only the group's members read it."));
     }
@@ -559,7 +560,7 @@ pub async fn read_object_signed(
     Path(object_id): Path<String>,
     Json(req): Json<GroupReadRequest>,
 ) -> impl IntoResponse {
-    let pubkey = match signed_reader(&req).await {
+    let pubkey = match signed_reader(&state, &req, &object_id).await {
         Ok(p) => p,
         Err(r) => return r,
     };
@@ -658,7 +659,7 @@ pub async fn my_p2p_groups(
     State(state): State<Arc<RelayState>>,
     Json(req): Json<GroupReadRequest>,
 ) -> impl IntoResponse {
-    let pubkey = match signed_reader(&req).await {
+    let pubkey = match signed_reader(&state, &req, MY_GROUPS).await {
         Ok(p) => p,
         Err(r) => return r,
     };

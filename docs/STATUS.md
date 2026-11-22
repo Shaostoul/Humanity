@@ -592,7 +592,8 @@ PRIORITIES.md, trust PRIORITIES.md.
 - **Federation** code is fail-closed and dormant. An admin UI to add, trust and
   remove peers DOES exist now: native Server Settings has had one since v0.722,
   and the web admin page gained the same controls on 2026-09-06 via
-  POST /api/admin/federation (the underlying /server-* slash commands remain).
+  POST /api/admin/federation, since 2026-11-21 the registry's federation.* actions through
+  POST /api/admin/actions/run (the older route was deleted; the /server-* slash commands remain).
   What is still true: only two nodes have ever federated, both the operator's
   own, so the path has never been exercised by a third party (TIER 2 #5).
 - **Bloom post-process** scaffolding built, render-loop integration unverified.

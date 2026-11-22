@@ -96,6 +96,18 @@ pub mod web_push;
 pub mod outbound;
 /// POST /api/push/subscribe and /api/push/unsubscribe, signed over the endpoint (BUG-255).
 pub mod push_routes;
+/// The one check every signed REQUEST passes (2026-11-20, round 2 2026-11-21): fresh, signed over
+/// `hum/request/v2\n{audience}\n{purpose}\n{timestamp}` for THIS relay (never a chat message's
+/// shape, never another server's), and used once.
+pub mod signed_request;
+/// The addresses this relay answers to, which every signature made for it names (2026-11-21).
+pub mod audience;
+/// Signed requests already accepted: bounded, fixed-size entries, oldest forgotten first.
+pub mod replay_memory;
+#[cfg(test)]
+mod audience_tests;
+#[cfg(test)]
+mod signed_request_tests;
 /// The database, its log, the keys and the private copies readable by the relay's account
 /// alone, set at every start (BUG-285, 2026-11-07).
 pub mod owner_only;
@@ -653,6 +665,74 @@ pub fn validate_environment() -> (String, std::net::SocketAddr) {
     (db_path, listen_addr)
 }
 
+/// Serve `state` on `listener`, and on the owner's door when its names have one (audience.rs, M2
+/// of the review of the signed requests' round 5: the same server on 127.0.0.1 at OWNER_PORT, the
+/// way the owner's own app reaches its node), until `shutdown` resolves. How `run_relay` serves,
+/// and how the test seam `serve_relay_named` does (round 7, 2026-11-21: the door tests started
+/// their own listener, so taking the door out of `run_relay` left every test green).
+///
+/// `door`: the owner's door already bound, for a test that holds its port from the start (a port
+/// released and bound again can be taken meanwhile); `run_relay` passes None and it is bound here.
+pub async fn serve_on(
+    state: Arc<relay::RelayState>,
+    listener: tokio::net::TcpListener,
+    door: Option<tokio::net::TcpListener>,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) {
+    let app = build_router(state.clone());
+    open_owner_door(&state, &app, door).await;
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+        .with_graceful_shutdown(shutdown)
+        .await
+        .unwrap();
+}
+
+/// Listen on the owner's door when the relay has one (audience.rs `OwnNames::door_port`): always on
+/// 127.0.0.1, never another address, so nothing from the network reaches it.
+async fn open_owner_door(state: &Arc<relay::RelayState>, app: &Router, bound: Option<tokio::net::TcpListener>) {
+    let Some(door_port) = state.own_names.get().and_then(|n| n.door_port()) else { return };
+    let door_addr = std::net::SocketAddr::from(([127, 0, 0, 1], door_port));
+    if let Some(door) = bound.filter(|l| l.local_addr().is_ok_and(|a| a == door_addr)) {
+        serve_owner_door(door, app.clone());
+        return;
+    }
+    let door = tokio::net::TcpListener::bind(door_addr).await.unwrap_or_else(|e| {
+        panic!(
+            "Cannot listen on {door_addr}, the owner's door ({}): {e}. Another program may already be using port {door_port}.",
+            audience::OWNER_PORT_ENV
+        )
+    });
+    tracing::info!("Owner's door: http://127.0.0.1:{door_port} (this computer's own app, the owner's key alone)");
+    serve_owner_door(door, app.clone());
+}
+
+/// Serve `router` on the owner's door `door` (audience.rs `Door::Owner`, M2): every request and
+/// socket through it carries the door as an extension, set by the outermost layer, before the edge
+/// and every handler, so no client can write it. The task runs until the runtime drops.
+pub fn serve_owner_door(door: tokio::net::TcpListener, router: Router) {
+    let router = router.layer(axum::Extension(audience::Door::Owner));
+    tokio::spawn(async move {
+        let _ = axum::serve(door, router.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
+    });
+}
+
+/// [`serve_relay`] answering to `names`, served the way `run_relay` serves ([`serve_on`]: the owner's
+/// door opened from the names' OWNER_PORT), the seam the door tests stand on (audience_tests.rs,
+/// gui/pages/host_node_owner_tests.rs).
+#[cfg(feature = "relay")]
+pub async fn serve_relay_named(
+    db: storage::Storage,
+    listener: tokio::net::TcpListener,
+    door: Option<tokio::net::TcpListener>,
+    names: audience::OwnNames,
+) -> std::sync::Arc<relay::RelayState> {
+    let state = std::sync::Arc::new(relay::RelayState::new(db));
+    let _ = state.own_names.set(names);
+    let serving = state.clone();
+    tokio::spawn(serve_on(serving, listener, door, std::future::pending()));
+    state
+}
+
 /// Run the relay server. Contains all startup logic from main().
 /// Call after initializing logging and validating the environment.
 /// Boot a relay on an explicit database + an already-bound listener, with
@@ -667,6 +747,10 @@ pub async fn serve_relay(
     listener: tokio::net::TcpListener,
 ) -> std::sync::Arc<relay::RelayState> {
     let state = std::sync::Arc::new(relay::RelayState::new(db));
+    // The names it answers to: its loopback names when it listens on loopback (a test's), no settings read.
+    if let Ok(bound) = listener.local_addr() {
+        let _ = state.own_names.set(audience::OwnNames::loopback(bound));
+    }
     let router = build_router(state.clone());
     let state_for_return = state.clone();
     tokio::spawn(async move {
@@ -869,6 +953,8 @@ pub async fn run_relay() {
 
     let mut relay_state = RelayState::new(db);
     relay_state.init_vapid_key();
+    // The addresses signatures made for this relay must name (audience.rs).
+    let _ = relay_state.own_names.set(audience::from_env(listen_addr));
 
     // A handover of the owner role a stop interrupted is finished or undone first (storage/
     // owner_handover.rs), then the owner claim code (2026-11-20, handlers/owner.rs): while no key
@@ -1244,8 +1330,6 @@ pub async fn run_relay() {
         });
     }
 
-    let app = build_router(state.clone());
-
     // The address comes from BIND_ADDRESS (default 0.0.0.0, every interface).
     // It used to be "0.0.0.0:{port}" with no way to change it, so every dev
     // rig's throwaway relay raised a Windows Firewall prompt (2026-10-03).
@@ -1270,12 +1354,9 @@ pub async fn run_relay() {
     // Serve with graceful shutdown so we get one last chance to persist the
     // game world on Ctrl-C / SIGTERM (the deploy pipeline restarts the relay
     // with SIGTERM). Without this, anything since the last 30s periodic save
-    // would be lost on a clean restart.
+    // would be lost on a clean restart. The owner's door opens there too.
     let shutdown_state = state.clone();
-    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal(shutdown_state))
-        .await
-        .unwrap();
+    serve_on(state.clone(), listener, None, shutdown_signal(shutdown_state)).await;
     // The last capture, the log emptied into the database, and the marker that lets the next
     // start carry on the same backup generation instead of sending a new full copy.
     state.db.backup_stream_close();
@@ -1453,11 +1534,6 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // POST form carries the ~10KB Dilithium key+signature in the body so it
         // can't 414 on a proxy URI limit; GET kept for existing callers. (v0.851)
         .route("/api/admin/stats", get(api::get_admin_stats).post(api::post_admin_stats))
-        // Federation peer management for admins. POST-only: the Dilithium key
-        // plus signature are roughly 10 KB, which a GET would carry in the URL
-        // and a proxy would reject as 414 (the same reason admin stats grew a
-        // POST form). Signs the purpose "admin_federation", not "admin_stats".
-        .route("/api/admin/federation", post(api::post_admin_federation))
         // The admin action registry (2026-10-22, src/relay/admin/): the list to anyone (the
         // same data as the open-source file), and the one signed route that runs an action.
         .route("/api/admin/actions", get(admin::get_actions))
@@ -1549,6 +1625,9 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // added later wrap earlier ones, so security_headers is the outer one
         // and its headers land on the 403 refusal too.
         .layer(middleware::from_fn_with_state(state.clone(), feature_gate))
+        // The request's Host, for the signed-request check's audience (audience.rs): innermost of
+        // the whole-router layers, so it wraps every handler's own task.
+        .layer(middleware::from_fn(audience::scope_host))
         // Per-address limits (ip_limit.rs), outside the capability gate so a flood is cut before
         // any other work, inside security_headers so the 429 carries every answer's headers.
         .layer(middleware::from_fn_with_state(state.clone(), ip_limit::edge))
@@ -1707,6 +1786,9 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     headers: HeaderMap,
     state: axum::extract::State<Arc<RelayState>>,
+    connect: Option<axum::Extension<axum::extract::ConnectInfo<std::net::SocketAddr>>>,
+    direct: Option<axum::Extension<crate::relay::client_addr::DirectPeer>>,
+    door: Option<axum::Extension<audience::Door>>,
 ) -> impl IntoResponse {
     // Check Origin header for browser connections.
     // Non-browser clients (native apps, bots) typically don't send Origin,
@@ -1725,7 +1807,15 @@ async fn ws_handler(
     // a header is believed only from a trusted proxy (client_addr.rs). Until 2026-10-22 this read
     // the FIRST X-Forwarded-For entry, the one a client writes, so a script could be a new address
     // on every connection. No address is the one shared "unknown" bucket, the strictest.
-    let client_ip = files_counts::address_of(&headers);
+    // Through the owner's door, the door's own counts (audience.rs `door_key`, round 7: a visitor
+    // through a forwarder on this computer is 127.0.0.1 too, and could spend the owner's).
+    let door = door.map(|d| d.0);
+    let client_ip = audience::door_key(files_counts::address_of(&headers), door.unwrap_or_default());
+    // The address this socket was opened to (its upgrade's Host) and the client's address: a sign-in
+    // must be signed for exactly that address, as an HTTP request must for its own Host, and a
+    // loopback or LAN name is taken only from a client there (audience.rs, round 3, C1 and C2),
+    // judged by the connection's own address as the edge decided it, never a header (H1).
+    let arrival = audience::Arrival::from_parts(&headers, connect.map(|c| c.0 .0), direct.map(|d| d.0), door);
 
     // One frame may be as large as one message (2026-10-09): browsers send a message as a
     // single frame, and a report may carry 64 KB of evidence plus its keys and signature
@@ -1733,12 +1823,12 @@ async fn ws_handler(
     // message could already reach 128 KB in several frames.
     ws.max_frame_size(131_072)      // 128KB max frame
       .max_message_size(131_072)    // 128KB max message
-      .on_upgrade(move |socket| handle_socket(socket, state.0, client_ip))
+      .on_upgrade(move |socket| handle_socket(socket, state.0, client_ip, arrival))
       .into_response()
 }
 
-async fn handle_socket(socket: WebSocket, state: Arc<RelayState>, client_ip: String) {
-    relay::handle_connection(socket, state, client_ip).await;
+async fn handle_socket(socket: WebSocket, state: Arc<RelayState>, client_ip: String, arrival: audience::Arrival) {
+    relay::handle_connection(socket, state, client_ip, arrival).await;
 }
 
 // Tests of the crates below that reach the server to do it, moved up from beside their code (the crate

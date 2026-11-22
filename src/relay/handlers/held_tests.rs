@@ -564,12 +564,21 @@ fn every_held_action_is_signed_recorded_and_checkable() {
 ///
 /// Seen red 2026-11-20 with `signed_caller` returning the named key unchecked: "the same request
 /// twice" was accepted.
+/// Since the merge with the signed requests (2026-11-22) the caller signs the v2 request
+/// (`hum/request/v2`, the relay's name, the purpose, the time; a handler called straight from a test
+/// has no Host, so audience.rs `TEST_AUDIENCE`), and the owner branch's `purpose\ntime`, a chat
+/// line's shape, is refused. Seen red 2026-11-22 against the merged tree before the test moved:
+/// "a signed request names its key" failed, left None (the relay already checked v2).
 #[test]
 fn a_part_route_knows_its_caller_only_by_their_signature() {
     use axum::http::{HeaderMap, HeaderValue};
     let st = RelayState::new(Storage::open_temp_dir("held_caller"));
     let (own, other) = (person(61), person(62));
     let sign = |who: &Person, purpose: &str, ts: u64| {
+        let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&who.seed));
+        crate::relay::audience::test_request_sig(&kp, crate::relay::audience::TEST_AUDIENCE, purpose, ts)
+    };
+    let chat_shape = |who: &Person, purpose: &str, ts: u64| {
         let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&who.seed));
         hex::encode(kp.sign(format!("{purpose}\n{ts}").as_bytes()))
     };
@@ -601,6 +610,8 @@ fn a_part_route_knows_its_caller_only_by_their_signature() {
     let t = now + 4;
     assert!(block(signed_caller(&st, &headers(&own.key, t, &sign(&own, bare, t)), &purpose)).is_none(), "a chat-style signature of the bare purpose line");
     assert!(purpose.starts_with("hum/held-caller/v1\nheld_part:"), "the purpose carries its domain line");
+    let t = now + 5;
+    assert!(block(signed_caller(&st, &headers(&own.key, t, &chat_shape(&own, &purpose, t)), &purpose)).is_none(), "the owner branch's purpose-and-time signature, a chat line's shape");
 }
 
 /// A held action never enters the public signed-object store (from a submission or a linked

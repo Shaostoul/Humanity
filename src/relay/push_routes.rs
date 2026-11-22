@@ -6,13 +6,13 @@
 //! a timestamp in the future was never refused, so such a request stayed good for ever); it was
 //! not checked against replays; and unsubscribe needed nothing at all, so anyone holding an
 //! endpoint could remove it. Now:
-//! - subscribe signs `push_subscribe\n{endpoint}\n{p256dh}\n{auth}` (then `\n{timestamp}`, the
-//!   `purpose\ntimestamp` REST shape `verify_dilithium_signature` checks): the endpoint and both
-//!   of the browser's keys, so none can be swapped;
+//! - subscribe signs `push_subscribe\n{endpoint}\n{p256dh}\n{auth}` as a request's purpose
+//!   (`hum/request/v2`, this server's address, the purpose, the time: `signed_request.rs`, since 2026-11-20): the endpoint
+//!   and both of the browser's keys, so none can be swapped;
 //! - unsubscribe signs `push_unsubscribe\n{endpoint}` and removes the subscription only when the
 //!   signer is the one it belongs to;
-//! - both are fresh (at most five minutes old, 30 seconds ahead: `files::SIGNED_WINDOW_MS` and
-//!   `SIGNED_AHEAD_MS`) and used once (`RelayState::auth_nonce_fresh`, keyed by the route's own
+//! - both are fresh (at most five minutes old, 30 seconds ahead: `signed_request::SIGNED_WINDOW_MS`
+//!   and `SIGNED_AHEAD_MS`) and used once (`RelayState::auth_nonce_fresh`, keyed by the route's own
 //!   short tag so a long endpoint never lands in the replay memory);
 //! - the endpoint must be somewhere a push may go (`outbound`: https, a public name, at most
 //!   2,048 characters), checked before the signature (cheap, and nothing is looked up for an
@@ -32,7 +32,6 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use crate::relay::files::{SIGNED_AHEAD_MS, SIGNED_WINDOW_MS};
 use crate::relay::outbound::{Refusal, Schemes, MAX_URL_LEN};
 use crate::relay::relay::RelayState;
 
@@ -93,34 +92,17 @@ fn keys_ok(p256dh: &str, auth: &str) -> bool {
     }
 }
 
-fn now_ms() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64
-}
-
-/// Fresh, signed over `purpose`, and used once (the replay memory keyed by `tag`, the route's name).
-async fn check_signature(state: &RelayState, key: &str, timestamp: u64, sig: &str, purpose: String, tag: &str) -> Result<(), Refused> {
-    let now = now_ms();
-    if now.saturating_sub(timestamp) > SIGNED_WINDOW_MS || timestamp.saturating_sub(now) > SIGNED_AHEAD_MS {
-        return Err(refused(
-            StatusCode::BAD_REQUEST,
-            "clock",
-            "The request is too old or from the future: check this device's clock and try again.",
-        ));
-    }
-    let (k, s) = (key.to_string(), sig.to_string());
-    // ML-DSA-65 verify off the async executor; a panic fails closed.
-    let ok = tokio::task::spawn_blocking(move || {
-        crate::relay::handlers::broadcast::verify_dilithium_signature(&k, &purpose, timestamp, &s)
+/// Fresh, signed as a request over `purpose` (never a chat line's shape), and used once (the
+/// replay memory keyed by `tag`, the route's name): `signed_request::check`.
+async fn check_signature(state: &RelayState, key: &str, timestamp: u64, sig: &str, purpose: String, tag: &'static str) -> Result<(), Refused> {
+    use crate::relay::signed_request::SignedRefusal;
+    crate::relay::signed_request::check(state, key, timestamp, sig, &purpose, tag).await.map_err(|why| match why {
+        // A replay answers 409, as it always has here.
+        SignedRefusal::Replay => refused(StatusCode::CONFLICT, why.code(), &why.words()),
+        // No key or signature at all is a signature that does not match.
+        SignedRefusal::Unsigned => refused(StatusCode::UNAUTHORIZED, "signature", &SignedRefusal::Signature.words()),
+        other => refused(other.status(), other.code(), &other.words()),
     })
-    .await
-    .unwrap_or(false);
-    if !ok {
-        return Err(refused(StatusCode::UNAUTHORIZED, "signature", "The signature does not match this request."));
-    }
-    if !state.auth_nonce_fresh(key, tag, timestamp) {
-        return Err(refused(StatusCode::CONFLICT, "replay", "That request was already used: try again."));
-    }
-    Ok(())
 }
 
 /// POST /api/push/subscribe: keep a browser's push subscription for the key that signed it.

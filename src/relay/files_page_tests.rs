@@ -428,7 +428,7 @@ fn nginx_sends_item_pages_to_the_relay() {
         let block = block_at(at);
         for line in [
             "proxy_pass http://127.0.0.1:3210;",
-            "proxy_set_header Host $host;",
+            "proxy_set_header Host $http_host;",
             "proxy_set_header X-Real-IP $remote_addr;",
             "limit_req_status 429;",
             &format!("limit_req zone={zone} "),
@@ -436,6 +436,11 @@ fn nginx_sends_item_pages_to_the_relay() {
             assert!(block.contains(line), "{file}: the item pages' location has {line}");
         }
         assert!(!text.contains("location /files") && !text.contains("location = /files"), "{file}: /files itself stays static");
+        // Every block passes the Host WITH its port (signed requests round 3, C5, 2026-11-21):
+        // `$host` drops it, and every signed request to a node on a non-default port was refused.
+        // Red evidence (2026-11-21): with one `$host` line put back in humanity.conf's chat /ws
+        // block, this failed for scripts/nginx/humanity.conf.
+        assert!(!text.contains("proxy_set_header Host $host;"), "{file}: a block passes Host $host, which drops the port");
         // One location for the pattern: the relay's replaces the static stand-in (`try_files
         // /files.html`) the live server carried while this was built, since nginx would use
         // whichever came first. Comment lines are not locations.

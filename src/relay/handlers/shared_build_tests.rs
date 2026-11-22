@@ -12,6 +12,15 @@ use humanity_systems::construction::placement::quarter_turn;
 const NOW: u64 = 1_760_000_000;
 const DAY: u64 = 86_400;
 
+/// The name these tests' permits are made out for: the test audience, a name of this relay any
+/// client may use (C8, 2026-11-21: a permit names the address its giver's app opened).
+const HERE: &str = crate::relay::audience::TEST_AUDIENCE;
+
+/// This relay's names in these tests: its loopback names on port 3210 and [`HERE`].
+fn names() -> crate::relay::audience::OwnNames {
+    crate::relay::audience::OwnNames::loopback("127.0.0.1:3210".parse().unwrap())
+}
+
 /// The relay key (Dilithium3 public key, hex) of the player whose seed is `[n; 32]`.
 fn key(n: u8) -> String {
     hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[n; 32])).public_key())
@@ -24,7 +33,6 @@ fn ship(tag: &str, players: &[(u8, Option<&str>)]) -> (GameWorld, Storage) {
     let db = Storage::open_temp(&format!("sb_{tag}"));
     let mut world = GameWorld::new();
     load_pieces(&mut world, &db);
-    assert!(!world.pieces.server_did.is_empty(), "the relay knows its own did:hum");
     for (n, plot) in players {
         let k = key(*n);
         let id = world.spawn_player(&k, [80.0, 1.7, 40.0]);
@@ -40,7 +48,7 @@ fn ship(tag: &str, players: &[(u8, Option<&str>)]) -> (GameWorld, Storage) {
 
 /// The player with seed `n`, as the rules see them, with `ranks`.
 fn who(world: &GameWorld, n: u8, ranks: Ranks) -> Asker {
-    Asker::in_world(world, &key(n), ranks).expect("in the world")
+    Asker::in_world(world, &key(n), ranks, names()).expect("in the world")
 }
 
 /// The serial these tests' permits are named by, unless a test names another.
@@ -54,11 +62,10 @@ fn permit(world: &GameWorld, issuer: u8, plot: &str, grantee: u8, expiry: u64, m
 }
 
 /// [`permit`], named `serial`.
-fn permit_named(world: &GameWorld, issuer: u8, plot: &str, grantee: u8, serial: &str, expiry: u64, minted: u64) -> Permit {
-    let server = world.pieces.server_did.clone();
+fn permit_named(_world: &GameWorld, issuer: u8, plot: &str, grantee: u8, serial: &str, expiry: u64, minted: u64) -> Permit {
     let grantee = plot_owner_id(&key(grantee));
-    let sig = build_plot_permit(&[issuer; 32], &server, plot, &grantee, serial, expiry, minted).expect("minted");
-    Permit { issuer: key(issuer), server, plot: plot.into(), grantee, serial: serial.into(), expiry, sig }
+    let sig = build_plot_permit(&[issuer; 32], HERE, plot, &grantee, serial, expiry, minted).expect("minted");
+    Permit { issuer: key(issuer), aud: HERE.into(), plot: plot.into(), grantee, serial: serial.into(), expiry, sig }
 }
 
 /// A piece of `blueprint` in `frame` at `at` (frame metres), built by `owner`, for the book alone.
@@ -118,9 +125,9 @@ fn who_may_build_where() {
     let good = permit(&world, 1, "p1", 2, NOW + 30 * DAY, NOW);
     let other_server = {
         let mut p = permit(&world, 1, "p1", 2, NOW + 30 * DAY, NOW);
-        let elsewhere = "did:hum:SomeOtherServer11111";
+        let elsewhere = "elsewhere.example";
         p.sig = build_plot_permit(&[1; 32], elsewhere, "p1", &p.grantee, &p.serial, p.expiry, NOW).unwrap();
-        p.server = elsewhere.into();
+        p.aud = elsewhere.into();
         p
     };
     let too_long = {
@@ -128,7 +135,7 @@ fn who_may_build_where() {
         let mut p = good.clone();
         p.expiry = NOW + 92 * DAY;
         let issuer = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[1; 32]));
-        p.sig = B64.encode(issuer.sign(plot_permit_preimage(&world.pieces.server_did, "p1", &p.grantee, &p.serial, p.expiry).as_bytes()));
+        p.sig = B64.encode(issuer.sign(plot_permit_preimage(HERE, "p1", &p.grantee, &p.serial, p.expiry).as_bytes()));
         p
     };
     let not_a_signature = Permit { sig: "bm90LWEtc2ln".into(), ..good.clone() };
@@ -154,7 +161,7 @@ fn who_may_build_where() {
     let mut wrong = Vec::new();
     for (what, asker, frame, permit, want) in &rows {
         let f = world.pieces.frames.get(frame).expect("a frame of the ship");
-        let got = may_build(&world.pieces, &db, &world.ship_plots.ship_id, f, asker, permit.as_ref(), NOW);
+        let got = may_build(&db, &world.ship_plots.ship_id, f, asker, permit.as_ref(), NOW);
         let want_r = match want {
             None => Ok(()),
             Some(w) => Err(*w),
@@ -211,7 +218,7 @@ fn who_may_take_down_what() {
     let mut wrong = Vec::new();
     for (what, asker, piece, permit, want) in &rows {
         let f = world.pieces.frames.get(&piece.frame).expect("a frame of the ship");
-        let got = may_remove(&world.pieces, &db, &world.ship_plots.ship_id, f, piece, asker, permit.as_ref(), NOW);
+        let got = may_remove(&db, &world.ship_plots.ship_id, f, piece, asker, permit.as_ref(), NOW);
         let want_r = match want {
             None => Ok(()),
             Some(w) => Err(*w),
@@ -250,8 +257,8 @@ fn a_withdrawn_permit_no_longer_lets_its_holder_in() {
     let ship_id = world.ship_plots.ship_id.clone();
     let judge = |who_n: u8, permit: Option<&Permit>| {
         let asker = who(&world, who_n, plain);
-        let build = may_build(&world.pieces, &db, &ship_id, &p1, &asker, permit, NOW).map_err(|r| r.why.unwrap_or(Why::Unknown));
-        let remove = may_remove(&world.pieces, &db, &ship_id, &p1, &bos_piece, &asker, permit, NOW).map_err(|r| r.why.unwrap_or(Why::Unknown));
+        let build = may_build(&db, &ship_id, &p1, &asker, permit, NOW).map_err(|r| r.why.unwrap_or(Why::Unknown));
+        let remove = may_remove(&db, &ship_id, &p1, &bos_piece, &asker, permit, NOW).map_err(|r| r.why.unwrap_or(Why::Unknown));
         (build, remove)
     };
     let today = (NOW / DAY) as i64;
@@ -318,13 +325,13 @@ fn a_permit_check_answers_as_a_build_would() {
         let mut p = good.clone();
         p.expiry = NOW + 92 * DAY;
         let issuer = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[1; 32]));
-        p.sig = B64.encode(issuer.sign(plot_permit_preimage(&world.pieces.server_did, "p1", &p.grantee, &p.serial, p.expiry).as_bytes()));
+        p.sig = B64.encode(issuer.sign(plot_permit_preimage(HERE, "p1", &p.grantee, &p.serial, p.expiry).as_bytes()));
         p
     };
     let other_server = {
         let mut p = good.clone();
-        p.server = "did:hum:SomeOtherServer11111".into();
-        p.sig = build_plot_permit(&[1; 32], &p.server, "p1", &p.grantee, &p.serial, p.expiry, NOW).unwrap();
+        p.aud = "elsewhere.example".into();
+        p.sig = build_plot_permit(&[1; 32], &p.aud, "p1", &p.grantee, &p.serial, p.expiry, NOW).unwrap();
         p
     };
     let renamed = |plot: &str| Permit { plot: plot.into(), ..good.clone() };
@@ -550,4 +557,34 @@ fn the_pose_kept_is_the_exact_one() {
     assert!(copy.mine && copy.position == kept.position && copy.rotation == kept.rotation);
     let text = serde_json::to_string(&copy).unwrap();
     assert!(!text.contains("did:hum") && !text.contains("owner"), "no builder in the copy: {text}");
+}
+
+/// A PERMIT NAMES THE ADDRESS ITS GIVER'S APP OPENED, AND IS TAKEN ONLY FOR A NAME OF THIS RELAY
+/// THE ASKER MAY USE (C8 of the signed-requests round 3, 2026-11-21). Ann's permit made out for a
+/// name of this relay lets Bo build on her plot; the same permit made out at another server's
+/// address (a server claiming this relay's did:hum gets permits naming ITS address) is
+/// `permit_bad`; one made out for this relay's loopback name is taken from a client on this
+/// computer and refused from anywhere else (relay/audience.rs `OwnNames::admit_pass`).
+/// Seen red with the `admit_pass` line taken out of `permit_lets_in` and the permit's own
+/// audience trusted: "made out at another server", left `Ok(())`, right `Err(PermitBad)`.
+#[test]
+fn a_permit_is_taken_only_for_this_relays_own_names() {
+    let (world, db) = ship("permit_aud", &[(1, Some("p1")), (2, Some("p2"))]);
+    let p1 = world.pieces.frames.get("plot:p1").expect("p1 is a frame of the ship");
+    let made_for = |aud: &str| {
+        let mut p = permit(&world, 1, "p1", 2, NOW + DAY, NOW);
+        p.sig = build_plot_permit(&[1; 32], aud, "p1", &p.grantee, &p.serial, p.expiry, NOW).unwrap();
+        p.aud = aud.into();
+        p
+    };
+    let bo_afar = who(&world, 2, Ranks::default());
+    assert_eq!(bo_afar.peer, None, "no socket here, so no address: as a client from nowhere near");
+    let bo_here = Asker { peer: Some("127.0.0.1".parse().unwrap()), ..who(&world, 2, Ranks::default()) };
+    let judge = |asker: &Asker, p: &Permit| {
+        may_build(&db, &world.ship_plots.ship_id, p1, asker, Some(p), NOW).map_err(|r| r.why.unwrap_or(Why::Unknown))
+    };
+    assert_eq!(judge(&bo_afar, &made_for(HERE)), Ok(()), "made out for this relay");
+    assert_eq!(judge(&bo_afar, &made_for("elsewhere.example")), Err(Why::PermitBad), "made out at another server");
+    assert_eq!(judge(&bo_afar, &made_for("127.0.0.1:3210")), Err(Why::PermitBad), "this relay's loopback name, from afar");
+    assert_eq!(judge(&bo_here, &made_for("127.0.0.1:3210")), Ok(()), "this relay's loopback name, from this computer");
 }

@@ -133,8 +133,7 @@
       "danger": "read",
       "inputs": [],
       "run": "here",
-      "chat": "/server-list",
-      "route": "POST /api/admin/federation"
+      "chat": "/server-list"
     },
     {
       "id": "federation.add",

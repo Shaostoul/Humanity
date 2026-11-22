@@ -114,8 +114,9 @@ fn a_withdrawn_pass_falls_back_to_the_strangers_lane() {
     assert_eq!(revoke(&st, &bob, &serial).0, vec![serial]);
 }
 
-/// A pass is good only on the server it was given on, and only for the person it names, both
-/// read from the relay's own facts (its did:hum, the sender's socket key), never from the pass.
+/// A pass is good only on the server it was given on, and only for the person it names: its
+/// audience one of the relay's own names, the person read from the relay's own facts (the
+/// sender's socket key), never from the pass.
 /// Seen red 2026-10-09 with issuer and grantee swapped in `friend_pass`'s call to
 /// `verify_friend_cert`: "Bob's pass for Alice works for Alice".
 #[test]
@@ -128,15 +129,90 @@ fn a_pass_from_another_server_or_for_someone_else_counts_as_none() {
     assert!(friend_pass(&st, &bob, &alice, Some(&pass)).is_some(), "Bob's pass for Alice works for Alice");
     assert!(friend_pass(&st, &bob, &dan, Some(&pass)).is_none(), "and for nobody else");
     let elsewhere = {
-        let other = Storage::open_temp("passes_other");
-        let server = other.server_did().unwrap();
-        assert_ne!(server, st.db.server_did().unwrap(), "two servers, two identities");
         let serial = humanity_protocol::pq_crypto::new_friend_cert_serial().unwrap();
-        humanity_protocol::pq_crypto::build_friend_cert(&bob_seed, &server, &bob, &alice, &serial, &["message"]).unwrap()
+        humanity_protocol::pq_crypto::build_friend_cert(&bob_seed, "elsewhere.example", &bob, &alice, &serial, &["message"]).unwrap()
     };
     assert!(friend_pass(&st, &bob, &alice, Some(&elsewhere)).is_none(), "a pass given on another server");
     assert!(friend_pass(&st, &bob, &alice, None).is_none());
     assert!(friend_pass(&st, &bob, &alice, Some("")).is_none());
+}
+
+/// A relay answering to `names` (comma-separated, as PUBLIC_HOSTS gives them), on its own database.
+fn relay_named(tag: &str, names: &str) -> Arc<RelayState> {
+    let st = Arc::new(RelayState::new(Storage::open_temp(tag)));
+    let own = crate::relay::audience::OwnNames::from_settings(
+        |k| (k == crate::relay::audience::PUBLIC_HOSTS_ENV).then(|| names.to_string()),
+        "127.0.0.1:3210".parse().unwrap(),
+    );
+    let _ = st.own_names.set(own);
+    st
+}
+
+/// A PASS MADE OUT AT ONE SERVER IS REFUSED AT ANOTHER THAT CLAIMS ITS IDENTITY (C8 of the signed-
+/// requests round 3, 2026-11-21). Relay A answers to a.example; relay B to b.example, and B claims
+/// A's did:hum (A's public key written into B's own database: what a server after A's passes would
+/// show in its `identify_challenge`). A v2 pass named that did:hum, so the pass Bob's app minted
+/// for Alice on B, told B was A, was good at A, and withdrawn on B it stayed good at A for good. A
+/// v3 pass names the address the issuer's app opened: made out at B (b.example), it is refused at
+/// A and taken at B; made out at A, taken at A and refused at B.
+/// Seen red with the `pass_is_for_here` line taken out of `friend_pass` (the pass's own audience
+/// trusted, as v2 trusted the did:hum the server claimed): "made out at B, refused at A" failed.
+#[test]
+fn a_pass_made_out_at_one_server_is_refused_at_another_that_claims_its_identity() {
+    let a = relay_named("passes_aud_a", "a.example");
+    let b = relay_named("passes_aud_b", "b.example");
+    let (a_key, _) = a.db.get_or_create_server_keypair().unwrap();
+    // B has a seed of its own (not A's: it cannot sign as A) and shows A's public key.
+    b.db.get_or_create_server_keypair().unwrap();
+    b.db.set_state("server_pq_public_key", &a_key).unwrap();
+    assert_eq!(b.db.server_did().unwrap(), a.db.server_did().unwrap(), "B claims A's did:hum");
+    let (_alice_seed, alice) = identity(78);
+    let (bob_seed, bob) = identity(79);
+    let minted_at = |aud: &str| {
+        let serial = humanity_protocol::pq_crypto::new_friend_cert_serial().unwrap();
+        humanity_protocol::pq_crypto::build_friend_cert(&bob_seed, aud, &bob, &alice, &serial, &["message"]).unwrap()
+    };
+    let (on_a, on_b) = (minted_at("a.example"), minted_at("b.example"));
+    assert!(friend_pass(&a, &bob, &alice, Some(&on_b)).is_none(), "made out at B, refused at A");
+    assert!(friend_pass(&a, &bob, &alice, Some(&on_a)).is_some(), "made out at A, taken at A");
+    assert!(friend_pass(&b, &bob, &alice, Some(&on_b)).is_some(), "made out at B, taken at B");
+    assert!(friend_pass(&b, &bob, &alice, Some(&on_a)).is_none(), "made out at A, refused at B");
+}
+
+/// FRIENDS WHO REACH ONE SERVER BY DIFFERENT NAMES STAY ACCEPTED (decided 2026-11-21 on the signed-
+/// requests round 4's question 2; docs/reference/cryptography.md, the friendship pass row). A pass
+/// names the server by the address the ISSUER's app opened, and the friend holding it may reach the
+/// same relay by another of its names: Bob's app made the pass out at the domain, Alice's socket
+/// was opened to the onion address (and the reverse). Both are taken, because the pass names the
+/// server, not a socket. What still limits it is the peer rule on the name the pass carries: a pass
+/// made out at the relay's LAN address is taken from a friend on that network, refused from the
+/// internet.
+/// Seen red 2026-11-21 with `pass_is_for_here` made to also require the socket's own Host to equal
+/// the pass's audience (the rejected alternative): "made out at the domain, taken from a friend on
+/// the onion address" failed.
+#[test]
+fn friends_who_reach_one_server_by_different_names_stay_accepted() {
+    use crate::relay::audience::{scope_socket, Arrival};
+    let st = relay_named("passes_aud_names", "a.example,abcdefghijklmnop.onion,192.168.1.5:3210");
+    let (_alice_seed, alice) = identity(80);
+    let (bob_seed, bob) = identity(81);
+    let minted_at = |aud: &str| {
+        let serial = humanity_protocol::pq_crypto::new_friend_cert_serial().unwrap();
+        humanity_protocol::pq_crypto::build_friend_cert(&bob_seed, aud, &bob, &alice, &serial, &["message"]).unwrap()
+    };
+    // Alice presents on a socket opened to `host` from `peer`.
+    let taken = |pass: &str, host: &str, peer: &str| {
+        let arrival = Arrival { host: Some(host.to_string()), peer: Some(peer.parse().unwrap()), ..Default::default() };
+        block(scope_socket(arrival, async { friend_pass(&st, &bob, &alice, Some(pass)).is_some() }))
+    };
+    let (on_domain, on_onion, on_lan) =
+        (minted_at("a.example"), minted_at("abcdefghijklmnop.onion"), minted_at("192.168.1.5:3210"));
+    // Tor on the relay's own computer hands every onion visitor over from loopback.
+    assert!(taken(&on_domain, "abcdefghijklmnop.onion", "127.0.0.1"), "made out at the domain, taken from a friend on the onion address");
+    assert!(taken(&on_onion, "a.example", "203.0.113.9"), "made out at the onion address, taken from a friend on the domain");
+    assert!(taken(&on_domain, "a.example", "203.0.113.9"), "and at the name it was made out at");
+    assert!(taken(&on_lan, "192.168.1.5:3210", "192.168.1.20"), "made out at the LAN address, taken from that network");
+    assert!(!taken(&on_lan, "a.example", "203.0.113.9"), "made out at the LAN address, refused from the internet");
 }
 
 /// A trade request follows the pass the same way: a friend's note is kept whole, and once the
@@ -241,7 +317,7 @@ fn rings_and_offers_read_the_pass_and_never_forward_it() {
 
     let challenge = RelayMessage::IdentifyChallenge { nonce: "ab".into(), server_did: st.db.server_did().unwrap() };
     let wire: serde_json::Value = serde_json::to_value(&challenge).unwrap();
-    assert_eq!(wire["server_did"], st.db.server_did().unwrap(), "the challenge names the server a pass is signed for");
+    assert_eq!(wire["server_did"], st.db.server_did().unwrap(), "the challenge names the server's did:hum (since v3 no pass is signed for it)");
 }
 
 /// A server that cannot keep its fingerprint secret (a damaged `erased-accounts.key`, the

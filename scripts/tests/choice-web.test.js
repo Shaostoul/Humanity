@@ -151,6 +151,9 @@ const ANN = "b2".repeat(32);
 const BEN = "c3".repeat(32);
 const CY = "d4".repeat(32);
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+// The address the page opened (pq.js `pqAudience`, stubbed here): what every pass names since v3
+// (2026-11-21), never the did:hum the server claims.
+const AUD = "chat.example";
 const CTL_FOLLOW = "[[hum:follow]]";
 const CTL_UNFOLLOW = "[[hum:unfollow]]";
 const CTL_FRIEND_CERT = "[[hum:friend-cert]]";
@@ -262,6 +265,7 @@ async function loadDevice() {
   ctx.appendMessage = (el) => { appended.push(el); };
   const key = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   ctx.getDmStoreKey = async () => key;
+  ctx.pqAudience = () => AUD;
   ctx.pqSignMessage = async (_secret, bytes) => new Uint8Array(bytes);
   ctx.pqVerifyMessage = async (_pk, bytes, sig) => Buffer.from(bytes).equals(Buffer.from(sig));
   ctx.pqDmSeal = async (pub, plaintext) => ({ ek_ct_b64: b64(pub), nonce_b64: "AAAA", ct_b64: b64(plaintext) });
@@ -319,7 +323,7 @@ function envelopeFrom(from, text, ts) {
 /** A choice note from my other device, made at `at`. */
 const choiceNote = (peer, may, at) => selfEnvelope(ME, fp.choiceNoteText(peer, may), undefined, at);
 /** My pass to `peer` as its JSON (the stand-in signature is the signed words). */
-const passJson = (peer, serial, may) => fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(SERVER, ME, peer, serial, may)));
+const passJson = (peer, serial, may) => fp.friendPassJson(AUD, serial, may, b64(fp.friendPassPreimage(AUD, ME, peer, serial, may)));
 
 const textOf = (put) => opened(put).inner.text;
 const puts = (dev) => dev.sock.sent.filter((m) => m.type === "dm_put");

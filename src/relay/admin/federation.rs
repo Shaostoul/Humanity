@@ -1,10 +1,10 @@
 //! The Federation panel's actions (2026-10-22; docs/design/in-app-ops.md, "Federation peers",
 //! and docs/design/federation-activation.md Phase 1).
 //!
-//! One implementation for every way in: the registry's `federation.*` actions run here, and the
-//! older `POST /api/admin/federation` (api.rs) hands its actions to the same functions, so a
-//! peer added by either is the same row with the same checks. The chat commands (`/server-add`
-//! and the rest, relay.rs) predate both and still carry their own copy.
+//! One implementation for the panels: the registry's `federation.*` actions run here. (The older
+//! `POST /api/admin/federation` handed its actions here too until 2026-11-21, when it was deleted:
+//! no client called it, and one signature over its one purpose could run any of its actions.) The
+//! chat commands (`/server-add` and the rest, relay.rs) predate both and still carry their own copy.
 //!
 //! WHAT THE PANEL READS ([`view`]). Every peer with its trust, whether it is paused, whether a
 //! link to it is open now (the live connections, read only) and since when, its status and when
