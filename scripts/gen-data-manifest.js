@@ -48,8 +48,12 @@ const rootArg = args.find(a => a.startsWith('--root='));
 const ROOT = rootArg ? path.resolve(rootArg.slice('--root='.length)) : path.resolve(__dirname, '..');
 
 if (args.includes('--paths-only')) {
+  // Return and let Node exit by itself, never process.exit() here (2026-11-22): on Linux a write to
+  // a pipe finishes in the background, so exiting at once cut the list off at the pipe's 64 KiB
+  // once the emoji pack made it longer (release-files.test.js went red on CI only; on Windows the
+  // write to a pipe completes before it returns). A top-level return is allowed in a CommonJS file.
   process.stdout.write(release.releaseFiles(ROOT).join('\n') + '\n');
-  process.exit(0);
+  return;
 }
 
 const version = args.find(a => !a.startsWith('--'));

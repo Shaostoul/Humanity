@@ -201,4 +201,7 @@ function main(argv) {
 
 module.exports = { ROOTS, FILES, EXCLUDED, PHONE_LEFT_OUT, excludedBy, releaseFiles, leftOut, phoneFiles };
 
-if (require.main === module) process.exit(main(process.argv.slice(2)));
+// exitCode, not process.exit() (2026-11-22): on Linux a write to a pipe finishes in the background,
+// so exiting at once could cut `--list` or `--phone-list` off at 64 KiB when read through a pipe
+// (gen-data-manifest.js had exactly that bug; CI writes these lists to files, which are written at once).
+if (require.main === module) process.exitCode = main(process.argv.slice(2));
