@@ -67,6 +67,12 @@ Each line is written the way a player would hear it; the release notes and
 - Each server declares its gameplay rules; united-humanity.us plays Forgiving.
 - A home's figures count only its own household's machines; the Library tells the ship's story, and General Services has a Medbay and Barracks.
 
+### v0.1570.0 (22 November 2026)
+
+- Every signed request and sign-in names the server it was made for and is good only once, so a server can never use your signature at another server as you.
+- A home node's owner comes in by their own door, which strangers cannot reach or flood; a public address, the local network and a Tailscale network are the owner's choices.
+- The Donate page shows what donations bring in each month against what the project costs, each figure dated, kept current by the server's owner from inside the app.
+
 ### Next release
 
 

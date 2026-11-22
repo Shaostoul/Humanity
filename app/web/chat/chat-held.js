@@ -248,7 +248,7 @@
   // over the signed request `hum/request/v2\n{this page's server}\n{purpose}\n{time}` (pq.js
   // pqRequestPreimage and pqAudience; the purpose /shared/held-seal.js callerPurpose; the desktop's
   // net/held.rs `Caller`; merged 2026-11-22: until then `purpose\ntime`, a chat line's shape).
-  // chat-owner.js signs its re-wrap and check requests through `window.heldCallerHeaders` too.
+  // chat-owner.js makes no held requests since owner changes became desktop-only (2026-11-22).
 
   let lastSignedAt = 0;
   /** Unix ms, strictly later than the last request's, so a retried request is never a replay. */

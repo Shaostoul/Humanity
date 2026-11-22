@@ -121,6 +121,8 @@
     buildClockControls(overlay);
     buildFleetControls(overlay);
     buildRulesControls(overlay);
+    // The funding figures editor (2026-11-22, chat-funding-admin.js).
+    if (typeof window.buildFundingAdmin === 'function') window.buildFundingAdmin(overlay);
     return overlay;
   }
 

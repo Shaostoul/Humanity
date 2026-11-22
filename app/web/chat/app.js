@@ -1954,6 +1954,11 @@ async function handleMessage(msg) {
         window.gameplayRules = msg.settings.gameplay_rules;
         if (typeof renderGameAdminRules === 'function') renderGameAdminRules();
       }
+      // And the funding figures this server publishes (2026-11-22), for the window's Funding figures section.
+      if (msg.settings && msg.settings.funding_figures && Array.isArray(msg.settings.funding_figures.channels)) {
+        window.fundingFigures = msg.settings.funding_figures;
+        if (typeof renderFundingAdmin === 'function') renderFundingAdmin();
+      }
       break;
     case 'account_erased': {
       // BUG-135: this server erased our account (the receipt just before this said what

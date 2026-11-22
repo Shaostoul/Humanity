@@ -75,7 +75,7 @@
   <script src="/shared/icons.js?v=1"></script>
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/hold-confirm.js?v=1"></script>
-  <script src="/shared/shell.js?v=20261124" data-active="chat"></script>
+  <script src="/shared/shell.js?v=20261125" data-active="chat"></script>
   <!-- Which server this page is on, held under the nav (media-round-5-plan.md 3.11). Needs nothing
        from the chat scripts; asks Chat's protectedHidesRooms only when Switch opens, long after load. -->
   <script src="/shared/server-strip.js?v=1"></script>
@@ -826,7 +826,7 @@
   <script src="/shared/video-poster.js?v=1"></script>
   <!-- The dock a playing video moves into when its card is scrolled away (2026-11-06, rung 3). -->
   <script src="/shared/video-dock.js?v=1"></script>
-  <script src="/chat/app.js?v=20261123"></script>
+  <script src="/chat/app.js?v=20261125"></script>
   <script src="/chat/chat-messages.js?v=30"></script>
   <script src="/chat/chat-dms.js?v=25"></script>
   <script src="/chat/chat-social.js?v=20261123"></script>
@@ -856,13 +856,14 @@
        (profile privacy merge) and /shared/privacy-tiers.js loaded first. -->
   <script src="/chat/chat-privacy.js?v=20261123"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
-  <script src="/chat/chat-game-admin.js?v=4"></script>
+  <script src="/chat/chat-funding-admin.js?v=1"></script>
+  <script src="/chat/chat-game-admin.js?v=5"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
        and moderators. After chat-privacy.js (Block, which the dialog can run). -->
   <script src="/chat/chat-reports.js?v=8"></script>
   <!-- Hide and keep (2026-11-20, docs/design/hide-and-keep.md rung 5): the signed decision on a
        report and Held copies for admins, built as DOM. After chat-reports.js, which it decorates. -->
-  <script src="/chat/chat-held.js?v=20261123"></script>
+  <script src="/chat/chat-held.js?v=20261125"></script>
   <!-- The server owner (2026-11-20): Claim ownership while the server has none, and in Held copies
        the successor, the owner log and the owner's Hand over and Successor controls, built as DOM.
        After chat-held.js, whose view it draws into. -->

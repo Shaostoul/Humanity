@@ -305,7 +305,9 @@
     if (funding && Array.isArray(funding.addresses)) funding.addresses.forEach(add);
     renderAddressCards(entries);
     var hasGoal = renderGoal(funding);
-    document.getElementById('direct-section').style.display = (entries.length || hasGoal) ? '' : 'none';
+    // This month (2026-11-22): the server's published monthly figures, nothing when it has none.
+    var hasFigures = window.DonateFigures.render(document.getElementById('figures-section'), funding, function (k, v) { return i18n.t(k, v); }, document);
+    document.getElementById('direct-section').style.display = (entries.length || hasGoal || hasFigures) ? '' : 'none';
 
     renderCharities(await loadList('/data/donate/charities.json', 'charities'));
     renderFaq(await loadList('/data/donate/faq.json', 'entries'));
