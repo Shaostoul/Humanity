@@ -65,6 +65,9 @@ pub struct AdminConsoleState {
     /// Gameplay rules (2026-11-21, pages/gameplay_rules_admin.rs): the admin's unapplied pick,
     /// None while it follows the server's.
     pub rules_draft: Option<crate::relay::storage::GameplayRules>,
+    /// Funding figures (2026-11-22, pages/funding_admin.rs): the owner's unsaved edits, None while
+    /// the panel follows the server's.
+    pub funding_draft: Option<crate::relay::storage::FundingFigures>,
 }
 
 impl Default for AdminConsoleState {
@@ -96,6 +99,7 @@ impl Default for AdminConsoleState {
             results: HashMap::new(),
             filter: String::new(),
             rules_draft: None,
+            funding_draft: None,
         }
     }
 }

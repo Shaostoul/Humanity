@@ -6704,3 +6704,11 @@ hunts the player), size, tint, despawn; the AI is only touched if the toggle is
 actually flipped (opening the editor never rewrites predator/guard behaviors).
 - Native: `src/gui/pages/dev.rs`, `src/lib.rs` (spawn/editor consumers),
   `crates/humanity-systems/src/livestock.rs` (`spawn_creature_at`)
+
+### Live funding figures on the Donate page (2026-11-22)
+The operator: "Can we update the values live? So people can see what current funding is at least via other things not my second job?" A server's owner enters, in Server Settings > ADMIN > Funding figures (mirrored in the web chat's Game Admin window), what each way of giving (Patreon, GitHub Sponsors, CashApp...) brings in each month and what each monthly cost is; the relay holds them to their shape (at most 32 rows each, https links, 0 to 1,000,000 dollars), stamps each new or changed figure with today's date, and serves them in `/api/server-info`'s `funding.channels` and `funding.costs`. The Donate page of both apps shows "This month": the sentence "Donations cover $20 of $241 a month.", each channel and cost with its date; nothing when a server publishes none (the shipped default). Rung 2 (automatic figures from GitHub Sponsors and Patreon) is design only. Design: docs/design/live-funding.md.
+- Relay: `src/relay/storage/funding_figures.rs` (`FundingFigures`, `checked`, `served`), `src/relay/storage/server_settings.rs` (`funding_figures` column), `src/relay/handlers/server_settings_update.rs`, `src/relay/api.rs` (`get_server_info`)
+- Native: `src/gui/pages/donate_figures.rs` (the card), `src/gui/pages/funding_admin.rs` (the editor), `src/gui/mod.rs` (`apply_server_funding`)
+- Web: `web/pages/donate-figures.js`, `web/pages/donate.html`, `web/chat/chat-funding-admin.js`
+- Data: `data/i18n/en.json` (`donate.figures_*`, `funding_admin.*`), `data/admin/ops_registry.json`
+- Tests: `the_shape_validation_refuses_bad_rows`, `the_as_of_date_is_the_relays`, `a_member_who_is_not_an_admin_cannot_change_the_figures` (figures), `an_admins_figures_are_saved_stamped_and_served`, `the_donate_page_shows_the_channels_the_costs_and_the_covered_sentence`, `nothing_shows_when_none_are_published`, `the_panel_shows_the_servers_figures_and_an_edit_becomes_the_update`, scripts/tests/donate-figures-web.test.js

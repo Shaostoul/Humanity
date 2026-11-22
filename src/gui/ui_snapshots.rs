@@ -4921,6 +4921,15 @@ fn snapshot_donate() {
     render_page_png("donate", 1000, 1600, |ctx, theme, state| {
         state.donate_solana_address = "So1anaExampleAddress1111111111111111111111".into();
         state.donate_btc_address = "bc1qexamplebitcoinaddress00000000000000".into();
+        // The server's published monthly figures (2026-11-22): example numbers, to show the card.
+        use crate::relay::storage::funding_figures::{FundingChannel, FundingCost, FundingFigures};
+        state.donate_figures = FundingFigures {
+            channels: vec![
+                FundingChannel { name: "Patreon".into(), link: "https://www.patreon.com/example".into(), monthly_usd: 20.0, as_of: "2026-11-22".into() },
+                FundingChannel { name: "GitHub Sponsors".into(), link: "https://github.com/sponsors/example".into(), monthly_usd: 0.0, as_of: "2026-11-22".into() },
+            ],
+            costs: vec![FundingCost { name: "Servers and domain names".into(), monthly_usd: 41.0, as_of: "2026-11-22".into() }],
+        };
         crate::gui::pages::donate::draw(ctx, theme, state);
     });
 }

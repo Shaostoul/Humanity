@@ -1532,6 +1532,12 @@ pub async fn get_server_info(
     let funding = config.get("funding").cloned().filter(|f| {
         f.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false)
     });
+    // The owner's published figures (2026-11-22, storage/funding_figures.rs): what donations bring
+    // in each month against what the project costs. A server that publishes none adds nothing.
+    let funding = crate::relay::storage::funding_figures::served(
+        funding,
+        &state.db.get_server_settings().map(|s| s.funding_figures).unwrap_or_default(),
+    );
 
     Json(ServerInfoResponse {
         server_id: pk.clone(),

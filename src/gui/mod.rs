@@ -205,6 +205,7 @@ impl GuiState {
         }
         self.donate_funding_server = from_url.to_string();
         self.donate_addresses_server = funding.map(DonateAddress::from_funding_json).unwrap_or_default();
+        self.donate_figures = funding.map(crate::relay::storage::FundingFigures::from_funding_json).unwrap_or_default();
         self.donate_funding_goal = funding.and_then(|f| {
             f.get("goal_usd").and_then(|v| v.as_f64()).filter(|g| *g > 0.0).map(|goal| {
                 let label = f.get("goal_label").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -2300,6 +2301,8 @@ pub struct GuiState {
     /// fake "$350 / $1000" progress bar -- the card only renders when a real
     /// goal exists.
     pub donate_funding_goal: Option<(f64, String)>,
+    /// The monthly figures the server publishes (2026-11-22, pages/donate_figures.rs).
+    pub donate_figures: crate::relay::storage::FundingFigures,
     /// Which server (trimmed URL) the two fields above came from. Donation info is
     /// MONEY-ROUTING data: server A's addresses must never be displayed while
     /// connected to server B (adversarial review, 2026-07-01), so the connect
@@ -3959,6 +3962,7 @@ impl Default for GuiState {
             donate_addresses: Vec::new(),
             donate_addresses_server: Vec::new(),
             donate_funding_goal: None,
+            donate_figures: Default::default(),
             donate_funding_server: String::new(),
             donate_info_rx: None,
             donate_new_network: String::new(),

@@ -75,6 +75,17 @@
     .goal-card .goal-amount{font-size:1.4rem;font-weight:700;color:var(--accent)}
     .goal-card .goal-label{font-size:0.85rem;color:var(--text-muted)}
 
+    /* This month: the server's published monthly figures (donate-figures.js) */
+    .figures-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl)}
+    .figures-card .figures-title{font-size:1.1rem;margin:0 0 var(--space-sm);color:var(--text)}
+    .figures-card .figures-sentence{font-size:1rem;font-weight:600;color:var(--accent);margin:0 0 var(--space-md)}
+    .figures-card .figures-heading{font-size:0.8rem;color:var(--text-muted);margin:var(--space-md) 0 var(--space-xs)}
+    .figures-card .figures-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-md);padding:var(--space-xs) 0}
+    .figures-card .figures-name{color:var(--text)}
+    .figures-card .figures-amount{color:var(--accent);font-weight:600}
+    .figures-card .figures-asof,.figures-card .figures-note{font-size:0.8rem;color:var(--text-muted)}
+    .figures-card .figures-open{font-size:0.85rem;color:var(--accent)}
+
     /* FAQ */
     .faq h2{font-size:1.1rem;margin:0 0 var(--space-lg);color:var(--text)}
     .faq-item{border-bottom:1px solid var(--border);padding:var(--space-lg) 0}
@@ -130,6 +141,7 @@
       <span class="goal-amount" id="goal-amount"></span>
       <span class="goal-label" id="goal-label"></span>
     </div>
+    <div class="figures-card" id="figures-section" style="display:none;"></div>
     <div class="source-grid" id="source-grid">
       <!-- Populated by donate-app.js -->
     </div>
@@ -160,6 +172,7 @@
 </div>
 
 <script src="/shared/qrcode.js"></script>
+<script src="/pages/donate-figures.js"></script>
 <script src="/pages/donate-app.js"></script>
 </body>
 </html>

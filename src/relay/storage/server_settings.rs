@@ -188,6 +188,11 @@ pub struct ServerSettings {
     /// Set from Server Settings > ADMIN > Gameplay rules, live, no restart.
     #[serde(default)]
     pub gameplay_rules: super::GameplayRules,
+    /// The funding figures this server publishes (2026-11-22, storage/funding_figures.rs): what
+    /// donations bring in each month and what running the project costs. Empty (publishes
+    /// nothing) until an admin or the owner enters them in Server Settings > ADMIN.
+    #[serde(default)]
+    pub funding_figures: super::FundingFigures,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -326,6 +331,7 @@ impl Default for ServerSettings {
             media_public_previews_only: default_media_public_previews_only(),
             media_members_note: media_members_note(),
             gameplay_rules: super::GameplayRules::default(),
+            funding_figures: super::FundingFigures::default(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -393,7 +399,7 @@ impl Storage {
                         world_time_scale,
                         fleet_supply_mode,
                         media_visibility, media_budget_mb, media_per_person_mb, media_public_previews_only,
-                        gameplay_preset, gameplay_levels
+                        gameplay_preset, gameplay_levels, funding_figures
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -449,6 +455,7 @@ impl Storage {
                         media_public_previews_only: row.get::<_, i64>(36)? != 0,
                         media_members_note: media_members_note(),
                         gameplay_rules: super::GameplayRules::from_columns(&row.get::<_, String>(37)?, &row.get::<_, String>(38)?),
+                        funding_figures: super::FundingFigures::from_column(&row.get::<_, String>(39)?),
                     })
                 },
             ) {
@@ -513,6 +520,7 @@ impl Storage {
                     media_public_previews_only      = ?37,
                     gameplay_preset                 = ?38,
                     gameplay_levels                 = ?39,
+                    funding_figures                 = ?40,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -558,6 +566,7 @@ impl Storage {
                     s.media_public_previews_only as i32,
                     s.gameplay_rules.preset,
                     s.gameplay_rules.levels_column(),
+                    s.funding_figures.column(),
                 ],
             )?;
             Ok(rows > 0)

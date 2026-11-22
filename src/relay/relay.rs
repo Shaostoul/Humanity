@@ -1128,6 +1128,9 @@ pub enum RelayMessage {
         /// The shared world's gameplay rules (2026-11-21, handlers/gameplay_rules.rs).
         #[serde(default)]
         gameplay_rules: Option<super::storage::GameplayRules>,
+        /// The funding figures this server publishes (2026-11-22, storage/funding_figures.rs).
+        #[serde(default)]
+        funding_figures: Option<super::storage::FundingFigures>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.

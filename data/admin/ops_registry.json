@@ -76,6 +76,16 @@
       ]
     },
     {
+      "name": "Publish the project's monthly funding figures",
+      "what": "What donations bring in each month (one row per way people give: Patreon, GitHub Sponsors, CashApp) and what running the project costs each month (one row per cost), each with the date it was last confirmed. Shown to everyone on the Donate page as 'This month' with a plain sentence ('Donations cover $20 of $241 a month.'). Publishes nothing until the owner enters figures. Never anyone's pay or income.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Funding figures: Add a way people give / Add a cost, fill in the name, link and monthly dollars, Save (src/gui/pages/funding_admin.rs; server_settings_update with funding_figures, src/relay/handlers/server_settings_update.rs; saved as server_settings.funding_figures; the relay stamps the as-of dates; served in /api/server-info funding.channels and funding.costs). Design: docs/design/live-funding.md.",
+      "also_available": [
+        "web-page: the chat's Game Admin window (command palette), Funding figures"
+      ]
+    },
+    {
       "name": "Set the gameplay rules of the shared world",
       "what": "The realism levels everyone in this server's shared world plays by, the same for all of them: body heat, illness and injury, farm animals, carrying weight, death, the mining drone, the walking pace, hostile wildlife, the vitals drain, the garden's and the ship's levels, skill learning, cooking and preserving. Forgiving on a new server (every setting at the level a new player gets), Realistic (every setting at its full, real-world level), or Custom (a level for each). Each person's own Settings > Gameplay still plays when they play alone, and shows the server's rules greyed while they are in its world. Takes effect at once for every game in the world, without a restart.",
       "where": "native-app",

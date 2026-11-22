@@ -23,6 +23,9 @@ pub mod game_interest;
 pub mod game_state;
 /// A server's gameplay rules reaching the games in its shared world (2026-11-21).
 pub mod gameplay_rules;
+/// The funding figures through the relay: who may change them, what is served (2026-11-22).
+#[cfg(test)]
+mod funding_figures_tests;
 pub mod held;
 pub mod home_plots;
 /// The server's owner (2026-11-20): the claim code, the handover, and the owner's protection.

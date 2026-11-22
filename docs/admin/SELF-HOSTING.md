@@ -292,6 +292,24 @@ it shows your rules, greyed, marked "this server's rules", and leaving gives the
 
 Why the rules are the server's, and what comes next: `docs/design/server-rules.md`.
 
+## Your server's funding figures (what donations bring in against what it costs)
+
+The Donate page can show what donations bring in each month against what running the project costs,
+so people see what current funding is. It publishes nothing until you enter figures, and it is never
+anyone's pay or personal income.
+
+- Open **Server Settings > ADMIN > Funding figures** in the desktop app (or the web chat's Game
+  Admin window), press **Add a way people give** for each of Patreon, GitHub Sponsors, CashApp
+  (a name, an `https://` link, and the dollars a month it brings in), press **Add a cost** for each
+  monthly cost, and **Save**. Only an admin or the owner can. People see it on the Donate page at
+  once, with no restart.
+- Each figure carries the date it was last confirmed. A figure you change is dated today when you
+  save; **Still right today** re-dates one you checked and left alone.
+- Stored in your relay's database (`server_settings.funding_figures`, empty on a new server).
+  The funding goal and the address list stay in `data/server-config.json` as before.
+
+Plan, limits and the automatic version that may come later: `docs/design/live-funding.md`.
+
 ## Your own homepage (per-node website differentiation)
 
 Every node serves the same web app, but the FRONT DOOR is yours. nginx

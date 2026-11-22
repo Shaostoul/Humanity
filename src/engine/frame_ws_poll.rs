@@ -269,6 +269,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 state.gui_state.donate_funding_server.clear();
                                 state.gui_state.donate_addresses_server.clear();
                                 state.gui_state.donate_funding_goal = None;
+                                state.gui_state.donate_figures = Default::default();
                             }
                             let already_fetching = state
                                 .gui_state

@@ -1424,7 +1424,8 @@ impl Storage {
                 media_public_previews_only INTEGER NOT NULL DEFAULT 1,
                 gameplay_preset           TEXT    NOT NULL DEFAULT 'forgiving',
                 gameplay_levels           TEXT    NOT NULL DEFAULT '{}',
-                updated_at                INTEGER NOT NULL DEFAULT 0,
+                funding_figures           TEXT    NOT NULL DEFAULT '',
+                updated_at               INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
             INSERT OR IGNORE INTO server_settings (id) VALUES (1);"
@@ -1581,6 +1582,9 @@ impl Storage {
             // admin picks another in Server Settings > ADMIN > Gameplay rules.
             ("gameplay_preset", "ALTER TABLE server_settings ADD COLUMN gameplay_preset TEXT NOT NULL DEFAULT 'forgiving';"),
             ("gameplay_levels", "ALTER TABLE server_settings ADD COLUMN gameplay_levels TEXT NOT NULL DEFAULT '{}';"),
+            // A server's published funding figures (2026-11-22, storage/funding_figures.rs): none
+            // until its owner enters them in Server Settings > ADMIN > Funding figures.
+            ("funding_figures", "ALTER TABLE server_settings ADD COLUMN funding_figures TEXT NOT NULL DEFAULT '';"),
         ] {
             if conn.prepare(&format!("SELECT {column} FROM server_settings LIMIT 0")).is_err() {
                 conn.execute_batch(add)?;
@@ -3290,6 +3294,9 @@ mod members;
 // A server's gameplay rules: the realism levels its shared world plays by (2026-11-21).
 pub mod gameplay_rules;
 pub use gameplay_rules::GameplayRules;
+/// A server's published funding figures (2026-11-22, docs/design/live-funding.md).
+pub mod funding_figures;
+pub use funding_figures::FundingFigures;
 mod server_settings;
 pub use server_settings::{
     clamp_world_time_scale, default_world_time_scale, fleet_supply_mode_of, media_visibility_of, ServerSettings,

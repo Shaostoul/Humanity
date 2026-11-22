@@ -59,6 +59,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         fleet_supply_mode,
         media_visibility, media_budget_mb, media_per_person_mb, media_public_previews_only,
         gameplay_rules,
+        funding_figures,
     } = upd else { return };
     let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
     if !crate::relay::handlers::msg_handlers::is_admin_role(&role) {
@@ -194,6 +195,16 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         // anything else changes nothing (storage/gameplay_rules.rs `checked`).
         if let Some(r) = gameplay_rules.and_then(crate::relay::storage::GameplayRules::checked) {
             current.gameplay_rules = r;
+        }
+        // The published funding figures (2026-11-22): held to their shape with the as-of dates
+        // stamped here (storage/funding_figures.rs); a bad row refuses the figures and says why.
+        if let Some(f) = funding_figures {
+            match f.checked(&current.funding_figures, &crate::relay::storage::funding_figures::today()) {
+                Ok(f) => current.funding_figures = f,
+                Err(why) => {
+                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Funding figures not saved: {why}") });
+                }
+            }
         }
         match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
             Ok(true) => {

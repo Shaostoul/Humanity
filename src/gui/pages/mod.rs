@@ -110,6 +110,9 @@ pub mod game_admin;
 pub mod world_clock_admin;
 // Server Settings > ADMIN > Gameplay rules (2026-11-21), drawn by game_admin.
 pub mod gameplay_rules_admin;
+// The Donate page's "This month" card and its editor, Server Settings > ADMIN > Funding figures (2026-11-22).
+pub mod donate_figures;
+pub mod funding_admin;
 // The fleet ledger (2026-10-04): Inventory > The fleet, and Server Settings > ADMIN > Fleet supply.
 pub mod fleet_ledger;
 pub mod identity;

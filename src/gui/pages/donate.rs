@@ -323,7 +323,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // More direct links, under one sentence that says they are not
                 // tax-deductible either. Hidden when there is nothing to list.
-                let show_direct = !sources.is_empty() || state.donate_funding_goal.is_some();
+                let show_direct = !sources.is_empty() || state.donate_funding_goal.is_some() || !state.donate_figures.is_empty();
                 if show_direct {
                     ui.label(
                         RichText::new(t("donate.more_ways"))
@@ -371,6 +371,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                     ui.add_space(theme.spacing_lg);
                 }
+
+                // This month: what donations bring in against what running the project costs,
+                // from the connected server's published figures (2026-11-22). Nothing when none.
+                super::donate_figures::draw(ui, theme, &state.donate_figures);
 
                 for source in &sources {
                     widgets::card(ui, theme, |ui| {

@@ -1022,6 +1022,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
+        // ── Funding figures (2026-11-22): what donations bring in against what the project costs ──
+        super::funding_admin::draw(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
         // ── Every admin action and the admin log (2026-10-22): the server's own registry ──
         all_actions::draw(ui, theme, state);
 
