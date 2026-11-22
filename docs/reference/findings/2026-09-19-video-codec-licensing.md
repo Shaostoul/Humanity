@@ -566,3 +566,53 @@ user's operating system, move to France, or do without.
 year old when you read it, re-check the three moving targets: the US patent
 expiry dates in Finding 2, the state of CEF issue #3559 in Finding 3, and Via
 LA's published rates in Finding 4.*
+
+---
+
+## Re-checked 2026-11-21
+
+Added two months after the research above, which is left unchanged. Only what moved. Not legal advice; I am not a lawyer.
+
+**Twitch's codecs (moved: HEVC for 1440p is now official; no AV1 for viewers found).** Twitch's own post of 2026-06-17,
+[Introducing Dual Format and 2k Streaming on Twitch](https://blog.twitch.tv/en/2026/06/17/introducing-dual-format-and-2k-streaming-on-twitch/):
+
+> 2k streaming uses HEVC, a next-generation video codec that provides higher quality at lower bitrates
+
+> AVC (used for 1080p streams and lower)
+
+The post does not mention AV1 and does not say which viewers can watch 2K. So the finding stands for everything up to
+1080p (H.264 with AAC); 1440p needs HEVC on top, which neither CEF's OS-decoder route nor open codecs provide. Twitch's help
+page on stream quality loaded empty to a text reader, so its viewer-side statement could not be read.
+
+**US H.264 patent list (moved: one more patent, and the page was edited yesterday).** The tracking page
+[Have the patents for H.264 MPEG-4 AVC expired yet?](https://meta.wikimedia.org/wiki/Have_the_patents_for_H.264_MPEG-4_AVC_expired_yet%3F),
+**last edited 20 November 2026**, still answers "NO! (at least in Brazil, Malaysia, and the United States)", and its table
+now includes a row not in the 2026-09-19 reading: **US 8374237, Dolby Laboratories Licensing, expires 2031-05-22.**
+The earlier last-US date of 2030-11-26 (US 9356620, Siemens) is therefore no longer the last on the list. The other
+rows match what is above (US 8175148 on 2026-12-03 is the next to lapse). The page notes that many of the later US patents
+are continuations and that it is "unknown" which are needed for the High profiles, and that it is unclear whether the Nokia
+patents are needed at all. It does not mention AAC. The earlier summary "the last US H.264 patent on the tracked list expires
+2030-11-26" should be read as 2031-05-22 on today's list, with the same caveat that the page's own scope note applies.
+
+**The CEF platform-decoder issue (unchanged).** [chromiumembedded/cef issue 3559](https://github.com/chromiumembedded/cef/issues/3559)
+is still open, no milestone, labels Build and enhancement; the newest comment is 2026-06-01 (a user also struggling).
+Nothing was added about AAC. [ungoogled-chromium issue 2752](https://github.com/ungoogled-software/ungoogled-chromium/issues/2752)
+is still open; its newest comment is from 2024-04-11.
+
+**A route that may close the AAC gap (new): GStreamer's Windows elements, if Servo is the engine.** Servo's only
+working media backend is GStreamer ([servo/media README](https://github.com/servo/media): "For now, the only functional
+backend is GStreamer"), and GStreamer's own plugin pages list, undated:
+
+- the Media Foundation plugin ([page](https://gstreamer.freedesktop.org/documentation/mediafoundation/index.html)):
+  "mfaacdec: Microsoft Media Foundation AAC Decoder" (and no H.264 decoder, only encoders);
+- the Direct3D 11 plugin ([page](https://gstreamer.freedesktop.org/documentation/d3d11/index.html)): "d3d11h264dec:
+  H.264/AVC video decoder", hardware-accelerated, Windows 8 or later.
+
+Together that is H.264 video and AAC audio both from the operating system, which is the combination the 2023 CEF test
+could not get ("Chromium does not (directly) support AAC audio decoding"). It is **untested**: whether Servo's player picks those
+elements instead of FFmpeg, whether it handles Twitch's streaming, and the same old-GPU limit as the CEF route. The legal
+theory is the same as Finding 3 (a CEF maintainer's, not Microsoft's, and Microsoft Q&A still said "Here you need a lawyer").
+Detail and the comparison with other engines: [`docs/reference/research/2026-11-21-browser-engines/README.md`](../research/2026-11-21-browser-engines/README.md).
+
+**Not re-checked:** Via LA rates, the Cisco OpenH264 terms, Fedora's FDK-AAC position and the AAC patent dates; those
+remain as read on 2026-09-19.
