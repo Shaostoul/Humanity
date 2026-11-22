@@ -1807,6 +1807,16 @@
       "date": "2026-11-22",
       "decision": "OPERATOR, 2026-11-22: (1) on proof-of-work for newcomers under attack (the Tor onion-service style defense; known members skip it): 'Sounds like a worthwhile addition. Small addition, big impact.' Planned with role-based allowances (a small shared pre-sign-in allowance per address, per-key allowances by role after sign-in, capacity reserved for known members) as one security item after the release. (2) Funding: a paid server for subscribers, separate from 'verified' (which stays trust, never money), is to be seriously considered as the player count grows, beside supporter recognition and donations that visibly pay for capacity ('Okay, so we're on the same track'; 'We need to seriously consider it'). Research dispatched (Sonnet, docs only): docs/reference/research/2026-11-22-project-funding (donation platforms and fiscal sponsors, grants, the paid-server legal and platform side incl. Google Play billing) and a dated finding; anything personal stays out of the repo.",
       "why": "Keep the servers and the maintainer sustainable as players arrive, without money ever buying access to the free server."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "OPERATOR, 2026-11-22: 'Can we update the values live? So people can see what current funding is at least via other things not my second job?' (Patreon, CashApp and GitHub Sponsors are live; Patreon brings about $20 a month.) Dispatched (Sonnet): the server's funding record grows per-channel monthly amounts and costs with as-of dates, served in /api/server-info, shown on the Donate page in both apps ('Donations cover $20 of $X a month'), edited by the owner and admins in Server Settings; automatic GitHub Sponsors / Patreon figures with tokens the owner stores are the rung after. The live server's figures are entered by the operator in the app after the release. Also settled: the homestead's reference location in data/self_sufficiency/location.ron stays as it is (the operator's own published choice). The funding research's FUTO note is from our records (the microgrant email of 2026-08-02); FUTO never replied, even to the operator's follow-up.",
+      "why": "Show supporters what their help covers, kept current without a shell."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "OPERATOR, 2026-11-22, on DMs without the server: 'I like the idea of having multiple. The tor one is something we should consider for next week's reset.' Plan: several DM routes; the server route stays the default (addresses hidden, offline delivery); opt-in direct over Tor onion services first (no server, addresses hidden, both people online, Arti); then plain direct connections with a warning that the other person sees your address (codes by QR, any channel or the same Wi-Fi; never a third party's STUN); then local network or Bluetooth for no-internet. Compare Briar, Cwtch, SimpleX and Session first. Queued for the 2026-11-26 reset with proof of work, live funding rung 2, the DPG submission, the bedroom command center and the Servo spike.",
+      "why": "Messaging should survive the loss of any one server without giving up privacy by default."
     }
   ],
   "active_scopes_to_avoid": [
