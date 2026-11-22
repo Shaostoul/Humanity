@@ -1712,6 +1712,11 @@
       "date": "2026-11-21",
       "decision": "OPERATOR, Music v3 layout, 2026-11-21, verbatim: 'What if we have the piano roll at the bottom like it is now, then just above that we have a row for that kind of music section. Then instead of having two sections that kind of show the same thing we move those volume bars in the mixer next to the actual kind of music section so we waste less vertical space on kind of similar elements?' Agreed and sent to the running v3 agent: from the bottom up, the transport bar, the piano roll, ONE parts row merging the visualizer's part bars and the Mixer (each part's live level bar and fader side by side, Mute and Solo under it, the spectrum at the row's right end; the separate Mixer section goes), then what plays in words and a compact Sound area (tuning, swing, intensity, style).",
       "why": "The operator's layout for the Music page."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Merged the arrival follow-ups (b8e44cddf): crew_seen by a shown/hidden picture difference inside each crew member's drawn box (passes in all three copresence orders); every shared floor, street, alley and corridor reads as a place by key; the one-person homestead's death screen says why it draws no General Services pod (its figures add up every machine in its file). Dispatched (wk-smallfix2.txt): Medbay/Barracks names by key, and the walker-first meet_figure_visible timing race. Asked the operator: should a household's figures count only its own machines (honest numbers, every home can draw the ship's pods, the family home's food figure drops because it now counts the Commons garden)? Recommended yes.",
+      "why": "Arrival rungs' follow-ups; one modeling question is the operator's."
     }
   ],
   "active_scopes_to_avoid": [
