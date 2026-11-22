@@ -1747,6 +1747,11 @@
       "date": "2026-11-21",
       "decision": "Merged the room names and copresence race fix (68f7ec3ff: Medbay, Barracks and the cabin Washroom by key; a screenshot request can carry find so a capture reports where its own frame drew a text; verify-copresence passes in all three orders) and the music timing gates (453af8ec9: a yardstick timed beside every subject; no budget changed; load-proofed and slowdown-red; limits written). My call on smf2's question: the Commons' inner rooms get keys if they ever become detected rooms. Dispatched the lib-tests hang-report fix (a half-printed libtest line glued to the watchdog line made a rig test flaky under load).",
       "why": "Merges and the next small tooling fix."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "OPERATOR, 2026-11-21, on the signed-requests merge timing: 'Why not just release it when website and desktop app both work? I don't mind doing a third release or more today.' So the daily limit of two releases is lifted for today. Plan: when signed requests round 6 reports, run a targeted review while building and testing the release on the merged tree locally (unpushed); if the review is clean, push the merge and the release together so the relay, the website and the desktop app update within minutes (archive the operator's exe at once); then the live-server changes (nginx Host $http_host on both servers with nginx -t and reload, the time-sync drop-in via the deploy plus systemd-time-wait-sync with a 90 s cap, relay restart) and an outside check of sign-in. A serious finding holds the push.",
+      "why": "The operator wants the server and app to change together, and allowed extra releases today."
     }
   ],
   "active_scopes_to_avoid": [
