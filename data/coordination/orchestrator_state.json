@@ -1782,6 +1782,11 @@
       "date": "2026-11-21",
       "decision": "OPERATOR, 2026-11-21, on several browser engines chosen per service: 'Agreed. We want the fewest possible.' Recorded in docs/reference/research/2026-11-21-browser-engines/README.md (Several engines, chosen per service): an engine is added only when a service genuinely needs what no engine already offered can do. And on the round-6 review's Tor flood finding: 'We should fix this just in case. Sounds like a DDoS like issue.' Already round 7 item 1 (identify and edge limits keyed by door and address, the owner still signs in through his door while the main port's limit is exhausted).",
       "why": "Each engine is its own security stream, wiring and set of sign-ins; protect the owner's own access to a node he hosts."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "MERGED the lib-tests hang-report fix (fc1c939fb): stdout and stderr read apart (scripts/lib/test-output.js), a watchdog line can no longer glue into a libtest line, a trailing half line names the running test only with one test thread. FOLLOW-UP for after the pause (not dispatched, usage): `just verify`'s 40-minute timeout covers the build as well as the tests, so on a contended day the build-slot queue alone can use it up and the message ('failed or ran past 40 minutes (a hung test...)') points at a hang that never happened (signed requests round 6 and the hang-report agent both hit it today): the wrapper should say the BUILD was still waiting for memory when cargo was killed before any test started. Also unaudited: other rigs that combine a child's stdout and stderr into one string before splitting lines.",
+      "why": "A check that misreports a queue as a hang wastes a round of investigation."
     }
   ],
   "active_scopes_to_avoid": [
