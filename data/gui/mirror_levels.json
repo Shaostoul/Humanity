@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "_comment": "Settings > Graphics > Light and sky > Mirror reflections (2026-11-21, docs/design/mirrors.md, renderer/mirror.rs). When a mirror is in view, the room is drawn once more from the eye reflected in the glass, into a picture the glass shows. `scale` is the picture's pixels for each pixel the glass covers on your screen, along each side (1 = as sharp as the screen, 0.5 = a quarter of the pixels, 0 = Off: the glass shows plain silver and nothing is drawn). `max_side` is the longest side the picture is ever drawn at, pixels, its shape kept. Its video memory is 20 bytes a pixel (colour, depth and motion). One mirror reflects at a time, the nearest in view. Values are held on load to what the renderer can draw (scale 0 to 1, max_side 24 to 4096). 'high' is the default; src/config.rs falls back to it for an id not listed here. Changing this file takes effect at the next start.",
+  "levels": [
+    {
+      "id": "off",
+      "scale": 0.0
+    },
+    {
+      "id": "low",
+      "scale": 0.5,
+      "max_side": 1024
+    },
+    {
+      "id": "high",
+      "scale": 1.0,
+      "max_side": 2048
+    }
+  ]
+}

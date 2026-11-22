@@ -1893,6 +1893,35 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         gpu!(state).renderer.local_shadows.twin_off = t == "0";
         log::info!("Showcase: fp_shadow_twin -> {}", !gpu!(state).renderer.local_shadows.twin_off);
     }
+    // MIRRORS (2026-11-21, engine/mirrors.rs, docs/design/mirrors.md): {"mirror":"0"} draws no
+    // reflection, every mirror plain silver (the red twin of reflecting); a level id ("low", "high")
+    // pins that level; "1" or "auto" hands it back to Settings > Graphics > Mirror reflections. Pins
+    // over the setting, never writes to it. {"mirror_me":"0"} leaves the player's own body out of
+    // the reflection in first person (the mirror rig's hidden picture, the red twin of drawing it;
+    // in third person the body is in the scene's lists and stays); "1" puts it back.
+    // {"mirror_probe":"<secs>"}: count the reflection passes drawn for that many seconds and write
+    // debug/mirror_probe.json (engine/mirrors.rs `Probe`).
+    if let Some(t) = grab("mirror") {
+        gpu!(state).renderer.mirror.pin = match t.as_str() {
+            "auto" | "1" => None,
+            "0" => Some(String::new()),
+            id if crate::renderer::mirror::is_level(id) => Some(id.to_string()),
+            other => {
+                log::warn!("Showcase: mirror wants \"0\", \"1\", \"auto\" or a level id, not {other:?}");
+                gpu!(state).renderer.mirror.pin.clone()
+            }
+        };
+        log::info!("Showcase: mirror -> {:?} (None = Settings > Graphics)", gpu!(state).renderer.mirror.pin);
+    }
+    if let Some(t) = grab("mirror_me") {
+        gpu!(state).renderer.mirror.hide_me = t == "0";
+        log::info!("Showcase: mirror_me -> {}", !gpu!(state).renderer.mirror.hide_me);
+    }
+    if let Some(t) = grab("mirror_probe") {
+        let secs = t.parse::<f32>().ok().filter(|s| s.is_finite() && *s > 0.0).unwrap_or(1.0).min(30.0);
+        crate::engine::mirrors::start_probe(state, secs);
+        log::info!("Showcase: mirror_probe for {secs} s");
+    }
     // {"shadow_fast":"0"}: every shadow caster draws through the classic path, none instanced (the
     // fast path's red twin, 2026-11-11: the picture must stay the same, only the cost moves); "1" or
     // "auto" puts the fast path back.

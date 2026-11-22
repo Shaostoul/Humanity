@@ -1202,6 +1202,9 @@ pub(crate) struct EngineState {
     /// placements (world load + editor rebuilds); driven per frame by
     /// `screens::update` + `screens::frame_surfaces` before the scene pass.
     pub(crate) screens: crate::engine::screens::Screens,
+    /// Mirrors (2026-11-21, engine/mirrors.rs): every placed mirror's glass and the one reflecting
+    /// this frame. Built by `mirrors::sync` beside the screens; chosen each frame by `mirrors::choose`.
+    pub(crate) mirrors: crate::engine::mirrors::Mirrors,
     /// A main-UI dev IPC request in flight (`debug/ui_request.json`,
     /// 2026-09-18): parsed and advanced in the update phase by
     /// `ipc::poll_ui_request`, answered after the egui frame by

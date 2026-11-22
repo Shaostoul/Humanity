@@ -3196,7 +3196,8 @@ mod tests {
         // (2026-11-09, docs/design/simready-props.md): 24 more, the kitchen counter, its tap and
         // its small things, a first aid kit, the workshop's tools, cabinet, ladder and extinguisher stand,
         // a towel. 307 since the bedroom's respawner (2026-11-21, game-setting-and-intro.md rung 2).
-        assert_eq!(before.machines.len(), 307, "every home machine is placed");
+        // 308 since the bedroom's Profile screen beside the mirror (2026-11-21, docs/design/mirrors.md).
+        assert_eq!(before.machines.len(), 308, "every home machine is placed");
         let p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).expect("the homestead assembles at p2");
         let mut failures = not_moved_by(&before, &home_parts(&p2), 0.0, 99.0);
         failures.extend(not_moved_by(&before, &home_parts(&assembled_on_p1_moved_by(-100.0, 0.0)), -100.0, 0.0));

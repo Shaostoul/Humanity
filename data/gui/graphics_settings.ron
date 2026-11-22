@@ -68,6 +68,11 @@
         "gpu.film_blur": "graphics.pass.film_blur",
         "gpu.film_far": "graphics.pass.film_far",
         "vram.film_blur": "graphics.pass.film_blur_memory",
+        "gpu.mirror_scene": "graphics.pass.mirror_scene",
+        "gpu.mirror_transparent": "graphics.pass.mirror_transparent",
+        "cpu.mirror_scene": "graphics.pass.mirror_scene_cpu",
+        "cpu.mirror_cull": "graphics.pass.mirror_cull",
+        "vram.mirror": "graphics.pass.mirror_memory",
     },
     settings: [
         // ── General ──
@@ -128,6 +133,11 @@
         (id: "local_shadows", cost: [Gpu(["gpu.shadow_local", "gpu.shadow_near", "gpu.shadow_partial"]), Cpu(["cpu.shadow_local", "cpu.shadow_near"]), Memory(["vram.shadow_atlas"]), Shares(["gpu.scene"]), Computed]),
         (id: "lights_tiled", cost: [Cpu(["cpu.light_tiles"]), Shares(["gpu.scene"])]),
         (id: "bounced_light_detail", cost: [Computed, Gpu(["gpu.room_probes"])]),
+        // Mirror reflections (2026-11-21, renderer/mirror.rs, docs/design/mirrors.md): the room drawn
+        // again for the nearest mirror in view (gpu.mirror_scene, gpu.mirror_transparent, measured,
+        // nothing while no mirror is in view), preparing it (cpu.mirror_scene), the reflection's
+        // memory (vram.mirror), and each level's most memory worked out beside it.
+        (id: "mirror_reflections", cost: [Gpu(["gpu.mirror_scene", "gpu.mirror_transparent"]), Cpu(["cpu.mirror_scene", "cpu.mirror_cull"]), Memory(["vram.mirror"]), Computed]),
         (id: "shadow_strength", cost: [Free("graphics.free.shader_number")]),
         (id: "aerial_strength", cost: [Free("graphics.free.shader_number")]),
         (id: "godray_intensity", cost: [Gpu(["gpu.godrays"])]),

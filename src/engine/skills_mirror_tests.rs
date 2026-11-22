@@ -110,7 +110,7 @@ fn the_reuse_switch_builds_the_rows_on_every_reading_frame() {
 
 /// THE READERS. The skill sheet is the Real page's Skills section: on the main screen the Real page
 /// (or the Profile page, its alias) on the "skills" section; on a wall screen the Profile page on
-/// its own Skills section (the standing mirror) or the Real page on the "skills" section. The rows'
+/// its own Skills section (the bedroom's Profile screen) or the Real page on the "skills" section. The rows'
 /// other reader is the Crafting page, on either. Nothing else reads them.
 ///
 /// Seen red 2026-11-21 against practice_view.rs's old rule for the sheet (`page_drawn(main, framed,

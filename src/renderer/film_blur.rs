@@ -765,7 +765,7 @@ impl Renderer {
     fn film_blur_ready(&self, camera: &Camera) -> bool {
         let size = (self.config.width.max(1), self.config.height.max(1));
         let depth = (self.depth_texture.width(), self.depth_texture.height());
-        let off_screen = matches!(self.view_depth, super::view_depth::ViewDepth::Active(..));
+        let off_screen = matches!(self.view_depth, super::view_depth::ViewDepth::Active(..)) || self.mirror_view_active();
         self.film_blur.wanted()
             && self.film_blur.pyramid.as_ref().is_some_and(|p| p.size == size && blur_fits(p.size, depth, off_screen))
             && self.scene_format() == wgpu::TextureFormat::Rgba16Float

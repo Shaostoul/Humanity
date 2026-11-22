@@ -264,13 +264,13 @@ fn check(d: &Drawn, screen_w: f32, snap: &Snapshot, at: &str) -> usize {
         // is one of its wedges, in paint order, which is the legend's order: each spans its row's
         // share, starts where the one before ended, is its row's colour, and differs in colour
         // from the wedges beside it.
-        let caption = d
-            .texts
-            .iter()
-            .filter(|(t, r)| t == "systems" && in_pie(r))
-            .map(|(_, r)| *r)
-            .next()
-            .unwrap_or_else(|| panic!("{at}: the {title} pie's centre caption is drawn"));
+        // A legend that fits above the window's foot with its pie below it (the System memory pie
+        // at 1280x720 since the GPU and CPU pies each gained a Mirrors row, 2026-11-21) is checked
+        // whole from the scrolled frame instead, like a cut legend; the count of pies checked whole
+        // across both frames still holds every pie to it.
+        let Some(caption) = d.texts.iter().filter(|(t, r)| t == "systems" && in_pie(r)).map(|(_, r)| *r).next() else {
+            continue;
+        };
         let c = caption.center() - Vec2::new(0.0, 9.0);
         let wedges: Vec<&(Color32, Vec<Pos2>)> = d.polygons.iter().filter(|(_, pts)| pts.iter().all(|p| (*p - c).length() < 70.0)).collect();
         let drawn_rows: Vec<usize> = (0..spec.slices.len()).filter(|i| fracs[*i] > 0.0).collect();

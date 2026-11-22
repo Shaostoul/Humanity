@@ -349,6 +349,18 @@ Imageworks"; Fdez-Aguera 2019, JCGT 8(1)).
   what it needs (ray tracing hardware: an RTX 20 series, an RX 6000 series or newer), what this card
   has, and that Full works instead.
 
+### 4.5 Planar mirrors (built 2026-11-21)
+
+A MIRROR is not on the ladder above: a flat mirror is exact only from a second view of the scene,
+and screen-space reflections cannot show what is behind the camera, which is everything a mirror in
+front of you shows (you, first). So mirrors have their own pass: the scene drawn again from the eye
+reflected in the glass's plane, through Kooima's generalized perspective projection whose near plane
+is the glass, into a texture sized to the glass on screen, one mirror at a time (the nearest in
+view), nothing drawn while none is in view. Mirrors are data (`MachineDef::mirror`); Settings >
+Graphics > Light and sky > Mirror reflections (Off, Low, High). The whole design, its budget and its
+later rungs: `docs/design/mirrors.md`. The ladder above still owns windows, polished floors, metal
+and water.
+
 ## 5. Skin, cloth, clearcoat, eyes and teeth (third)
 
 ### 5.1 The 2030 technique

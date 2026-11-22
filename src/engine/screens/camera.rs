@@ -331,6 +331,7 @@ mod tests {
             screen: None,
             camera,
             camera_px: humanity_ship::machines::CAMERA_PX_DEFAULT,
+            mirror: None,
         }
     }
 

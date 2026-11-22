@@ -203,6 +203,8 @@ const FP2 = require("./lib/foot-probe-check.js");
 const AP2 = require("./lib/anchor-probe-check.js");
 // The Maps "ship centred" check (Maps increment 1): the vantage's `map_centre`.
 const MC = require("./lib/map-centre-check.js");
+// The mirror check (2026-11-21, docs/design/mirrors.md): the vantage's `mirror_probe`.
+const MP = require("./lib/mirror-check.js");
 // The Maps overview check (Maps increment 2): the vantage's `map_overview`.
 const MO = require("./lib/map-overview-check.js");
 // The Maps ship check (Maps increment 3): the vantage's `map_ship`.
@@ -1437,6 +1439,41 @@ async function main() {
           for (const f of verdict.failures) log(`  !! anchor probe: ${f}`);
           for (const n of verdict.notes) log(`  .. anchor probe: ${n}`);
         }
+        // MIRROR PROBE (2026-11-21, docs/design/mirrors.md): a vantage with `mirror_probe` asks the
+        // game to count, for `secs`, the reflection passes the renderer draws and the frames (the
+        // showcase `mirror_probe`, src/engine/mirrors.rs), keeps the readout beside the PNG as
+        // <id>-mirror.json, and judges it (scripts/lib/mirror-check.js): `expect: "reflects"` wants a
+        // pass on (nearly) every frame, `expect: "none"` not one. With `figure: true` it then
+        // photographs the view again with the player left out of the reflection ({"mirror_me":"0"},
+        // <id>-mirror-hidden.png) and judges the pixels that changed inside the glass's box (the
+        // body) against those outside it (nothing else may change): the copresence judge's
+        // shown/hidden method.
+        if (v.mirror_probe) {
+          const mp = v.mirror_probe;
+          const mpPath = path.join(DEBUG, "mirror_probe.json");
+          if (fs.existsSync(mpPath)) fs.unlinkSync(mpPath);
+          const secs = typeof mp.secs === "number" ? mp.secs : 1.0;
+          req("showcase_request.json", { mirror_probe: String(secs) });
+          const probe = await waitFile("mirror_probe.json", 30000 + secs * 1000);
+          if (!probe) throw new Error("mirror probe: the game wrote no debug/mirror_probe.json");
+          fs.writeFileSync(path.join(OUT, `${v.id}-mirror.json`), JSON.stringify(probe, null, 2));
+          let hiddenName = null;
+          if (mp.figure) {
+            req("showcase_request.json", { mirror_me: "0" });
+            await sleep((mp.hidden_settle_s ?? 1.5) * 1000);
+            clearDone("screenshot_done.json");
+            req("screenshot_request.json", {});
+            const shotH = await waitFile("screenshot_done.json", 60000);
+            if (!shotH || shotH.ok !== true) throw new Error(`mirror hidden screenshot: ${JSON.stringify(shotH)}`);
+            hiddenName = `${v.id}-mirror-hidden.png`;
+            fs.copyFileSync(path.join(RIG, shotH.path), path.join(OUT, hiddenName));
+            req("showcase_request.json", { mirror_me: "1" });
+            await sleep(1000); // read before the next vantage writes its own request
+          }
+          const verdict = MP.judgeMirror({ probe, opts: mp, shownPath: hiddenName ? path.join(OUT, destName) : null, hiddenPath: hiddenName ? path.join(OUT, hiddenName) : null });
+          rec.mirror_probe = { ok: verdict.ok, misconfigured: verdict.misconfigured, failures: verdict.failures, notes: verdict.notes, change: verdict.change, passes: probe.passes, frames: probe.frames };
+          log(`  mirror probe: ${MP.summarize(verdict)}`);
+        }
         // BED PROBE (whole-Earth maps, the rung between 2 and 3, 2026-11-09, whole-earth-maps.md
         // 6.1 and 6.2): a vantage with `bed_probe` asks the game for a road's cross-section or a
         // building's footing (src/engine/bed_probe.rs), keeps it beside the PNG as <id>-bed.json,
@@ -1528,6 +1565,10 @@ async function main() {
         if (rec.ok && rec.anchor_probe && !rec.anchor_probe.ok) {
           rec.ok = false;
           rec.error = `ANCHOR PROBE: ${rec.anchor_probe.failures.join(" | ")}`;
+        }
+        if (rec.ok && rec.mirror_probe && !rec.mirror_probe.ok) {
+          rec.ok = false;
+          rec.error = `MIRROR PROBE: ${rec.mirror_probe.failures.join(" | ")}`;
         }
         if (rec.ok && rec.bed_probe && !rec.bed_probe.ok) {
           rec.ok = false;

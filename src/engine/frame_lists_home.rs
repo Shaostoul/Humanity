@@ -14,6 +14,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     }
     let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.lists_home");
+    // Which mirror reflects this frame (2026-11-21, engine/mirrors.rs): before its glass is pushed
+    // below and before the bodies are posed (frame_people), which queue the player's whole body for
+    // the glass while one does.
+    crate::engine::mirrors::choose(state);
     f.all_objects = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.opaque); // last frame's memory (DrawBufs, S3)
     // Transparent surfaces (glass windows): rendered in a SEPARATE alpha-blend
     // pass AFTER the opaque scene so you can see through them. (v0.456)

@@ -12,6 +12,7 @@ const PAGE: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/pa
 const CHILDREN: &[(&str, &str, &str)] = &[
     ("furniture.rs", "furniture::draw_furniture(", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/pages/settings/furniture.rs"))),
     ("garments.rs", "garments::draw_garment_textures(", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/pages/settings/garments.rs"))),
+    ("mirrors.rs", "mirrors::draw_mirror_reflections(", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/pages/settings/mirrors.rs"))),
 ];
 
 /// The calls that draw a control a person can press, drag or type into (the hint lint's, as they

@@ -678,3 +678,16 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
 
     return vec4<f32>(color, out_alpha);
 }
+
+// The inverse of the tone curve above (the ACES fit, clamped): solve y = x (a x + b) / (x (c x + d)
+// + e) for x >= 0. A mirror's glass (type 24 with params2.y = 1, renderer/mirror.rs) reads a scene
+// view that already went through the curve and turns it back into light with this. LOCKSTEP with
+// the curve above and with `aces_inv` in present.wgsl: change one, change all three.
+fn aces_inverse(y_in: vec3<f32>) -> vec3<f32> {
+    let y = clamp(y_in, vec3<f32>(0.0), vec3<f32>(0.9995));
+    let qa = 2.43 * y - vec3<f32>(2.51);
+    let qb = 0.59 * y - vec3<f32>(0.03);
+    let qc = 0.14 * y;
+    let disc = max(qb * qb - 4.0 * qa * qc, vec3<f32>(0.0));
+    return max((-qb - sqrt(disc)) / (2.0 * qa), vec3<f32>(0.0));
+}

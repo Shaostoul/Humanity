@@ -361,6 +361,11 @@ impl Renderer {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
+        // A mirror's reflection pass, counted where it is drawn (renderer/mirror.rs; the mirror
+        // probe reads the count, so a test counts real passes rather than reading a flag).
+        if who == crate::renderer::gpu_costs::SceneView::Mirror {
+            self.mirror.passes.set(self.mirror.passes.get() + 1);
+        }
     }
 
     /// Render TRANSPARENT objects (glass windows, the portal) over the already-drawn scene,

@@ -201,6 +201,11 @@ pub struct Skinning {
     /// whose head the eye camera's copy folds away but whose shadow keeps it
     /// (`skin_shadow_only`; docs/design/character-animation.md section 17).
     shadow_only: Vec<MiddleDraw>,
+    /// Bodies drawn into a MIRROR's reflection only (2026-11-21, renderer/mirror.rs): the player's
+    /// unfolded twin (the head and neck the first-person eye's copy folds away), or the player's
+    /// whole body when first person draws none ("Show my body in first person" off). Never drawn in
+    /// the main view or a shadow map (`skin_mirror_twin`).
+    mirror_twins: Vec<MiddleDraw>,
     /// Which of this frame's shadow draws (the middle tier, then the shadow-only twins) the shadow
     /// atlas draws from the shadow pool on the GPU (2026-11-14, renderer/shadow_pool.rs): the per-draw
     /// loop (`draw_skinned_shadow`) leaves those out. Set each frame by the atlas, cleared with the rest.
@@ -611,9 +616,12 @@ impl Renderer {
             sk.jobs.clear();
             sk.middle.clear();
             sk.shadow_only.clear();
+            sk.mirror_twins.clear();
             sk.shadow_gpu.clear();
             sk.dispatch_pending.set(false);
         }
+        // The eye-only meshes are this frame's too (renderer/mirror.rs).
+        self.mirror.eye_only.clear();
     }
 
     /// Append one body's matrices to this frame's palette: its model matrix's rows, its morph block
@@ -721,6 +729,17 @@ impl Renderer {
         }
     }
 
+    /// Queue one region of a body for a MIRROR's reflection only (2026-11-21, renderer/mirror.rs),
+    /// skinned in the vertex shader from the palette at `model_index`, drawn with its colour: the
+    /// player's whole body for the glass, which the eye's own copy does not show (its head folded
+    /// away, or no body at all with "Show my body in first person" off). Never drawn in the main
+    /// view or a shadow map. Call only while a mirror reflects (`engine::mirrors::wants_my_body`).
+    pub fn skin_mirror_twin(&mut self, body: usize, region: usize, material: usize, model_index: u32) {
+        if let Some(sk) = self.skinning.as_mut() {
+            sk.mirror_twins.push(MiddleDraw { body, region, material, model_index });
+        }
+    }
+
     /// Upload this frame's palette and queue the near bodies' compute skinning (recorded by the
     /// next scene pass, `encode_skinning`). Call once a frame after queueing and before any scene
     /// pass draws.
@@ -791,7 +810,9 @@ impl Renderer {
     /// `render_scene_onto` after the opaque list.
     pub(super) fn draw_skinned_middle(&self, pass: &mut wgpu::RenderPass<'_>) {
         let Some(sk) = self.skinning.as_ref() else { return };
-        if sk.middle.is_empty() {
+        // A mirror's reflection also draws the player's twin for the glass (renderer/mirror.rs).
+        let twins: &[MiddleDraw] = if self.mirror_view_active() { &sk.mirror_twins } else { &[] };
+        if sk.middle.is_empty() && twins.is_empty() {
             return;
         }
         let Some(pso) = sk.vs_pso.ready() else { return };
@@ -801,7 +822,7 @@ impl Renderer {
         pass.set_pipeline(&pso.pipeline);
         let mut bound_material = usize::MAX;
         let mut bound_body = usize::MAX;
-        for d in &sk.middle {
+        for d in sk.middle.iter().chain(twins.iter()) {
             let Some(body) = sk.bodies.get(d.body) else { continue };
             let Some((ib, first, count)) = body.regions.get(d.region) else { continue };
             let Some(material) = self.materials.get(d.material) else { continue };
@@ -1172,6 +1193,7 @@ impl Skinning {
             dispatch_pending: std::cell::Cell::new(false),
             middle: Vec::new(),
             shadow_only: Vec::new(),
+            mirror_twins: Vec::new(),
             shadow_gpu: Vec::new(),
             vs_layout,
             vs_object,

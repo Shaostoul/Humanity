@@ -725,6 +725,11 @@ pub struct AppConfig {
     /// behind it, the default), false = Simple (the cover a plain milky veil over a sharp view).
     #[serde(default = "default_true")]
     pub film_blur: bool,
+    /// Mirror reflections (2026-11-21, Settings > Graphics > Light and sky, renderer/mirror.rs): a
+    /// level id from data/gui/mirror_levels.json (Off, Low, High). An id the file does not list falls
+    /// back to High (`renderer::mirror::DEFAULT_LEVEL`).
+    #[serde(default = "default_mirror_reflections")]
+    pub mirror_reflections: String,
     /// Sharpening after the temporal blend, 0..1 (renderer/taa.rs `DEFAULT_SHARPENING`).
     #[serde(default = "default_sharpening")]
     pub sharpening: f32,
@@ -1190,6 +1195,7 @@ fn default_fps_background() -> u32 { 30 }
 fn default_cloud_quality() -> String { "high".to_string() }
 fn default_bounced_light_detail() -> String { crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string() }
 fn default_local_shadows() -> String { crate::renderer::local_shadows::DEFAULT_LEVEL.to_string() }
+fn default_mirror_reflections() -> String { crate::renderer::mirror::DEFAULT_LEVEL.to_string() }
 fn default_anti_aliasing() -> String { crate::renderer::taa::DEFAULT_MODE.to_string() }
 fn default_sharpening() -> f32 { crate::renderer::taa::DEFAULT_SHARPENING }
 fn default_furniture_detail() -> String { crate::gui::furniture_detail::DEFAULT_LEVEL.to_string() }
@@ -1687,6 +1693,7 @@ impl AppConfig {
             local_shadows: state.settings.local_shadows.clone(),
             anti_aliasing: state.settings.anti_aliasing.clone(),
             film_blur: state.settings.film_blur,
+            mirror_reflections: state.settings.mirror_reflections.clone(),
             sharpening: state.settings.sharpening,
             shadow_strength: state.settings.shadow_strength,
             sun_aperture_mm: state.settings.sun_aperture_mm,
@@ -2003,6 +2010,13 @@ impl AppConfig {
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.film_blur = self.film_blur;
+        // Checked against the levels file the Settings chooser draws (data/gui/mirror_levels.json).
+        state.settings.mirror_reflections = if crate::renderer::mirror::is_level(&self.mirror_reflections) {
+            self.mirror_reflections.clone()
+        } else {
+            log::warn!("config: unknown mirror_reflections {:?}, falling back to {}", self.mirror_reflections, default_mirror_reflections());
+            default_mirror_reflections()
+        };
         // Checked against the levels file the Settings chooser draws (data/gui/shadow_levels.json).
         state.settings.local_shadows = if crate::renderer::local_shadows::is_level(&self.local_shadows) {
             self.local_shadows.clone()

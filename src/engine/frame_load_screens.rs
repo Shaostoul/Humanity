@@ -111,6 +111,9 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             ring_lines: &f.ring_lines,
         };
         crate::engine::screens::frame_surfaces(state, &screen_lists);
+        // A mirror's reflection (2026-11-21, engine/mirrors.rs), from the same lists in the same
+        // frame: drawn before the live scene pass, so the glass shows this frame's room.
+        crate::engine::mirrors::render(state, &screen_lists);
         crate::engine::ipc::complete_screen_request(state);
     } else {
         // No wall screen is framed under a page: none draws its page this tick.

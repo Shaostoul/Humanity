@@ -133,6 +133,8 @@ pub mod shadow_cutout;
 pub mod local_shadows;
 /// Beside the shadow atlas (2026-11-13): its GPU-driven casters (the arena, the compute cull, the indirect draws), its partial casters (glass and frosted film in a transmittance atlas), and the blur behind a frosted film (a colour pyramid of the scene behind it).
 pub mod shadow_gpu; pub mod shadow_transmit; pub mod film_blur;
+/// Mirrors: the planar reflection drawn when a mirror is in view (2026-11-21, docs/design/mirrors.md).
+pub mod mirror;
 /// Where the stars are (the catalogue's sky turned into the world by the date) and how much of them twilight leaves (2026-10-04, BUG-139).
 pub mod sky_frame;
 pub mod stars;
@@ -389,6 +391,8 @@ pub struct Renderer {
     pub sun_cascades: sun_cascades::SunCascades,
     /// The shadow atlas (renderer/local_shadows.rs), group 0 bindings 8-11 (11 its transmittance atlas); the film blur (renderer/film_blur.rs), 12-13.
     pub local_shadows: local_shadows::LocalShadows, pub film_blur: film_blur::FilmBlur,
+    /// The mirror view (renderer/mirror.rs): the reflection's textures, its counter and pins.
+    pub mirror: mirror::MirrorView,
     tile_counts_buffer: wgpu::Buffer,
     tile_indices_buffer: wgpu::Buffer,
     /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
@@ -1939,7 +1943,7 @@ impl Renderer {
             emission,
             room_gi,
             sun_cascades: Default::default(),
-            local_shadows, film_blur,
+            local_shadows, film_blur, mirror: Default::default(),
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),

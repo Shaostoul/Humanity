@@ -42,7 +42,8 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
         // natural home for it right up until something OTHER than the
         // main UI draws that page. In-world wall screens draw pages
         // through the same dispatch against this same GuiState, and the
-        // bedroom's standing mirror is `source: "profile"` -- so from
+        // bedroom's standing mirror was `source: "profile"` (its own
+        // Profile screen since 2026-11-21) -- so from
         // v0.1322.0 every attempt to enter the world drew the mirror,
         // the mirror set `active_page`, and the player was thrown back
         // out onto the Profile page. Play was unusable. A page draw may

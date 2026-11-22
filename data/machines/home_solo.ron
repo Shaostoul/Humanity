@@ -892,14 +892,16 @@
         // one face. Same two defs as home.ron; place an instance and set its
         // screen_source ("page:inventory", "page:tasks", "watch:<stream>", ...) to choose
         // what it shows.
-        // The bedroom's standing mirror: a full-height portrait display that is
-        // also the look editor (walk up, press E). Same def as home.ron.
+        // The bedroom's standing mirror: a real mirror since 2026-11-21 (planar reflection,
+        // docs/design/mirrors.md), and still the look editor (walk up, press E). Same def as
+        // home.ron; the Profile page it showed until then has its own wall screen beside it
+        // (`profile_screen_1`).
         "standing_mirror": (
-            shape: "box", size: (1.0, 2.0, 0.08), color: (0.78, 0.83, 0.88),
+            shape: "box", size: (1.0, 2.0, 0.08), color: (0.30, 0.20, 0.13),
             label: "Standing mirror",
             category: "Furniture",
-            stats: [(kind: "display", value: "720 x 1280 mirror panel", status: "ok")],
-            screen: Some((source: "profile", px: (720, 1280), face: "front", bezel_m: 0.03, brightness: 1.1)),
+            stats: [(kind: "mirror", value: "silvered glass, 0.92 x 1.92 m", status: "ok")],
+            mirror: Some((face: "front", frame_m: 0.04, tint: (0.86, 0.88, 0.86))),
         ),
         "wall_screen_small": (
             shape: "box", size: (1.2, 0.7, 0.05), color: (0.08, 0.08, 0.1),
@@ -1627,6 +1629,16 @@
             offset: (41.892, 3.0, 32.5),
             rotation: 90.0,
             zone: "home",
+        ),
+        // The Profile page's screen beside the mirror (2026-11-21; home.ron says where and why).
+        (
+            id: "profile_screen_1",
+            machine: "wall_screen",
+            room: "room-bedroom",
+            offset: (41.925, 4.2, 31.0),
+            rotation: 90.0,
+            zone: "home",
+            screen_source: Some("profile"),
         ),
         (
             id: "wardrobe_1",

@@ -1023,6 +1023,152 @@
       "settle_s": 10
     },
     {
+      "id": "home-bedroom-mirror",
+      "desc": "The bedroom's standing mirror from 2.3 m in front of it, in first person (2026-11-21, docs/design/mirrors.md): the glass reflects the room and the player's own body.",
+      "expect": "Centre, a full-height mirror in a dark walnut frame against the bedroom's east wall. In the glass: the bedroom behind the viewer turned left for right, lit as the room is, and the player's own body standing in it facing out of the glass, head and all, in its clothes, at the size a person 2.3 m away from a mirror looks (their reflection 4.6 m away). Beside the mirror on the left, the Profile page on a wall screen.",
+      "_why": "Mirrors (2026-11-21): the operator asked whether a player running in front of the bedroom's mirror would see their model; it was a screen showing the Profile page. The mirror probe counts the reflection passes the renderer drew (one a frame while the mirror is in view) and photographs the view again with the player left out of the reflection (showcase mirror_me 0): the body must change a real share of the glass and nothing outside it (scripts/lib/mirror-check.js).",
+      "regressions": [
+        "a mirror in view draws its reflection on every frame",
+        "the player's own body is in the reflection in first person",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "39.6,4.7,32.5,1.5708,-0.1"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hud": "0",
+        "reduce_motion": "1"
+      },
+      "settle_s": 8,
+      "mirror_probe": {
+        "expect": "reflects",
+        "secs": 1,
+        "figure": true,
+        "min_inside_frac": 0.02,
+        "max_outside_frac": 0.003
+      }
+    },
+    {
+      "id": "home-bedroom-mirror-nobody",
+      "desc": "The bedroom's mirror from the home-bedroom-mirror pose with the player left out of the reflection from the start (showcase mirror_me 0; 2026-11-21, docs/design/mirrors.md).",
+      "expect": "The same view as home-bedroom-mirror, the room in the glass with nobody standing in it.",
+      "_why": "The figure check's red twin on real pixels, in the same boot: with no body in either picture the check must FAIL (figure_expect fail), so a pass of home-bedroom-mirror means it saw the player's body, not noise between two captures.",
+      "regressions": [
+        "the figure check fails with no body in the reflection",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "39.6,4.7,32.5,1.5708,-0.1"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hud": "0",
+        "reduce_motion": "1",
+        "mirror_me": "0"
+      },
+      "settle_s": 6,
+      "mirror_probe": {
+        "expect": "reflects",
+        "secs": 1,
+        "figure": true,
+        "figure_expect": "fail",
+        "min_inside_frac": 0.02,
+        "max_outside_frac": 0.003
+      }
+    },
+    {
+      "id": "home-bedroom-mirror-away",
+      "desc": "The same place in the bedroom turned round, the mirror behind the viewer (2026-11-21, docs/design/mirrors.md).",
+      "expect": "The bedroom looking west toward the bed; no mirror in view.",
+      "_why": "The red twin of home-bedroom-mirror: with no mirror in view, not one reflection pass may be drawn (the mirror probe counts them).",
+      "regressions": [
+        "no mirror in view draws no reflection",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "39.6,4.7,32.5,-1.5708,-0.1"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hud": "0",
+        "reduce_motion": "1"
+      },
+      "settle_s": 6,
+      "mirror_probe": {
+        "expect": "none",
+        "secs": 1
+      }
+    },
+    {
+      "id": "home-bedroom-mirror-off",
+      "desc": "Facing the bedroom's mirror with Mirror reflections pinned Off (showcase mirror 0; 2026-11-21, docs/design/mirrors.md).",
+      "expect": "The same view as home-bedroom-mirror, the glass plain silver with no picture in it.",
+      "_why": "The setting's levels change the pass: at Off a mirror in view draws nothing (the mirror probe counts no pass), the glass plain silvered glass.",
+      "regressions": [
+        "Mirror reflections Off draws no reflection",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "39.6,4.7,32.5,1.5708,-0.1"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hud": "0",
+        "reduce_motion": "1",
+        "mirror": "0"
+      },
+      "settle_s": 6,
+      "mirror_probe": {
+        "expect": "none",
+        "secs": 1
+      }
+    },
+    {
+      "id": "home-bedroom-mirror-low",
+      "desc": "Facing the bedroom's mirror with Mirror reflections pinned Low (showcase mirror low; 2026-11-21, docs/design/mirrors.md).",
+      "expect": "The same view as home-bedroom-mirror, the reflection a little softer.",
+      "_why": "The setting's levels change the pass: at Low the reflection is drawn at half the glass's screen sharpness each way (the probe's size about half of High's).",
+      "regressions": [
+        "Mirror reflections Low draws a smaller reflection",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "39.6,4.7,32.5,1.5708,-0.1"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hud": "0",
+        "reduce_motion": "1",
+        "mirror": "low"
+      },
+      "settle_s": 6,
+      "mirror_probe": {
+        "expect": "reflects",
+        "secs": 1
+      }
+    },
+    {
       "id": "home-racks-dawn",
       "desc": "The mushroom room racks (25b pose) at 06:00 station time.",
       "expect": "Low sun: long shadows from the walls and racks across the floor.",

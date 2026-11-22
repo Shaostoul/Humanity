@@ -386,6 +386,9 @@ pub mod registries;
 /// In-world screens: native pages on flat displays placed in the 3D world
 /// (quads, look-ray hit tests, input routing, per-frame surface drawing).
 pub mod screens;
+/// Mirrors: which one reflects this frame, its glass quads and its reflection pass (2026-11-21,
+/// docs/design/mirrors.md; the renderer's side is renderer/mirror.rs).
+pub mod mirrors;
 // The Garden data the Inventory page shows, built only on a frame that draws it (2026-10-30).
 pub mod garden_mirror;
 /// Settings > Gameplay's garden and ship levels (garden pests, pollination, soil pH, picking,

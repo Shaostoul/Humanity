@@ -593,6 +593,7 @@ impl EngineState {
             gui_state,
             theme,
             screens: crate::engine::screens::Screens::default(),
+            mirrors: crate::engine::mirrors::Mirrors::default(),
             world_loaded: false,
             boot_timer: opts.boot_timer,
             data_dir,

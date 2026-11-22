@@ -106,6 +106,24 @@
         note: "Wall displays' page renders and the camera wall's re-render of the world.",
     ),
     (
+        id: "mirrors",
+        display: "Mirrors",
+        category: "gpu",
+        // The nearest mirror in view's reflection (2026-11-21, renderer/mirror.rs,
+        // docs/design/mirrors.md): the room's opaque and see-through lists drawn again from the eye
+        // reflected in the glass, nothing while no mirror is in view. mirror_clear / overlay / lines
+        // / present are the view's other keys (SceneView::Mirror); the reflection draws none of them
+        // today, listed so a later one is not summed into another row.
+        sources: [
+            "gpu.mirror_scene", "gpu.mirror_transparent", "gpu.mirror_clear",
+            "gpu.mirror_overlay", "gpu.mirror_lines", "gpu.mirror_present",
+        ],
+        locked: false,
+        base_frac: 0.04,
+        color: "badge_donor",
+        note: "The room drawn again for the mirror in view, as the glass shows it.",
+    ),
+    (
         id: "sun_shadows",
         display: "Shadows",
         category: "gpu",
@@ -320,6 +338,21 @@
         note: "Running the wall displays' pages and submitting the camera wall's re-render.",
     ),
     (
+        id: "cpu_mirrors",
+        display: "Mirrors",
+        category: "cpu",
+        // The CPU side of the "mirrors" GPU row: submitting the reflection's passes, one stage per
+        // pass so every gpu.mirror_* id has the cpu.mirror_* twin the no-timestamp fallback reads.
+        sources: [
+            "cpu.mirror_scene", "cpu.mirror_transparent", "cpu.mirror_clear",
+            "cpu.mirror_overlay", "cpu.mirror_lines", "cpu.mirror_present", "cpu.mirror_cull",
+        ],
+        locked: false,
+        base_frac: 0.03,
+        color: "badge_donor",
+        note: "Submitting the mirror in view's reflection.",
+    ),
+    (
         id: "cpu_present_wait",
         display: "Waiting for the display",
         category: "cpu",
@@ -481,11 +514,12 @@
         id: "vram_targets",
         display: "Render targets",
         category: "vram",
-        sources: ["vram.render_targets"],
+        // vram.mirror: a mirror's reflection (colour, depth, motion; 2026-11-21, renderer/mirror.rs).
+        sources: ["vram.render_targets", "vram.mirror"],
         locked: true,
         base_frac: 0.08,
         color: "success",
-        note: "Scene colour, depth, shadow map, sky and ocean lookup textures.",
+        note: "Scene colour, depth, shadow map, sky and ocean lookup textures, and a mirror's reflection.",
     ),
     (
         id: "vram_particles",

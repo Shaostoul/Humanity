@@ -47,6 +47,10 @@ pub enum SceneView {
     /// 512 px render at most a frame while the plan is shown, its own number
     /// (`gpu.map_tile_scene`, ...) so its budget (2 ms) is read on its own.
     MapTile,
+    /// A mirror's reflection (renderer/mirror.rs, 2026-11-21): drawn on every frame a mirror is in
+    /// view, its passes under `gpu.mirror_*` so the Performance page and Settings > Graphics > Mirror
+    /// reflections show what it costs on its own.
+    Mirror,
 }
 
 impl SceneView {
@@ -56,6 +60,7 @@ impl SceneView {
             SceneView::Main => ("gpu.scene", "cpu.scene"),
             SceneView::Screen => ("gpu.screen_scene", "cpu.screen_scene"),
             SceneView::MapTile => ("gpu.map_tile_scene", "cpu.map_tile_scene"),
+            SceneView::Mirror => ("gpu.mirror_scene", "cpu.mirror_scene"),
         }
     }
 
@@ -65,6 +70,7 @@ impl SceneView {
             SceneView::Main => ("gpu.transparent", "cpu.transparent"),
             SceneView::Screen => ("gpu.screen_transparent", "cpu.screen_transparent"),
             SceneView::MapTile => ("gpu.map_tile_transparent", "cpu.map_tile_transparent"),
+            SceneView::Mirror => ("gpu.mirror_transparent", "cpu.mirror_transparent"),
         }
     }
 
@@ -76,6 +82,7 @@ impl SceneView {
             SceneView::Main => ("gpu.stars", "cpu.stars"),
             SceneView::Screen => ("gpu.screen_sky", "cpu.screen_sky"),
             SceneView::MapTile => ("gpu.map_tile_clear", "cpu.map_tile_clear"),
+            SceneView::Mirror => ("gpu.mirror_clear", "cpu.mirror_clear"),
         }
     }
 
@@ -87,6 +94,7 @@ impl SceneView {
             SceneView::Main => ("gpu.overlay", "cpu.overlay"),
             SceneView::Screen => ("gpu.screen_overlay", "cpu.screen_overlay"),
             SceneView::MapTile => ("gpu.map_tile_overlay", "cpu.map_tile_overlay"),
+            SceneView::Mirror => ("gpu.mirror_overlay", "cpu.mirror_overlay"),
         }
     }
 
@@ -96,6 +104,7 @@ impl SceneView {
             SceneView::Main => ("gpu.lines", "cpu.lines"),
             SceneView::Screen => ("gpu.screen_lines", "cpu.screen_lines"),
             SceneView::MapTile => ("gpu.map_tile_lines", "cpu.map_tile_lines"),
+            SceneView::Mirror => ("gpu.mirror_lines", "cpu.mirror_lines"),
         }
     }
 
@@ -108,6 +117,7 @@ impl SceneView {
             SceneView::Main => ("gpu.present", "cpu.present"),
             SceneView::Screen => ("gpu.screen_present", "cpu.screen_present"),
             SceneView::MapTile => ("gpu.map_tile_present", "cpu.map_tile_present"),
+            SceneView::Mirror => ("gpu.mirror_present", "cpu.mirror_present"),
         }
     }
 }

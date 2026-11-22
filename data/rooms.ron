@@ -91,7 +91,8 @@
         // `customize_appearance` is what the bedroom's STANDING MIRROR does:
         // walk up to it and press E and the look editor opens. The operator's
         // own example of an interface that belongs to its room. Changing
-        // clothes is next door, in the dressing room.
+        // clothes is next door, in the dressing room. Since 2026-11-21 the
+        // mirror is a real one (docs/design/mirrors.md): you see yourself in it.
         actions: ["customize_appearance", "sleep", "personal_storage"],
         access: "private",
         default_color: (0.5, 0.4, 0.3, 1.0),

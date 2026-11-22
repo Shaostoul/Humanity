@@ -2534,25 +2534,27 @@
             container_type: None,
             model: None,
         ),
-        // The bedroom's standing mirror, and the operator's own example of the
-        // rule this home is arranged by: "the player bedroom could have like a
-        // standing mirror like display that also doubles as a touchscreen for
-        // changing character appearance." So it is BOTH. The panel is a
-        // full-height display in PORTRAIT (720 x 1280), showing your profile;
-        // walking up to it and pressing E opens the look editor, because the
-        // bedroom's room type (data/rooms.ron) lists `customize_appearance`.
-        // There is no standing-mirror model yet, so the body is a primitive
-        // panel in pale glass colour; a real model is a want, not a blocker.
+        // The bedroom's standing mirror: a REAL mirror since 2026-11-21 (the
+        // operator: "If a player runs in front of the mirror will it show the
+        // player's model?"). Its front face is silvered glass that reflects the
+        // room and everyone in it, your own body included in first person, by
+        // the renderer's planar reflection (docs/design/mirrors.md). Until then
+        // it was a portrait display showing your profile; the Profile page now
+        // has its own wall screen beside it (`profile_screen_1`, the east wall
+        // south of the mirror). Walking up to it and pressing E still opens the
+        // look editor, because the bedroom's room type (data/rooms.ron) lists
+        // `customize_appearance`. There is no standing-mirror model yet, so the
+        // body is a primitive box in a walnut frame colour round the glass.
         "standing_mirror": (
             shape: "box",
             size: (1.0, 2.0, 0.08),
-            color: (0.78, 0.83, 0.88),
+            color: (0.30, 0.20, 0.13),
             label: "Standing mirror",
             category: "Furniture",
             stats: [
                 (
-                    kind: "display",
-                    value: "720 x 1280 mirror panel",
+                    kind: "mirror",
+                    value: "silvered glass, 0.92 x 1.92 m",
                     status: "ok",
                 ),
             ],
@@ -2562,12 +2564,10 @@
             auto_recipe: None,
             container_type: None,
             model: None,
-            screen: Some((
-                source: "profile",
-                px: (720, 1280),
+            mirror: Some((
                 face: "front",
-                bezel_m: 0.03,
-                brightness: 1.1,
+                frame_m: 0.04,
+                tint: (0.86, 0.88, 0.86),
             )),
         ),
         "staple_grain_tray": (
@@ -3823,6 +3823,20 @@
             offset: (41.892, 3.0, 32.5),
             rotation: 90.0,
             zone: "home",
+        ),
+        // The Profile page's screen (2026-11-21): the standing mirror showed it until the mirror
+        // became a real one, so it has its own wall screen beside the mirror, on the east wall south
+        // of it (z 30.4 to 31.6; the mirror stands at 32 to 33 and the dressing room door at 34.55
+        // to 35.45), its base 1.2 m over the floor, facing into the room like the mirror.
+        (
+            id: "profile_screen_1",
+            machine: "wall_screen",
+            room: "room-bedroom",
+            offset: (41.92, 4.2, 31.0),
+            rotation: 90.0,
+            zone: "home",
+            screen_source: Some("profile"),
+            screen_size_m: Some((1.14, 0.64)),
         ),
         (
             id: "desk_2",

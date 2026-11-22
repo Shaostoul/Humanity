@@ -22,6 +22,8 @@ mod instruments_tests;
 /// Settings > Graphics > Furniture (2026-11-09, docs/design/simready-props.md): Furniture detail
 /// with its measured memory and the hardware notice, and the furniture model packs.
 mod furniture;
+/// Settings > Graphics > Light and sky > Mirror reflections (2026-11-21, docs/design/mirrors.md).
+mod mirrors;
 /// Settings > Graphics > Garment textures (2026-11-10, docs/design/character-animation.md section
 /// 16): the levels as data (512, 1K, 2K) with each one's video memory and download, and the notices.
 pub(crate) mod garments;

@@ -4057,6 +4057,7 @@ mod multi_select_tests {
             screen: None,
             camera: None,
             camera_px: humanity_ship::machines::CAMERA_PX_DEFAULT,
+            mirror: None,
         }
     }
 

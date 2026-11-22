@@ -950,6 +950,8 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
         // a new source in the build editor (2026-11-06) also gets its body
         // mesh, its quad and its surface rebuilt (`follow_placements`).
         crate::engine::screens::follow_placements(state, &placements);
+        // The mirrors' glass follows its bodies the same way (engine/mirrors.rs).
+        crate::engine::mirrors::update_poses(&mut state.mirrors, &placements);
         rebuild_connection_objects(state);
         return;
     }
@@ -961,6 +963,8 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     // that keeps a screen keeps its page state), drops the ones whose
     // machine is gone. Same prior-slot reuse discipline as the bodies above.
     crate::engine::screens::sync_screens(state, &placements);
+    // The mirrors' glass (2026-11-21, engine/mirrors.rs), the same way.
+    crate::engine::mirrors::sync(state, &placements);
     state.plant_mesh_sig = 0; // machine layout may have moved: replant visuals
     rebuild_connection_objects(state);
 }
@@ -3282,6 +3286,8 @@ pub(crate) fn push_home_machines(state: &EngineState, out: &mut Vec<RenderObject
     // drawn with the body's own position + yaw. Hidden with the machines, since each sits on one.
     let first = out.len();
     state.screens.push_render_objects(out);
+    // And each mirror's glass (2026-11-21, engine/mirrors.rs), cut away with the machines too.
+    crate::engine::mirrors::push_render_objects(&state.mirrors, out);
     if !cut.is_empty() {
         let screens: Vec<RenderObject> = out.drain(first..).filter(|o| shown(o.position)).collect();
         out.extend(screens);

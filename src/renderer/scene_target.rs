@@ -523,7 +523,8 @@ impl Renderer {
     /// Whether an off-screen view (a camera screen, the hi-res screenshot) is being drawn: its
     /// passes take no jitter and write no motion that anything reads (renderer/taa.rs).
     pub(super) fn offscreen_view_active(&self) -> bool {
-        self.view_scene.state != ViewSceneState::Idle
+        // A mirror's reflection (renderer/mirror.rs) is an off-screen view too: its own textures.
+        self.view_scene.state != ViewSceneState::Idle || self.mirror_view_active()
     }
 
     /// Bytes held by the scene targets (the window's and a parked view

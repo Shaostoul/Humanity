@@ -46,8 +46,10 @@ A screen is three things bolted together:
    **THE RULE THAT COMES WITH THAT (BUG-078, v0.1323.0): a page draw may not
    write `active_page`.** Sharing one `GuiState` is the feature, and it is
    also the trap - whatever a page writes while drawing on a wall, it writes
-   on behalf of the whole application. The bedroom's standing mirror is a
-   screen whose source is `profile`, and `profile::draw` used to set
+   on behalf of the whole application. The bedroom's standing mirror was a
+   screen whose source is `profile` (since 2026-11-21 it is a real mirror,
+   docs/design/mirrors.md, and the Profile page has its own wall screen beside
+   it, `profile_screen_1`), and `profile::draw` used to set
    `active_page = GuiPage::Real` as its way of aliasing itself onto the Real
    page. So entering the world drew the mirror, the mirror navigated the app
    onto the Profile page, and Play was unusable for two releases. Nothing
@@ -193,7 +195,8 @@ about Y like the body. Rotation 180 faces +Z, rotation 90 faces -X. "left"
 and "right" are the viewer's left and right when facing the front; "top" is
 read by a viewer standing at the front looking down.
 
-Shipped: `wall_screen`, `desk_monitor` and `standing_mirror` in both
+Shipped: `wall_screen` and `desk_monitor` (and `standing_mirror` until
+2026-11-21, when it became a real mirror, docs/design/mirrors.md) in both
 `home.ron` and `home_solo.ron`, under the "Displays" and "Furniture" palette
 categories. The 2026-09-19 home redesign spread the placed screens across the
 rooms that use them rather than hanging a wall of them in one booth; the table

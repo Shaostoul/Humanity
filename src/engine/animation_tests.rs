@@ -533,7 +533,7 @@ fn the_morph_block_and_the_morph_buffer_are_laid_out_as_the_shaders_read_them() 
 }
 
 pub(super) fn person(wearer: &'static str) -> Person {
-    Person { key: FigureKey::Crowd(0), feet: Vec3::ZERO, facing: 0.0, height: 1.0, shape: ShapeValues::Look(Default::default()), wearer, body: None, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: false, airborne: false, detail: Default::default(), dress: Default::default(), act: None, look: None, first_person: false, held: [None, None], second_hand: None }
+    Person { key: FigureKey::Crowd(0), feet: Vec3::ZERO, facing: 0.0, height: 1.0, shape: ShapeValues::Look(Default::default()), wearer, body: None, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: false, airborne: false, detail: Default::default(), dress: Default::default(), act: None, look: None, first_person: false, mirror_only: false, held: [None, None], second_hand: None }
 }
 
 /// Region tints: an equipped item's colour, else the wearer kind's default (players' teal top,

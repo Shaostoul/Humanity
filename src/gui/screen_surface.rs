@@ -1987,7 +1987,10 @@ mod tests {
     /// anyone adds later is covered without anyone remembering this test exists.
     ///
     /// PROVEN RED: put `state.active_page = GuiPage::Real;` back at the top of
-    /// `pages::profile::draw` and this fails, naming `standing_mirror`.
+    /// `pages::profile::draw` and this fails, naming the Profile screen. Since
+    /// 2026-11-21 the standing mirror is a real mirror (docs/design/mirrors.md)
+    /// and the Profile page has its own wall screen beside it, `profile_screen_1`,
+    /// which is now the screen this test names.
     #[test]
     fn no_page_drawn_on_a_wall_screen_changes_the_app_page() {
         let home = humanity_systems::grow_machines::load_home(std::path::Path::new(
@@ -2046,9 +2049,9 @@ mod tests {
             checked.len()
         );
         assert!(
-            checked.iter().any(|id| id == "standing_mirror"),
-            "the bedroom's standing mirror is the screen this test exists for, and it \
-             was not among the ones checked: {checked:?}"
+            checked.iter().any(|id| id == "profile_screen_1"),
+            "the bedroom's Profile screen (the standing mirror's page until 2026-11-21) is \
+             the screen this test exists for, and it was not among the ones checked: {checked:?}"
         );
     }
 

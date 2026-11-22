@@ -269,7 +269,8 @@ get one. How screens work at all is [in-world-screens.md](in-world-screens.md).
 | `wall_screen_10` | Greenhouse | `page:calendar` | On the wall beside the great room's garden door. A planting calendar at the greenhouse threshold. |
 | `desk_monitor_1` | Study | `page:library` | On the study desk, among the bookcases. |
 | `desk_monitor_2` | Great room (screens den) | `page:chat` | On the den's desk. Comms at the comms station. |
-| `standing_mirror_1` | Bedroom | `page:profile` | The operator's own example. A 1 by 2 m portrait panel beside the bedroom door. |
+| `standing_mirror_1` | Bedroom | `page:profile` | The operator's own example. A 1 by 2 m portrait panel beside the bedroom door. Since 2026-11-21 a real mirror (docs/design/mirrors.md); the Profile page moved to `profile_screen_1` beside it. |
+| `profile_screen_1` | Bedroom | `profile` | Added 2026-11-21 when the standing mirror became a real mirror: a wall screen on the east wall south of the mirror, 1.2 m up. |
 
 There is no `wall_screen_8`; the number was skipped rather than shuffling the
 others, because `1`, `2` and `6` are named by `scripts/verify-screens.js` and

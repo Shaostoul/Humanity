@@ -11,7 +11,8 @@
 //! - the skill sheet: the Skills section of the Real page (gui/pages/profile.rs `draw_skills`,
 //!   through pages/profile_skills.rs). On the main screen that is the Real page (or the Profile
 //!   page, its alias, frame_ui_run.rs) on its "skills" section; on a wall screen, the Profile
-//!   page on its Skills section (the bedroom's standing mirror, `profile::draw`) or the Real page
+//!   page on its Skills section (the bedroom's Profile screen beside the mirror, `profile::draw`;
+//!   the standing mirror itself until it became a real mirror on 2026-11-21) or the Real page
 //!   on the "skills" section;
 //! - the Crafting page: a recipe's skill level, the skill's name and the expected grade
 //!   (gui/pages/crafting.rs `player_skill_level`, `skill_display_name`).

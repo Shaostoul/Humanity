@@ -113,6 +113,10 @@ pub(crate) struct Person {
     /// The player's own body drawn for the first-person eye (rung 2b): the head and neck folded
     /// away, the camera riding the head.
     pub first_person: bool,
+    /// The player's body drawn ONLY in a mirror's reflection (2026-11-21, engine/mirrors.rs): first
+    /// person draws no body of its own here ("Show my body in first person" off), but the glass
+    /// shows the player, so the body is posed and queued for the reflection alone.
+    pub mirror_only: bool,
     /// What each hand holds, as the grip it is held in (left, right; an index into the library's
     /// grips; rung 2b: the two grip sockets), and how far along one shaft the second hand closes
     /// when the main hand's thing takes both hands.
@@ -1430,7 +1434,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             dress: my_dress(app, &state.gui_state.outfit),
             act: None,
             look: None,
-            first_person: false,
+            first_person: false, mirror_only: false,
             held: [None, None],
             second_hand: None,
         }
@@ -1443,7 +1447,10 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
     // TRUE FIRST PERSON (rung 2b): the same body for the first-person eye, its head and neck folded
     // away, unless Settings' "Show my body in first person" is off (the old first-person view).
     let first = state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson && state.gui_state.settings.fp_body && state.interact.rung2b_on;
-    if (third || first) && !state.gui_state.construction_active {
+    // A MIRROR shows the player whatever first person draws (2026-11-21, engine/mirrors.rs): with
+    // no first-person body of its own, the body is posed for the reflection alone.
+    let mirror_only = !third && !first && state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson && crate::engine::mirrors::wants_my_body(state);
+    if (third || first || mirror_only) && !state.gui_state.construction_active {
         // On a planet the way up is the local radial (rung 2a): the body stands on the ground under
         // the eye and faces the way the camera looks along the ground.
         let (up, facing) = if state.camera.surface_mode {
@@ -1455,6 +1462,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
         let c = &state.controller;
         let mut p = me(FigureKey::Me, state.camera.position - up * c.eye_height(), facing, up, c.crouching(), c.airborne());
         p.first_person = first;
+        p.mirror_only = mirror_only;
         // What they hold (rung 2b: the two grip sockets), each in its grip; a thing that takes both
         // hands closes the left hand on its shaft too.
         if let Some(lib) = lib.as_deref() {
@@ -1503,7 +1511,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             act: None,
             // Where they look (rung 2b): their yaw and the pitch their update carried.
             look: Some(t.position + Vec3::new(yaw.sin() * r.doing.pitch.cos(), r.doing.pitch.sin(), -yaw.cos() * r.doing.pitch.cos()) * 6.0),
-            first_person: false,
+            first_person: false, mirror_only: false,
             held: [None, None],
             second_hand: None,
         };
@@ -1543,7 +1551,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             dress: Default::default(),
             act: None,
             look,
-            first_person: false,
+            first_person: false, mirror_only: false,
             held: [None, None],
             second_hand: None,
         };
@@ -1560,7 +1568,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             Some(l) => (ShapeValues::Look(l.shape.clone()), Some(l.body.clone()), l.detail.clone(), l.dress.clone()),
             None => (no_look(key), None, Default::default(), Default::default()),
         };
-        let mut p = Person { key, feet, facing, height: 1.0, shape, wearer: "other", body, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: c.crouch, airborne: false, detail, dress, act: None, look: None, first_person: false, held: [None, None], second_hand: None };
+        let mut p = Person { key, feet, facing, height: 1.0, shape, wearer: "other", body, skin: None, hair: None, eyes: None, outfit: None, up: Vec3::Y, crouch: c.crouch, airborne: false, detail, dress, act: None, look: None, first_person: false, mirror_only: false, held: [None, None], second_hand: None };
         if let Some(lib) = lib.as_deref().filter(|_| state.interact.rung2b_on) {
             p.act = crowd_act_in(state, lib, c, clock, &mut p);
         }
@@ -2163,6 +2171,11 @@ pub(crate) fn draw_people(
             }
         }
     }
+    // A mirror reflects this frame (engine/mirrors.rs): the player's whole body is queued for it,
+    // unless the showcase leaves the player out of the reflection (`mirror_me` 0, the rig's hidden
+    // picture), which then shows no player at all.
+    let mirror_on = state.mirrors.active.is_some();
+    let mirror_me = crate::engine::mirrors::wants_my_body(state);
     let rt = &mut state.animation;
     let renderer = &mut gpu!(state).renderer;
     let lib = rt.lib.as_ref().expect("draws_bodies checked it");
@@ -2647,6 +2660,10 @@ pub(crate) fn draw_people(
         // THE SHADOW KEEPS THE HEAD (2026-11-10, the shadow atlas, docs/design/local-light-shadows.md):
         // the unfolded pose's rows are kept before the fold and pushed again below for the shadow maps
         // only (renderer `skin_shadow_only`), so your shadow is a whole person's.
+        // A MIRROR KEEPS THE HEAD TOO (2026-11-21, engine/mirrors.rs): while one reflects, the same
+        // unfolded rows are pushed for the glass (`skin_mirror_twin`), whether or not the shadow
+        // maps want them, and the eye's folded copy is left out of the reflection (`eye_only`).
+        let shadow_twin = renderer.shadow_twin_wanted();
         let mut shadow_rows: Option<Vec<[f32; 4]>> = None;
         if p.first_person {
             if let Some(h) = hand_rig {
@@ -2657,7 +2674,7 @@ pub(crate) fn draw_people(
                 my_eye = Some(world.transform_point3(eye_model));
                 if fp_head_hidden {
                     if let Some(neck) = first_person_fold(h) {
-                        if renderer.shadow_twin_wanted() {
+                        if shadow_twin || mirror_me {
                             let mut whole = Vec::new();
                             pose::palette_rows(skel, &rt.model, &mut whole);
                             shadow_rows = Some(whole);
@@ -2821,7 +2838,15 @@ pub(crate) fn draw_people(
             }
         };
         let near = tier[i] == DrawTier::Near || (!vs_ready && fallback_used < COMPUTE_FALLBACK_CAP);
-        if near {
+        if p.mirror_only {
+            // Drawn in a mirror's reflection alone, skinned in the vertex stage from its own rows
+            // (engine/mirrors.rs): first person shows no body of its own here.
+            if vs_ready {
+                for (region, material) in materials.iter().copied().enumerate() {
+                    renderer.skin_mirror_twin(gpu_body, region, material, index);
+                }
+            }
+        } else if near {
             if tier[i] == DrawTier::Near {
                 report.near += 1;
             } else {
@@ -2836,6 +2861,12 @@ pub(crate) fn draw_people(
                 renderer.skin_near(gpu_body, slots[bi] - 1, index)
             };
             let in_render_space = me_in_render_space && p.key == FigureKey::Me;
+            // The eye's copy is left out of a mirror's reflection, which draws the whole twin instead
+            // (while the vertex-stage skinning that draws the twin is still building, the folded copy
+            // stays), or, with the player left out of the reflection, nothing.
+            if mirror_on && p.first_person && (!mirror_me || (vs_ready && shadow_index.is_some())) {
+                renderer.mirror.eye_only.extend_from_slice(&meshes);
+            }
             let list = if in_render_space { &mut *render_space } else { &mut *all_objects };
             for (mesh, material) in meshes.iter().copied().zip(materials.iter().copied()) {
                 list.push(RenderObject { fade: 0.0, position: origin, rotation, scale: Vec3::splat(scale), mesh, material });
@@ -2858,10 +2889,16 @@ pub(crate) fn draw_people(
                 renderer.skin_middle(gpu_body, region, material, index);
             }
         }
-        // The first-person body's unfolded twin, for the shadow maps only (pushed above).
+        // The first-person body's unfolded twin (pushed above): for the shadow maps, and for a
+        // mirror's reflection while one reflects (2026-11-21, engine/mirrors.rs).
         if let Some(si) = shadow_index {
             for (region, material) in materials.iter().copied().enumerate() {
-                renderer.skin_shadow_only(gpu_body, region, material, si);
+                if shadow_twin {
+                    renderer.skin_shadow_only(gpu_body, region, material, si);
+                }
+                if mirror_me && vs_ready {
+                    renderer.skin_mirror_twin(gpu_body, region, material, si);
+                }
             }
         }
         rt.figures.insert(p.key, fig);

@@ -34,6 +34,11 @@ const STICKY_PIN_RESETS = Object.freeze({
   // The blur behind a frosted film (2026-11-13, renderer/film_blur.rs): "0" draws the films whole over
   // a sharp view (the red twin), "1" blurs whatever Settings says; "auto" hands it back to Settings.
   film_blur: "auto",
+  // Mirrors (2026-11-21, engine/mirrors.rs): "0" draws no reflection (every mirror plain silver),
+  // a level id pins it, "auto" hands it back to Settings; mirror_me "0" leaves the player's own body
+  // out of the reflection (the mirror rig's hidden picture).
+  mirror: "auto",
+  mirror_me: "1",
   // Shadows rung 1b (2026-11-12): "0" draws every caster inside a shadow face whether or not its
   // shadow can reach the view (no shadow-caster cull), and atlas_code "1" keeps the atlas lookups
   // compiled into the shading at Off: the two red twins.

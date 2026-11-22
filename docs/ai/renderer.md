@@ -159,6 +159,30 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   end dissolving over its last tenth) and the level-of-detail crossfade in `frag_prologue`. The
   threshold's CPU twin is pinned by `the_shader_hash_is_the_twin`.
 
+## Mirrors: a second view of the scene each frame one is in view (2026-11-21)
+
+- **A mirror's reflection is an off-screen view with textures of its own** (`renderer/mirror.rs`,
+  design `docs/design/mirrors.md`): `Renderer::mirror_begin` swaps the mirror's depth buffer and
+  motion target in for the window's (as `begin_view_depth` does for the camera screens, but not the
+  shared spare, which a 10 Hz camera and an every-frame mirror would reallocate in turn), clears its
+  colour and sets the shadow uniform's light-tile size to 0 (the tiles are binned for the main
+  view's screen; the reflection loops the whole light list); `mirror_end` puts all three back.
+  `offscreen_view_active` and `film_blur_ready` count it as an off-screen view (no jitter, no motion
+  anything reads, no film blur). Its passes publish under `SceneView::Mirror` (`gpu.mirror_*`).
+- **The reflection camera is off-axis** (`Camera::off_axis`: when set, `view_matrix`,
+  `projection_matrix` and `effective_position` are its matrices and eye). Anything that builds a
+  projection from `fov_degrees` and `aspect` itself (the star pass, god rays, SSAO) is wrong for it,
+  which is one reason the reflection draws the scene and see-through passes only. A new pass drawn
+  into a reflection reads the camera's matrices, never its angles.
+- **The player's twin for the glass**: `Skinning::mirror_twins` (`skin_mirror_twin`) is drawn by
+  `draw_skinned_middle` only while a reflection draws; `MirrorView::eye_only` names the meshes the
+  reflection leaves out (the eye's folded first-person body). A new body path that draws the player
+  for the eye must say what the mirror sees instead.
+- **The glass is type 24 with `params2.y = 1`** (`MIRROR_PARAMS2`): its texture holds tone-mapped
+  scene colour, turned back into light by `aces_inverse` (80-fragment-shared.wgsl) before the tail's
+  curve maps it again. `aces_inverse`, the tail's ACES curve and `present.wgsl`'s `aces_inv` are in
+  LOCKSTEP: change one, change all three.
+
 ## The tree card stage needs depth-15 ground (BUG-301, 2026-11-14)
 
 - **The far tree cards (type 12's sprite branch in `fs_terrain`) are baked into terrain patches at

@@ -1037,7 +1037,15 @@ fn fs_surface(in: VertexOutput) -> FragOut {
         // where `screen_emitter` replaces the lit colour.
         let screen_tex = textureSampleGrad(
             albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
-        albedo = albedo * screen_tex.rgb;
+        if (material.params2.y > 0.5) {
+            // A MIRROR's glass (2026-11-21, renderer/mirror.rs, params2.y = 1): the texture is the
+            // reflection view's scene colour, already through the tone curve every scene fragment
+            // ends with, so it is turned back into light before the glass's tint (base_color)
+            // scales it; the shared tail's curve then maps it once, as it maps everything else.
+            albedo = albedo * aces_inverse(screen_tex.rgb);
+        } else {
+            albedo = albedo * screen_tex.rgb;
+        }
         metallic = 0.0;
         roughness = 1.0;
         screen_emitter = true;

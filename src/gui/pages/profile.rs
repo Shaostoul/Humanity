@@ -49,8 +49,8 @@ use crate::gui::widgets;
 /// **It draws. It does NOT navigate.** This used to set
 /// `state.active_page = GuiPage::Real` right here, which was harmless while
 /// the only caller was the main UI and became a trap the moment a wall screen
-/// could show a page. The bedroom's standing mirror declares `source:
-/// "profile"`, screens draw through this same dispatch against this same
+/// could show a page. The bedroom's standing mirror declared `source:
+/// "profile"` (since 2026-11-21 the Profile screen beside it does), screens draw through this same dispatch against this same
 /// `GuiState`, so entering the world drew the mirror, the mirror set the app's
 /// page, and the player was thrown straight back out of the world onto the
 /// Profile page every time they pressed Play (v0.1322.1, reported by the

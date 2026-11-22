@@ -216,6 +216,15 @@ struct CameraTransition {
     duration: f32,
 }
 
+/// A view given by its matrices rather than by angles (2026-11-21): a mirror's reflection camera,
+/// whose frustum is off-axis (renderer/mirror.rs `reflected_view`). `eye` is where it looks from.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OffAxis {
+    pub view: Mat4,
+    pub proj: Mat4,
+    pub eye: Vec3,
+}
+
 // ── Camera ───────────────────────────────────────────────────
 
 /// Unified camera supporting three modes.
@@ -269,6 +278,10 @@ pub struct Camera {
     /// `view_drop`: the walk, the footing, the walls and reach read `position`. Zero unless the
     /// player's body is drawn in first person and Reduce motion is off (engine::animation).
     pub view_offset: Vec3,
+    /// An OFF-AXIS view (2026-11-21, a mirror's reflection camera, renderer/mirror.rs): when set,
+    /// the view and projection matrices and the eye are these, whatever the angles and the field
+    /// of view say. None for every other camera.
+    pub off_axis: Option<OffAxis>,
 
     /// Absolute world position in meters (f64 precision).
     /// Updated each frame by accumulating the f32 `position` delta.
@@ -328,6 +341,7 @@ impl Camera {
             lens_shift_x: 0.0,
             view_drop: 0.0,
             view_offset: Vec3::ZERO,
+            off_axis: None,
 
             mode: CameraMode::FirstPerson,
 
@@ -455,6 +469,9 @@ impl Camera {
 
     /// Compute the effective camera position based on current mode.
     pub(crate) fn effective_position(&self) -> Vec3 {
+        if let Some(o) = &self.off_axis {
+            return o.eye;
+        }
         match self.mode {
             // A crouch lowers the eye we see from along the local up (rung 2a, `view_drop`).
             // Rung 2b: or from the drawn head (`view_offset`).
@@ -493,6 +510,9 @@ impl Camera {
 
     /// View matrix (world to camera space).
     pub fn view_matrix(&self) -> Mat4 {
+        if let Some(o) = &self.off_axis {
+            return o.view;
+        }
         // During transition, interpolate between snapshot and current
         if let Some(ref t) = self.transition {
             let alpha = ease_in_out_cubic(t.elapsed / t.duration);
@@ -530,6 +550,9 @@ impl Camera {
 
     /// Projection matrix, moved sideways by `lens_shift_x` when it is set.
     pub fn projection_matrix(&self) -> Mat4 {
+        if let Some(o) = &self.off_axis {
+            return o.proj;
+        }
         let proj = self.unshifted_projection();
         if self.lens_shift_x == 0.0 {
             proj

@@ -355,6 +355,35 @@ pub struct MachineDef {
     /// picture up. Only read for a machine that has a `camera`.
     #[serde(default = "default_camera_px")]
     pub camera_px: (u32, u32),
+    /// A MIRROR on one face of this machine (2026-11-21, docs/design/mirrors.md): the face's glass
+    /// reflects the room and the people in it, the player's own body included, drawn by the
+    /// renderer's planar reflection (engine/mirrors.rs, renderer/mirror.rs). `None` for every
+    /// machine that is not a mirror. Any piece in any catalog may carry one (a standing mirror, a
+    /// wardrobe door, a bathroom cabinet): the infinite-of-X rule, a mirror is data, not code.
+    #[serde(default)]
+    pub mirror: Option<MirrorDef>,
+}
+
+/// Where a machine's mirror sits and what its glass does to the light (`MachineDef::mirror`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MirrorDef {
+    /// Which face of the box carries the glass, as a screen's `face` ("front", the -Z face at
+    /// rotation 0, "back", "left", "right", "top"). Unknown = front, with a warning.
+    #[serde(default = "default_screen_face")]
+    pub face: String,
+    /// How far the glass is inset from the face's edges on every side, metres: the body's colour
+    /// shows round it as the frame.
+    #[serde(default)]
+    pub frame_m: f32,
+    /// What share of each colour of light the glass gives back (red, green, blue, 0..1). A
+    /// silvered glass mirror returns about 85 to 90% of the light, a little more of the green,
+    /// which the glass in front of the silver lets through best.
+    #[serde(default = "default_mirror_tint")]
+    pub tint: (f32, f32, f32),
+}
+
+pub fn default_mirror_tint() -> (f32, f32, f32) {
+    (0.86, 0.88, 0.86)
 }
 
 /// What a stove burns (2026-10-20, `MachineDef::burns_fuel`): the fuel in
@@ -1503,6 +1532,9 @@ pub struct PlacedMachine {
     /// The def's `camera_px`: the size the camera renders at (see
     /// `MachineDef::camera_px`). Meaningless without a `camera`.
     pub camera_px: (u32, u32),
+    /// The def's mirror, carried through so the engine can build the glass quad next to the
+    /// body and the renderer can reflect the room in it (`MachineDef::mirror`).
+    pub mirror: Option<MirrorDef>,
 }
 
 impl BuildabilityReport {
@@ -3083,6 +3115,7 @@ impl MachineHome {
                 }),
                 camera: def.camera,
                 camera_px: def.camera_px,
+                mirror: def.mirror.clone(),
             });
         }
         out
@@ -3514,6 +3547,7 @@ mod tests {
             screen: None,
             camera: None,
             camera_px: CAMERA_PX_DEFAULT,
+            mirror: None,
         }
     }
 
@@ -5826,6 +5860,7 @@ mod camera_px_tests {
             screen: None,
             camera: Some((0.0, -8.0, 70.0)),
             camera_px: CAMERA_PX_DEFAULT,
+            mirror: None,
         };
         assert_eq!(CAMERA_PX_DEFAULT, (640, 360));
         assert_eq!(p.camera_pose().unwrap().px, (640, 360));

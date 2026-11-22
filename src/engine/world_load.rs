@@ -235,6 +235,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 let placements = crate::engine::home_meshes::placements_now(state).unwrap_or_default();
                 crate::engine::home_meshes::build_machine_bodies(state, &placements);
                 crate::engine::screens::sync_screens(state, &placements);
+                // And the mirrors' glass (2026-11-21, engine/mirrors.rs).
+                crate::engine::mirrors::sync(state, &placements);
 
                 // ── Decoration plants (v0.909) ── only for a home whose start carries them
                 // (`place_decorations`).

@@ -748,6 +748,8 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate
         }
         graphics_hint(ui, theme, hint, "lights_tiled");
         draw_bounced_light_detail(ui, theme, state, hint);
+        // Mirror reflections (2026-11-21, docs/design/mirrors.md): its own file.
+        mirrors::draw_mirror_reflections(ui, theme, state, hint);
         if widgets::labeled_slider(ui, theme, t("graphics.shadow_strength"), &mut state.settings.shadow_strength, 0.0..=1.0) {
             state.settings_dirty = true;
         }
