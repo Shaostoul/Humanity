@@ -1722,6 +1722,11 @@
       "date": "2026-11-21",
       "decision": "Preserving rung 1 HANDED OFF (worktree-agent-ab31088b34297af9b, f1d8c034b): drying (oven and sun, water content per NCHFP, Colorado State ranges), canning per the USDA 2015 tested tables shown in full for every jar size and altitude, a low-acid jar canned any other way marked BOTULISM RISK and never looking safe (a new serious illness, CDC words), dried and canned foods with their own USDA nutrition and long spoilage clocks, Simplified/Guided/Realistic levels, a Preserve quest objective, Dry It and Can It after Keep It; refutation pass 18 confirmed, 4 corrected for a dropped condition, none refuted (finding 2026-11-21-preserving-safety-facts). Not mergeable: the soak's person starves because canners and jars fill the 36-slot pack and the routine cannot put things away. Continuation dispatched (wk-preserve2.txt: a Store act, possibly the canner as a station item, the card's red run, gates). MY CALL: salting next rung as the country ham on the long-process clock with salt in grams. ASKED THE OPERATOR: botulism's game numbers (0.5 chance per bad jar, 7-day course, can kill a hurt body) or certainly fatal in Realistic? Recommended: in Realistic, fatal unless treated at a medbay; in Simplified, serious but survivable.",
       "why": "Game work in the activities order; one stakes decision is the operator's."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "OPERATOR, 2026-11-21: 'Yes' to both recommendations: (1) botulism in Realistic is fatal unless treated at a medbay; in Simplified serious but survivable (sent to the preserving continuation as added scope); (2) a household's figures count only its own machines, the ship's machines shown as the ship's (dispatched, wk-household.txt: ownership per machine as data, household loops/meters/self-sufficiency excluding the ship's, the one-person homestead linking ship.ron with its colliding machine types renamed so it draws the ship's pods, honest Home page figures).",
+      "why": "Operator decisions."
     }
   ],
   "active_scopes_to_avoid": [
