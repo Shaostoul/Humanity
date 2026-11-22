@@ -21,6 +21,8 @@ pub mod fleet_ledger;
 pub mod friend_passes;
 pub mod game_interest;
 pub mod game_state;
+/// A server's gameplay rules reaching the games in its shared world (2026-11-21).
+pub mod gameplay_rules;
 pub mod held;
 pub mod home_plots;
 /// Key cards (2026-10-22): kept at sign-in, served on request, passed on to linked servers.

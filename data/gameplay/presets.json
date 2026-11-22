@@ -1,0 +1,38 @@
+{
+  "_doc": [
+    "A SERVER'S GAMEPLAY RULES, ITS PRESETS (2026-11-21; src/relay/storage/gameplay_rules.rs reads this file, Server Settings > ADMIN > Gameplay rules offers it, docs/design/server-rules.md says why).",
+    "The operator, that day: \"Let's make sure the first server we have setup, via united-humanity is the forgiving game mode. I think realistic will be too much for most people.\"",
+    "In a server's shared world every player plays by the server's levels (data/gameplay/levels.json), not their own: the same rules for everyone there. A server's ruleset is one of these presets or Custom (the admin picks each level). `default` is the preset a new server gets.",
+    "A preset's `levels` maps a setting id to one of that setting's level ids. A setting a preset does not name plays at the level a new player gets (the setting's `default` in levels.json, the softened one), which is exactly what Forgiving means, so Forgiving names none. Realistic names every setting (a lib test fails when a setting is added to levels.json without a Realistic level here). A setting marked `personal` in levels.json (the bodies' animation: how they are drawn, not a rule of the game) is never the server's: no preset names it.",
+    "Each preset's name (`words`) and the sentence saying what it changes (`says`) are keys in data/i18n/en.json."
+  ],
+  "default": "forgiving",
+  "presets": [
+    {
+      "id": "forgiving", "words": "gameplay.preset.forgiving", "says": "gameplay.preset.forgiving_says",
+      "levels": {}
+    },
+    {
+      "id": "realistic", "words": "gameplay.preset.realistic", "says": "gameplay.preset.realistic_says",
+      "levels": {
+        "hostile_wildlife": "normal",
+        "vitals_drain": "real_time",
+        "body_heat": "realistic",
+        "illness": "realistic",
+        "animal_care": "realistic",
+        "walk_pace": "realistic",
+        "carry": "realistic",
+        "death": "realistic",
+        "mining_drone": "realistic",
+        "garden_pests": "realistic",
+        "pollination": "realistic",
+        "soil_ph": "realistic",
+        "picking": "realistic",
+        "life_support": "realistic",
+        "skill_learning": "realistic",
+        "cooking": "realistic",
+        "preserving": "realistic"
+      }
+    }
+  ]
+}

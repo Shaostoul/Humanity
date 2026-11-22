@@ -128,6 +128,13 @@ difference between "difficulty exists" and "a new player can find it".
 Note that `vitals_drain = 0` is, accidentally, the peaceful mode. It is a slider
 buried in Settings with no name.
 
+**Since 2026-11-21, presets exist where axes 2 and 3 meet: a server's gameplay rules**
+(`docs/design/server-rules.md`). In a server's shared world every level of Settings > Gameplay
+(by then 17 settings, `data/gameplay/levels.json`) is the server's: a preset of
+`data/gameplay/presets.json` (Forgiving, a new server's and united-humanity.us's, or Realistic)
+or Custom. Solo play keeps each person's own levels; a named solo preset (a Forgiving or
+Realistic button on Settings > Gameplay itself) is the remaining piece of item H.
+
 ## 3. Authority: solo offline (SHIPPED), shared world (WIRED, UNPROVEN)
 
 - **Solo offline** is the default and is real: local `WorldSave`, saves, settings
@@ -325,6 +332,7 @@ this page.
 
 ## Related docs
 
+- `docs/design/server-rules.md`, a server's gameplay rules (presets for the shared world)
 - `docs/design/engagement-modes.md`, the five per-domain engagement modes
 - `docs/design/characters-and-servers.md`, open / closed / hybrid custody
 - `docs/design/two-realities.md`, why there is no Real/Sim toggle

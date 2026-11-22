@@ -1418,6 +1418,8 @@ impl Storage {
                 media_budget_mb           INTEGER NOT NULL DEFAULT 2048,
                 media_per_person_mb       INTEGER NOT NULL DEFAULT 512,
                 media_public_previews_only INTEGER NOT NULL DEFAULT 1,
+                gameplay_preset           TEXT    NOT NULL DEFAULT 'forgiving',
+                gameplay_levels           TEXT    NOT NULL DEFAULT '{}',
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1571,6 +1573,10 @@ impl Storage {
             ("media_budget_mb", "ALTER TABLE server_settings ADD COLUMN media_budget_mb INTEGER NOT NULL DEFAULT 2048;"),
             ("media_per_person_mb", "ALTER TABLE server_settings ADD COLUMN media_per_person_mb INTEGER NOT NULL DEFAULT 512;"),
             ("media_public_previews_only", "ALTER TABLE server_settings ADD COLUMN media_public_previews_only INTEGER NOT NULL DEFAULT 1;"),
+            // A server's gameplay rules (2026-11-21, storage/gameplay_rules.rs): Forgiving until an
+            // admin picks another in Server Settings > ADMIN > Gameplay rules.
+            ("gameplay_preset", "ALTER TABLE server_settings ADD COLUMN gameplay_preset TEXT NOT NULL DEFAULT 'forgiving';"),
+            ("gameplay_levels", "ALTER TABLE server_settings ADD COLUMN gameplay_levels TEXT NOT NULL DEFAULT '{}';"),
         ] {
             if conn.prepare(&format!("SELECT {column} FROM server_settings LIMIT 0")).is_err() {
                 conn.execute_batch(add)?;
@@ -3247,6 +3253,9 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+// A server's gameplay rules: the realism levels its shared world plays by (2026-11-21).
+pub mod gameplay_rules;
+pub use gameplay_rules::GameplayRules;
 mod server_settings;
 pub use server_settings::{
     clamp_world_time_scale, default_world_time_scale, fleet_supply_mode_of, media_visibility_of, ServerSettings,

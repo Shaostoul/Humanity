@@ -6,7 +6,8 @@
 //! The shared world's clock speed (`world_time_scale`) also reaches the running
 //! world and every connected game from here, with no restart (`set_world_clock`),
 //! and so does the fleet's supply (`fleet_supply_mode`, fleet_ledger.rs
-//! `set_fleet_supply`).
+//! `set_fleet_supply`), and the shared world's gameplay rules (`gameplay_rules`,
+//! gameplay_rules.rs `announce`).
 //!
 //! Its own file because relay.rs is held to a line budget (tests/file_size_ratchet.rs).
 
@@ -57,6 +58,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         world_time_scale,
         fleet_supply_mode,
         media_visibility, media_budget_mb, media_per_person_mb, media_public_previews_only,
+        gameplay_rules,
     } = upd else { return };
     let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
     if role != "admin" && role != "owner" {
@@ -67,6 +69,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         let _ = state_clone.broadcast_tx.send(private);
     } else {
         let mut current = state_clone.db.get_server_settings().unwrap_or_default();
+        let rules_before = current.gameplay_rules.clone();
         // Defensive bounds — stop the operator from typing
         // a negative or absurdly large char limit by accident.
         let clamp = |v: i64| v.clamp(1, 1_000_000);
@@ -187,12 +190,18 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         if let Some(v) = media_budget_mb { current.media_budget_mb = v.clamp(MB.0, MB.1); }
         if let Some(v) = media_per_person_mb { current.media_per_person_mb = v.clamp(MB.0, MB.1); }
         if let Some(v) = media_public_previews_only { current.media_public_previews_only = v; }
+        // The shared world's gameplay rules (2026-11-21): a preset the file lists or Custom;
+        // anything else changes nothing (storage/gameplay_rules.rs `checked`).
+        if let Some(r) = gameplay_rules.and_then(crate::relay::storage::GameplayRules::checked) {
+            current.gameplay_rules = r;
+        }
         match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
             Ok(true) => {
                 state_clone.db.run_expiry_sweeps(); // a lowered window or cap holds at once (storage/expiry.rs)
                 // Saved first, then the running world: a restart keeps it.
                 set_world_clock(state, current.world_time_scale).await;
                 super::fleet_ledger::set_fleet_supply(state, &current.fleet_supply_mode).await;
+                super::gameplay_rules::announce(state, &rules_before, &current.gameplay_rules);
                 // Broadcast new state to everyone (no target: an admin's change).
                 let _ = state_clone.broadcast_tx.send(
                     RelayMessage::ServerSettingsState { settings: current, target: None }

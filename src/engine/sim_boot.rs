@@ -582,7 +582,7 @@ pub(crate) fn apply_home_save(
             humanity_systems::mining::publish_mode(data_store, humanity_systems::mining::Mode::from_level(gui_state.settings.level("mining_drone")).unwrap_or_default());
             // The garden's and the ship's levels too (2026-11-12): who powers the air machines, and
             // the garden levels the catch-up's growth plays at.
-            crate::engine::garden_levels::GardenLevels::of(&gui_state.settings.gameplay).publish(data_store, &mut gui_state.garden_pests);
+            crate::engine::garden_levels::GardenLevels::of(gui_state.settings.rules_map()).publish(data_store, &mut gui_state.garden_pests);
             let resumed = crate::save_load::resume_home(
                 &mut game_world.world,
                 data_store,

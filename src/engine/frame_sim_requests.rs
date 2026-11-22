@@ -226,7 +226,7 @@ pub(crate) fn carry(gui: &mut GuiState, data: &mut DataStore, world: &mut hecs::
     // Settings > Gameplay's garden and ship levels (garden pests, soil pH, pollination,
     // picking, ship life support; data/gameplay/levels.json, 2026-11-12) and the
     // Garden panel's amendment, hand pollination and Clear -> sim.
-    crate::engine::garden_levels::GardenLevels::of(&gui.settings.gameplay).publish(&data, &mut gui.garden_pests);
+    crate::engine::garden_levels::GardenLevels::of(gui.settings.rules_map()).publish(&data, &mut gui.garden_pests);
     // Garden updates (Settings > Gameplay, 2026-10-31, farming::clock): how often the farm advances.
     humanity_systems::farming::clock::publish(&data, f64::from(gui.settings.garden_update_s));
     humanity_systems::farming::humidity::publish_room_bounds(&data, &gui.room_bounds); // grow rooms' air

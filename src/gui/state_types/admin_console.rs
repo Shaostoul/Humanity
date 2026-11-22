@@ -62,6 +62,9 @@ pub struct AdminConsoleState {
     pub results: HashMap<String, (bool, String)>,
     /// The search box over every admin action.
     pub filter: String,
+    /// Gameplay rules (2026-11-21, pages/gameplay_rules_admin.rs): the admin's unapplied pick,
+    /// None while it follows the server's.
+    pub rules_draft: Option<crate::relay::storage::GameplayRules>,
 }
 
 impl Default for AdminConsoleState {
@@ -92,6 +95,7 @@ impl Default for AdminConsoleState {
             forms: HashMap::new(),
             results: HashMap::new(),
             filter: String::new(),
+            rules_draft: None,
         }
     }
 }

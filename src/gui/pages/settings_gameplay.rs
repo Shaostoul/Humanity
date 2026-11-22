@@ -17,6 +17,11 @@
 //! [`note`], the long description some systems write from their own data (body heat's balance,
 //! illness's course, the drone's battery), and where the level is kept: a level id in
 //! `settings.gameplay`, except the vitals drain, whose levels are points on its slider.
+//!
+//! IN A SERVER'S SHARED WORLD (2026-11-21, gui/server_rules.rs) the levels are the server's: each
+//! group opens with a note naming the server's rules, and every setting the server rules is drawn
+//! greyed at the server's level, tagged "this server's rules". The person's own choices are kept
+//! underneath and come back when they leave the world.
 
 use egui::RichText;
 use humanity_core::i18n::{t_dyn, tf};
@@ -32,6 +37,7 @@ const VITALS_DRAIN: &str = "vitals_drain";
 /// Draw every setting of data/gameplay/levels.json, in the file's order, every group. Marks the
 /// settings dirty when a level changes.
 pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay) {
+    draw_server_note(ui, theme, state, hint);
     for s in &gameplay_levels::file().settings {
         ui.add_space(theme.spacing_sm);
         draw_setting(ui, theme, state, hint, s);
@@ -41,33 +47,47 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDi
 /// Draw the settings of one group of the file (`Setting::group`: the survival rows at the top of
 /// the page, the garden's and the ship's further down), in the file's order.
 pub fn draw_group(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay, group: &str) {
+    draw_server_note(ui, theme, state, hint);
     for s in gameplay_levels::file().settings.iter().filter(|s| s.group == group) {
         ui.add_space(theme.spacing_sm);
         draw_setting(ui, theme, state, hint, s);
     }
 }
 
-/// One setting: its name, a radio per level, the chosen level's sentence, and its note.
+/// While in a server's shared world: which rules play, and that the choices below are its.
+fn draw_server_note(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, hint: HintDisplay) {
+    if let Some(r) = &state.settings.server_rules {
+        ui.add_space(theme.spacing_sm);
+        widgets::setting_hint(ui, theme, hint, &tf("gameplay.server_rules_note", &[("preset", &preset_name(&r.preset))]));
+    }
+}
+
+/// A ruleset's name: its preset's words, or Custom.
+pub fn preset_name(preset: &str) -> String {
+    match crate::relay::storage::gameplay_rules::preset(preset) {
+        Some(p) => t_dyn(&p.words).to_string(),
+        None => t_dyn("gameplay.preset.custom").to_string(),
+    }
+}
+
+/// One setting: its name, a radio per level, the chosen level's sentence, and its note. Greyed
+/// at the server's level while the server rules it.
 fn draw_setting(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay, s: &Setting) {
-    ui.label(RichText::new(t_dyn(&s.words)).color(theme.text_secondary()));
+    let ruled = state.settings.server_rules_setting(&s.id);
+    if ruled {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(t_dyn(&s.words)).color(theme.text_secondary()));
+            ui.label(RichText::new(t_dyn("gameplay.server_rules_tag")).size(theme.font_size_small).color(theme.accent()));
+        });
+    } else {
+        // Out of a server's world the row is drawn exactly as before the rules (a plain label).
+        ui.label(RichText::new(t_dyn(&s.words)).color(theme.text_secondary()));
+    }
     let chosen = chosen_level(state, s);
-    ui.horizontal_wrapped(|ui| {
-        for l in &s.levels {
-            let selected = chosen.as_deref() == Some(l.id.as_str());
-            if ui.radio(selected, RichText::new(t_dyn(&l.words)).color(theme.text_primary())).hint_dyn(&l.says).clicked() && !selected {
-                if s.id == VITALS_DRAIN {
-                    state.settings.vitals_drain = l.value.unwrap_or(1.0);
-                } else {
-                    state.settings.gameplay.insert(s.id.clone(), l.id.clone());
-                }
-                state.settings_dirty = true;
-            }
-        }
-    });
-    if let Some([lo, hi]) = s.slider {
-        if widgets::with_hint(ui, "gameplay.level_slider_hint", |ui| widgets::labeled_slider(ui, theme, t_dyn(&s.words), &mut state.settings.vitals_drain, lo..=hi)) {
-            state.settings_dirty = true;
-        }
+    if ruled {
+        ui.add_enabled_ui(false, |ui| draw_choices(ui, theme, state, s, chosen.as_deref()));
+    } else {
+        draw_choices(ui, theme, state, s, chosen.as_deref());
     }
     // What the chosen level changes (a slider between two levels says its own number).
     match s.levels.iter().find(|l| chosen.as_deref() == Some(l.id.as_str())) {
@@ -79,10 +99,35 @@ fn draw_setting(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: Hi
     }
 }
 
-/// The level chosen: the saved one, or for the vitals drain the level whose number the slider
-/// sits on (None between two of them).
+/// A setting's radios (and its slider): a click chooses the person's own level.
+fn draw_choices(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, s: &Setting, chosen: Option<&str>) {
+    ui.horizontal_wrapped(|ui| {
+        for l in &s.levels {
+            let selected = chosen == Some(l.id.as_str());
+            if ui.radio(selected, RichText::new(t_dyn(&l.words)).color(theme.text_primary())).hint_dyn(&l.says).clicked() && !selected {
+                if s.id == VITALS_DRAIN {
+                    state.settings.vitals_drain = l.value.unwrap_or(1.0);
+                } else {
+                    state.settings.gameplay.insert(s.id.clone(), l.id.clone());
+                }
+                state.settings_dirty = true;
+            }
+        }
+    });
+    if let Some([lo, hi]) = s.slider {
+        // Greyed at the server's number while it rules the drain; the person's own otherwise.
+        let mut server = state.settings.vitals_drain_rate();
+        let value = if state.settings.server_rules_setting(&s.id) { &mut server } else { &mut state.settings.vitals_drain };
+        if widgets::with_hint(ui, "gameplay.level_slider_hint", |ui| widgets::labeled_slider(ui, theme, t_dyn(&s.words), value, lo..=hi)) {
+            state.settings_dirty = true;
+        }
+    }
+}
+
+/// The level chosen: the server's while it rules the setting, else the saved one, or for the
+/// vitals drain the level whose number the slider sits on (None between two of them).
 fn chosen_level(state: &GuiState, s: &Setting) -> Option<String> {
-    if s.id == VITALS_DRAIN {
+    if s.id == VITALS_DRAIN && !state.settings.server_rules_setting(&s.id) {
         let v = state.settings.vitals_drain;
         return s.levels.iter().find(|l| l.value.is_some_and(|x| (x - v).abs() < 0.01)).map(|l| l.id.clone());
     }
@@ -173,6 +218,39 @@ mod tests {
         frame(&mut state, Some(off.left_center() - egui::vec2(10.0, 0.0)));
         assert_eq!(state.settings.level("body_heat"), "off", "a click on Body heat's Off chooses it");
         assert!(state.settings_dirty, "and marks the settings to be saved");
+    }
+
+    /// IN A SERVER'S SHARED WORLD THE PAGE SHOWS THE SERVER'S RULES, GREYED (2026-11-21): with
+    /// the person's own body heat at Off and the server's rules Realistic, the page names the
+    /// server's rules in its note, tags every setting the server rules (all but the bodies'
+    /// animation) "this server's rules", says Realistic's sentence under Body heat rather than
+    /// Off's, and a click on Body heat's Off changes nothing. Out of the world, the person's own.
+    ///
+    /// Seen red 2026-11-21 with `SettingsState::level` reading the person's own map as before the
+    /// rules: "Body heat says the server's Realistic, not the person's Off".
+    #[test]
+    fn in_a_servers_world_the_page_shows_its_rules_greyed() {
+        let mut state = GuiState::default();
+        state.settings.set_level("body_heat", "off");
+        let realistic = crate::relay::storage::GameplayRules::preset("realistic").unwrap();
+        state.settings.server_rules = Some(crate::relay::storage::GameplayRules { levels: realistic.levels_in_play(), ..realistic });
+        let out = frame(&mut state, None);
+        let texts: Vec<String> = out.shapes.iter().flat_map(|c| texts_of(&c.shape)).collect();
+        let note = tf("gameplay.server_rules_note", &[("preset", &t_dyn("gameplay.preset.realistic"))]);
+        assert!(texts.iter().any(|x| x.starts_with(humanity_core::text::prefix(&note, 40))), "the page names this server's rules while joined");
+        let tag = t_dyn("gameplay.server_rules_tag");
+        let ruled = gameplay_levels::file().settings.iter().filter(|s| !s.personal).count();
+        assert_eq!(texts.iter().filter(|x| *x == tag).count(), ruled, "every setting the server rules is tagged, the personal one is not");
+        let says = t_dyn("gameplay.body_heat_realistic");
+        assert!(texts.iter().any(|x| x.starts_with(humanity_core::text::prefix(&says, 30))), "Body heat says the server's Realistic, not the person's Off");
+        let at = crate::gui::widgets::tint_section::texts_at(&out, t_dyn("gameplay.body_heat"))[0];
+        let off = crate::gui::widgets::tint_section::texts_at(&out, t_dyn("gameplay.level.off")).into_iter().find(|r| r.top() > at.top()).expect("an Off under Body heat");
+        frame(&mut state, Some(off.left_center() - egui::vec2(10.0, 0.0)));
+        assert!(!state.settings_dirty, "a greyed choice cannot be clicked");
+        state.settings.server_rules = None;
+        let texts: Vec<String> = frame(&mut state, None).shapes.iter().flat_map(|c| texts_of(&c.shape)).collect();
+        assert!(!texts.iter().any(|x| *x == tag), "out of the world: no server's rules on the page");
+        assert_eq!(state.settings.level("body_heat"), "off", "and the person's own Off again");
     }
 
     fn texts_of(s: &egui::Shape) -> Vec<String> {

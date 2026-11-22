@@ -40,6 +40,9 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
     // Whether the fleet's stores can run out, and the fleet's totals (2026-10-04).
     super::fleet_ledger::draw_admin(ui, theme, state);
+    ui.add_space(theme.spacing_md);
+    // The gameplay rules everyone in the shared world plays by (2026-11-21, Forgiving by default).
+    super::gameplay_rules_admin::draw(ui, theme, state);
     if !state.game_admin_status.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(

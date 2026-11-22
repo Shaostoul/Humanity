@@ -1884,6 +1884,7 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         draft.world_time_scale = cached.world_time_scale;
         // Likewise the fleet's supply (Fleet supply, fleet_ledger.rs).
         draft.fleet_supply_mode = cached.fleet_supply_mode.clone();
+        draft.gameplay_rules = cached.gameplay_rules.clone(); // and the gameplay rules (gameplay_rules_admin.rs)
         // v0.262.4: the obsolete "Per-role limits" header + the dead
         // pointer hint were trimmed (operator: "trimmed of obsolete
         // options now"). Per-role chars/upload-MB/uploads-kept moved to

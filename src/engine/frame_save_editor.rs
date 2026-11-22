@@ -39,7 +39,7 @@ pub(crate) fn run(state: &mut EngineState) {
         .get::<std::sync::Mutex<f32>>("vitals_drain_scale")
     {
         if let Ok(mut g) = m.lock() {
-            *g = state.gui_state.settings.vitals_drain;
+            *g = state.gui_state.settings.vitals_drain_rate(); // the server's in its shared world
         }
     }
     // 2) Hostile wildlife: flipping OFF despawns wild hostiles
@@ -49,7 +49,7 @@ pub(crate) fn run(state: &mut EngineState) {
     {
         use std::sync::atomic::{AtomicU8, Ordering};
         static PREV_HOSTILE: AtomicU8 = AtomicU8::new(u8::MAX);
-        let cur = (crate::gui::gameplay_levels::value_of(&state.gui_state.settings.gameplay, "hostile_wildlife") > 0.0) as u8;
+        let cur = (state.gui_state.settings.level_value("hostile_wildlife") > 0.0) as u8;
         let prev = PREV_HOSTILE.swap(cur, Ordering::Relaxed);
         if prev == 1 && cur == 0 {
             let doomed: Vec<hecs::Entity> = state

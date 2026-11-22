@@ -920,7 +920,7 @@ pub(crate) fn refresh_home_content(state: &mut EngineState) {
         .collect();
     spawn_herd(&mut state.game_world.world, &state.data_store, &anchors, carries(HomeContent::Herd));
     place_decorations(state, &anchors, carries(HomeContent::Decorations));
-    spawn_wilds(&mut state.game_world.world, &state.data_store, crate::gui::gameplay_levels::value_of(&state.gui_state.settings.gameplay, "hostile_wildlife"), carries(HomeContent::WildSpawns));
+    spawn_wilds(&mut state.game_world.world, &state.data_store, state.gui_state.settings.level_value("hostile_wildlife"), carries(HomeContent::WildSpawns));
     if let Some(b) = state.gui_state.ship_structure.as_ref().and_then(crate::engine::home_plot::home_box) {
         state.hologram_room_center = hologram_spot(b.0);
     }

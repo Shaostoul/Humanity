@@ -1941,6 +1941,11 @@ async function handleMessage(msg) {
         window.fleetSupplyMode = msg.settings.fleet_supply_mode;
         if (typeof renderGameAdminFleet === 'function') renderGameAdminFleet();
       }
+      // And the shared world's gameplay rules (2026-11-21), for the window's Gameplay rules section.
+      if (msg.settings && msg.settings.gameplay_rules && typeof msg.settings.gameplay_rules.preset === 'string') {
+        window.gameplayRules = msg.settings.gameplay_rules;
+        if (typeof renderGameAdminRules === 'function') renderGameAdminRules();
+      }
       break;
     case 'account_erased': {
       // BUG-135: this server erased our account (the receipt just before this said what

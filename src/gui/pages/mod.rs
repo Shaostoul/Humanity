@@ -108,6 +108,8 @@ pub mod host_node;
 pub mod game_admin;
 // Server Settings > ADMIN > Shared world clock (2026-10-04), drawn by game_admin.
 pub mod world_clock_admin;
+// Server Settings > ADMIN > Gameplay rules (2026-11-21), drawn by game_admin.
+pub mod gameplay_rules_admin;
 // The fleet ledger (2026-10-04): Inventory > The fleet, and Server Settings > ADMIN > Fleet supply.
 pub mod fleet_ledger;
 pub mod identity;

@@ -96,6 +96,13 @@
       '    <button class="gameadmin-refresh-btn" id="gameadmin-fleet-totals-btn">Show the fleet\'s totals</button>' +
       '    <span class="gameadmin-hint" id="gameadmin-fleet-totals"></span>' +
       '  </div>' +
+      '  <h3 class="gameadmin-section" data-i18n="server_rules.title"></h3>' +
+      '  <p class="gameadmin-hint" data-i18n="server_rules.explainer"></p>' +
+      '  <p class="gameadmin-hint" id="gameadmin-rules-now"></p>' +
+      '  <div class="gameadmin-toolbar" id="gameadmin-rules-presets"></div>' +
+      '  <p class="gameadmin-hint" id="gameadmin-rules-says"></p>' +
+      '  <div id="gameadmin-rules-custom"></div>' +
+      '  <button class="gameadmin-refresh-btn" id="gameadmin-rules-apply" data-i18n="server_rules.apply" data-i18n-aria-label="server_rules.apply" data-i18n-tip="server_rules.apply_hint"></button>' +
       '  <div class="gameadmin-status" id="gameadmin-status"></div>' +
       '</div>';
     document.body.appendChild(overlay);
@@ -113,7 +120,123 @@
     overlay.querySelector('#gameadmin-release-btn').addEventListener('click', submitRelease);
     buildClockControls(overlay);
     buildFleetControls(overlay);
+    buildRulesControls(overlay);
     return overlay;
+  }
+
+  // ── Gameplay rules (2026-11-21; the native original is src/gui/pages/gameplay_rules_admin.rs, the
+  // design docs/design/server-rules.md). The operator: "Let's make sure the first server we have setup,
+  // via united-humanity is the forgiving game mode. I think realistic will be too much for most
+  // people." The relay keeps the server setting gameplay_rules, {preset, levels}: a preset of
+  // data/gameplay/presets.json (Forgiving on a new server, or Realistic) or "custom", a level for each
+  // setting of data/gameplay/levels.json. Everyone in the shared world plays by it; each person's own
+  // levels play when they play alone. An admin changes it here with server_settings_update, and the
+  // relay tells every game at once. The rules shown come from server_settings_state (app.js keeps them
+  // in window.gameplayRules). Every word is a key of data/i18n/en.json.
+  var rulesFiles = null; // {presets, levels}: the two data files, read once
+  var rulesDraft = null; // the admin's unapplied pick; null follows the server's rules
+
+  function T(key, vars) { return window.i18n ? i18n.t(key, vars) : ''; }
+
+  function buildRulesControls(overlay) {
+    if (window.i18n) i18n.apply(overlay);
+    overlay.querySelector('#gameadmin-rules-apply').addEventListener('click', submitRules);
+    Promise.all([
+      fetch('/data/gameplay/presets.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }),
+      fetch('/data/gameplay/levels.json', { cache: 'no-cache' }).then(function (r) { return r.json(); })
+    ]).then(function (f) {
+      rulesFiles = { presets: f[0], levels: f[1] };
+      renderGameAdminRules();
+    }).catch(function () { /* the section stays empty; the native app shows the rules */ });
+  }
+
+  function rulesPreset(id) {
+    var list = rulesFiles ? rulesFiles.presets.presets : [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+  function rulesName(id) { var p = rulesPreset(id); return T(p ? p.words : 'gameplay.preset.custom'); }
+  // The levels a ruleset plays: a preset's own, or Custom's (a setting not named plays at its default).
+  function rulesLevels(r) { var p = rulesPreset(r.preset); return Object.assign({}, p ? (p.levels || {}) : (r.levels || {})); }
+  function rulesKey(r) {
+    if (rulesPreset(r.preset)) return r.preset;
+    var lv = r.levels || {};
+    return 'custom:' + Object.keys(lv).sort().map(function (k) { return k + '=' + lv[k]; }).join(',');
+  }
+
+  // Paint the rules section: the server's rules, the admin's pick, Custom's levels.
+  function renderGameAdminRules() {
+    var now = document.getElementById('gameadmin-rules-now');
+    if (!now || !rulesFiles) return; // window not built, or the files not read yet
+    var cur = window.gameplayRules && typeof window.gameplayRules.preset === 'string' ? window.gameplayRules : null;
+    if (rulesDraft && cur && rulesKey(rulesDraft) === rulesKey(cur)) rulesDraft = null;
+    now.textContent = cur ? T('server_rules.now', { preset: rulesName(cur.preset) }) : T('server_rules.not_connected');
+    var chosen = rulesDraft || cur || { preset: rulesFiles.presets.default, levels: {} };
+    var box = document.getElementById('gameadmin-rules-presets');
+    box.textContent = '';
+    var picks = rulesFiles.presets.presets.map(function (p) { return [p.id, p.words]; }).concat([['custom', 'gameplay.preset.custom']]);
+    picks.forEach(function (pick) {
+      var b = document.createElement('button');
+      b.className = 'gameadmin-refresh-btn';
+      b.textContent = T(pick[1]);
+      b.dataset.tipDesc = T('server_rules.preset_hint');
+      b.classList.toggle('active', (rulesPreset(chosen.preset) ? chosen.preset : 'custom') === pick[0]);
+      b.addEventListener('click', function () {
+        // Custom starts from the levels in play, so it changes nothing until a level is picked.
+        rulesDraft = pick[0] === 'custom' ? { preset: 'custom', levels: rulesLevels(chosen) } : { preset: pick[0], levels: {} };
+        renderGameAdminRules();
+      });
+      box.appendChild(b);
+    });
+    var p = rulesPreset(chosen.preset);
+    document.getElementById('gameadmin-rules-says').textContent = T(p ? p.says : 'gameplay.preset.custom_says');
+    var custom = document.getElementById('gameadmin-rules-custom');
+    custom.textContent = '';
+    if (!p) {
+      (rulesFiles.levels.settings || []).filter(function (s) { return !s.personal; }).forEach(function (s) {
+        var name = document.createElement('p');
+        name.className = 'gameadmin-hint';
+        name.textContent = T(s.words);
+        custom.appendChild(name);
+        var row = document.createElement('div');
+        row.className = 'gameadmin-toolbar';
+        var lv = chosen.levels || {};
+        var at = s.levels.some(function (l) { return l.id === lv[s.id]; }) ? lv[s.id] : s.default;
+        s.levels.forEach(function (l) {
+          var b = document.createElement('button');
+          b.className = 'gameadmin-refresh-btn';
+          b.textContent = T(l.words);
+          b.dataset.tipDesc = T(l.says);
+          b.classList.toggle('active', at === l.id);
+          b.addEventListener('click', function () {
+            var next = Object.assign({}, chosen.levels || {});
+            next[s.id] = l.id;
+            rulesDraft = { preset: 'custom', levels: next };
+            renderGameAdminRules();
+          });
+          row.appendChild(b);
+        });
+        custom.appendChild(row);
+      });
+      var note = document.createElement('p');
+      note.className = 'gameadmin-hint';
+      note.textContent = T('server_rules.personal_note');
+      custom.appendChild(note);
+    }
+    document.getElementById('gameadmin-rules-apply').disabled = cur !== null && rulesKey(chosen) === rulesKey(cur);
+  }
+  window.renderGameAdminRules = renderGameAdminRules;
+
+  // Ask the relay to play the chosen rules. It checks the sender is an admin, saves them and tells
+  // every game in the shared world; only a message that went out is reported as asked.
+  function submitRules() {
+    var cur = window.gameplayRules && typeof window.gameplayRules.preset === 'string' ? window.gameplayRules : null;
+    var chosen = rulesDraft || cur;
+    if (!chosen) return;
+    if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) { setStatus(T('server_rules.not_sent')); return; }
+    var rules = rulesPreset(chosen.preset) ? { preset: chosen.preset, levels: {} } : { preset: 'custom', levels: chosen.levels || {} };
+    ws.send(JSON.stringify({ type: 'server_settings_update', gameplay_rules: rules }));
+    setStatus(T('server_rules.asked', { preset: rulesName(chosen.preset) }));
   }
 
   // ── Fleet supply (2026-10-04; the native original is draw_admin in

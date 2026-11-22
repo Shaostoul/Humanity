@@ -73,6 +73,10 @@ pub struct Setting {
     /// A slider's range beside the levels, for a setting whose levels are numbers.
     #[serde(default)]
     pub slider: Option<[f32; 2]>,
+    /// The person's own even in a server's shared world (2026-11-21, gui/server_rules.rs): how
+    /// something is drawn rather than a rule of the game (the bodies' animation).
+    #[serde(default)]
+    pub personal: bool,
     pub levels: Vec<Level>,
 }
 

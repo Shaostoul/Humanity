@@ -1120,6 +1120,9 @@ pub enum RelayMessage {
         media_per_person_mb: Option<i64>,
         #[serde(default)]
         media_public_previews_only: Option<bool>,
+        /// The shared world's gameplay rules (2026-11-21, handlers/gameplay_rules.rs).
+        #[serde(default)]
+        gameplay_rules: Option<super::storage::GameplayRules>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.

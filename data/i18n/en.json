@@ -250,6 +250,19 @@
     "disconnect_server_hint": "Stop the connection to this server. Your identity stays on your device. You can reconnect any time.",
     "sync_not_sealed": "Your notes and settings were not copied to the server. This browser could not seal them with your key, and they are never sent unsealed. They are still here on this device."
   },
+  "server_rules": {
+    "apply": "Apply to the shared world",
+    "apply_hint": "Everyone in this server's shared world plays by the chosen rules from now on, without a restart.",
+    "asked": "Asked the server to play {{preset}}.",
+    "explainer": "The rules every player plays by in this server's shared world: the levels of Settings > Gameplay (body heat, illness and injury, carrying weight, death, the garden's losses and the rest), the same for everyone there, so nobody plays an easier game beside someone playing a harder one. Each person's own choices still play when they play alone. A change reaches everyone in the world at once.",
+    "level_hint": "Picks this level for the setting, in the custom rules you are making. Nothing changes until you apply them.",
+    "not_connected": "Connect to a server to see its gameplay rules.",
+    "not_sent": "Not connected to the server.",
+    "now": "Now: {{preset}}",
+    "personal_note": "How the bodies are drawn (Animation) is not a rule of the game: each person keeps their own.",
+    "preset_hint": "Picks these rules for this server's shared world. Nothing changes until you apply them.",
+    "title": "Gameplay rules"
+  },
   "settings": {
     "language": "Language",
     "theme": "Theme",
@@ -8503,6 +8516,16 @@
     "preserving_note": "Who chooses how food is dried or canned: the method and the time, and for a pressure canner the weight and the venting, which decide whether it keeps, spoils, or carries a botulism risk.",
     "preserving_realistic": "You choose, and the card shows the tested table as the guide prints it, every altitude and jar size, but judges nothing: you learn how it came out when it comes out.",
     "preserving_simplified": "The station picks the tested method and time, and it always comes out safe.",
+    "preset": {
+      "custom": "Custom",
+      "custom_says": "You pick each level below, one setting at a time. A setting you leave as it starts plays at the level a new player gets.",
+      "forgiving": "Forgiving",
+      "forgiving_says": "Every setting at the level a new player gets: body heat, illness and injury, farm animals and the rest are softened, you keep everything you carry when you die, and no predators roam the wilds. The way most people will want to play.",
+      "realistic": "Realistic",
+      "realistic_says": "Every setting at its full, real-world level: body heat and illness as they really go, a real carrying load, your backpack left where you fall, the garden's real losses, and predators in the wilds. For people who want the whole challenge."
+    },
+    "server_rules_note": "You are in this server's shared world, so you play by its rules, the same for everyone there: {{preset}}. The choices below show them, greyed. Leave the world and your own choices come back as you left them.",
+    "server_rules_tag": "this server's rules",
     "skill_learning": "Skill learning",
     "skill_learning_note": "How practice counts toward your skills: whether repeating the same task wears thin, and whether reading the Library guide for your stage or practising beside a teacher helps.",
     "skill_learning_off": "Every practice counts the same: repeating a task never wears thin, and guides and teachers add nothing.",

@@ -662,6 +662,9 @@ fn send_game_leave(state: &EngineState, give_up_plot: bool) {
 pub(crate) fn forget_shared_world(state: &mut EngineState) {
     forget_shared_world_keeping_home(state);
     bring_home_back(state);
+    // The person's own gameplay levels again (engine/server_rules.rs). Respawn's step out and
+    // straight back in (`forget_shared_world_keeping_home`) keeps the server's.
+    crate::engine::server_rules::forget(&mut state.gui_state);
 }
 
 /// `forget_shared_world` with a home put away left away: Respawn steps out and joins again at

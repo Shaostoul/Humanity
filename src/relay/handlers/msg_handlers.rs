@@ -3061,6 +3061,7 @@ pub async fn handle_game_join(
         // restart): the game then stands where this welcome holds it (home_plot.rs).
         "rejoin": is_rejoin,
         "ranks": super::shared_build::ranks_of(state, my_key), // what they may build or take down beyond their own plot (increment 5)
+        "rules": super::gameplay_rules::welcome_field(state), // the gameplay rules everyone here plays by (2026-11-21)
     });
     home.add_to_welcome(&mut welcome); // a guest: which kind was full, how many of each are free (increment 6, game_state.rs)
     if let Some(q) = current_quest {

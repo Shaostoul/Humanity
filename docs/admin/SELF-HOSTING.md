@@ -258,6 +258,31 @@ lives in the app, a /chat-command, a config file, or the server shell - is in
 Admin map**. If the Admin map says an action is `vps-shell`, only then do you
 need to SSH in; everything else never requires a terminal.
 
+## Your server's gameplay rules (Forgiving, Realistic or Custom)
+
+Everyone in your server's shared world plays by the same gameplay rules: body heat, illness and
+injury, farm animals, carrying weight, death, the mining drone, the walking pace, hostile
+wildlife, the vitals drain, the garden's and the ship's levels, skill learning, cooking and
+preserving. A
+player's own Settings > Gameplay still applies when they play alone; while they are in your world
+it shows your rules, greyed, marked "this server's rules", and leaving gives them their own back.
+
+- **A new server plays Forgiving**: every setting at the level a new player gets (softened, death
+  keeps what you carry, no predators in the wilds). You do not need to set anything for that.
+- To change it, open **Server Settings > ADMIN > Gameplay rules** in the desktop app (or the web
+  chat's Game Admin window), pick **Forgiving**, **Realistic** (every setting at its full,
+  real-world level) or **Custom** (choose a level for each setting), and press **Apply to the
+  shared world**. Only an admin or the owner can change it. It reaches every player in the world
+  at once, with no restart, and is kept across restarts.
+- The rules are stored in your relay's database (`server_settings.gameplay_preset`, and
+  `gameplay_levels` for Custom). To read them from the shell:
+  `sqlite3 <your relay.db> "SELECT gameplay_preset, gameplay_levels FROM server_settings"`
+  (`forgiving|{}` on a new server).
+- The presets themselves are data: `data/gameplay/presets.json`. A server owner who wants another
+  preset (a "Hardcore", a "Classroom") can add one there; it then shows in the panel.
+
+Why the rules are the server's, and what comes next: `docs/design/server-rules.md`.
+
 ## Your own homepage (per-node website differentiation)
 
 Every node serves the same web app, but the FRONT DOOR is yours. nginx

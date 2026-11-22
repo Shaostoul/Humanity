@@ -96,6 +96,9 @@ pub mod save_slot;
 /// The fleet ledger's engine half (2026-10-04): the server's answers into the fleet panel, a
 /// give's items out of the backpack once, and the home's reactor power reported.
 pub mod fleet;
+/// A server's gameplay rules into the game (2026-11-21): from the welcome and a `game_rules`
+/// while in its shared world, gone when the game leaves it (gui/server_rules.rs reads them).
+pub mod server_rules;
 /// The mess hall's serving counter (ship homes increment 6): a free crew meal, the server's in
 /// the shared world and the ship's stores on this computer elsewhere, and drinking water.
 pub mod mess_hall;

@@ -28,6 +28,12 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
     if crate::engine::save_slot::on_game_message(state, &v) {
         return;
     }
+    // The server's gameplay rules, changed by an admin (2026-11-21, engine/server_rules.rs): taken
+    // only while this game is in the shared world.
+    let in_shared_world = state.game_joined && !state.gui_state.copresence_solo;
+    if crate::engine::server_rules::on_game_message(&mut state.gui_state, &v, in_shared_world) {
+        return;
+    }
     let arr3 = |val: &serde_json::Value| -> Option<[f32; 3]> {
         let a = val.as_array()?;
         if a.len() != 3 { return None; }
@@ -54,6 +60,8 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             crate::engine::fleet::on_welcome(state, &v);
             // What this player may build where, and the pieces the server keeps afresh (increment 5).
             crate::engine::shared_build::on_welcome(state, &v);
+            // The gameplay rules everyone here plays by (2026-11-21).
+            crate::engine::server_rules::on_welcome(&mut state.gui_state, &v);
             if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
                 let own_id = id as u32;
                 // Welcome first (sets our local_player_id so the self-filter +

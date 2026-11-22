@@ -64,6 +64,9 @@ pub mod history;
 /// Gameplay draws and the systems read through `SettingsState::level`.
 #[cfg(feature = "native")]
 pub mod gameplay_levels;
+/// A server's gameplay rules on the game's side: whose levels the systems read (2026-11-21).
+#[cfg(feature = "native")]
+pub mod server_rules;
 /// When the 3D world is prepared (Settings > Graphics, 2026-11-20); the engine's half is engine/world_prep.rs.
 pub mod world_prep_choice;
 pub mod layers;
@@ -4570,8 +4573,8 @@ pub struct SettingsState {
     /// animals, carrying weight, death, the mining drone, the walking pace, animation and hostile
     /// wildlife. Read through `gameplay_levels::level_of`, which gives the file's default for a
     /// setting never chosen. Saved as AppConfig::gameplay; published by engine::survival_env and
-    /// each system's bridge. (Each was a true/false switch before; an old config.json reads as the
-    /// defaults.)
+    /// each system's bridge. The person's OWN levels: in a server's shared world the systems read
+    /// the server's instead (`level`, gui/server_rules.rs).
     pub gameplay: std::collections::BTreeMap<String, String>,
     /// Survival-needs speed: scales hunger/thirst/energy decay in the food
     /// system (1.0 = normal, 0 = paused). v0.791, with slowed base rates.
@@ -4642,19 +4645,8 @@ pub struct SettingsState {
     pub seed_phrase_input: String,
     pub seed_phrase_recovery_status: String,
     pub seed_phrase_show_recover: bool,
-}
-
-#[cfg(feature = "native")]
-impl SettingsState {
-    /// The level chosen for the gameplay setting `id` (data/gameplay/levels.json), or its default.
-    pub fn level(&self, id: &str) -> &str {
-        gameplay_levels::level_of(&self.gameplay, id)
-    }
-
-    /// Choose `level` for the gameplay setting `id` (a rig's verb, a test, Settings itself).
-    pub fn set_level(&mut self, id: &str, level: &str) {
-        self.gameplay.insert(id.to_string(), level.to_string());
-    }
+    /// The server's gameplay rules while in its shared world, else None (2026-11-21; never saved): `level` reads them (gui/server_rules.rs).
+    pub server_rules: Option<crate::relay::storage::GameplayRules>,
 }
 
 #[cfg(feature = "native")]
@@ -4759,7 +4751,7 @@ impl Default for SettingsState {
             nav_preview: true,
             hint_display: HintDisplay::default(),
             language: "en".to_string(),
-            gameplay: Default::default(),
+            gameplay: Default::default(), server_rules: None,
             vitals_drain: 1.0,
             fp_body: true, reduce_motion: false,
             crouch_toggle: false,

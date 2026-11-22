@@ -183,6 +183,11 @@ pub struct ServerSettings {
     /// stored, and never read from a client.
     #[serde(skip_deserializing, default = "media_members_note")]
     pub media_members_note: String,
+    /// The gameplay rules every player in this server's shared world plays by (2026-11-21,
+    /// storage/gameplay_rules.rs): a preset (Forgiving, a new server's, or Realistic) or Custom.
+    /// Set from Server Settings > ADMIN > Gameplay rules, live, no restart.
+    #[serde(default)]
+    pub gameplay_rules: super::GameplayRules,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -320,6 +325,7 @@ impl Default for ServerSettings {
             media_per_person_mb: default_media_per_person_mb(),
             media_public_previews_only: default_media_public_previews_only(),
             media_members_note: media_members_note(),
+            gameplay_rules: super::GameplayRules::default(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -386,7 +392,8 @@ impl Storage {
                         COALESCE(erased_accounts_cap, 100000),
                         world_time_scale,
                         fleet_supply_mode,
-                        media_visibility, media_budget_mb, media_per_person_mb, media_public_previews_only
+                        media_visibility, media_budget_mb, media_per_person_mb, media_public_previews_only,
+                        gameplay_preset, gameplay_levels
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -441,6 +448,7 @@ impl Storage {
                         media_per_person_mb: row.get::<_, i64>(35)?.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
                         media_public_previews_only: row.get::<_, i64>(36)? != 0,
                         media_members_note: media_members_note(),
+                        gameplay_rules: super::GameplayRules::from_columns(&row.get::<_, String>(37)?, &row.get::<_, String>(38)?),
                     })
                 },
             ) {
@@ -503,6 +511,8 @@ impl Storage {
                     media_budget_mb                 = ?35,
                     media_per_person_mb             = ?36,
                     media_public_previews_only      = ?37,
+                    gameplay_preset                 = ?38,
+                    gameplay_levels                 = ?39,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -546,6 +556,8 @@ impl Storage {
                     s.media_budget_mb.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
                     s.media_per_person_mb.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
                     s.media_public_previews_only as i32,
+                    s.gameplay_rules.preset,
+                    s.gameplay_rules.levels_column(),
                 ],
             )?;
             Ok(rows > 0)
@@ -739,6 +751,60 @@ mod tests {
         assert_eq!(fleet_supply_mode_of("plenty"), None, "not a mode: refused");
         db.with_conn(|c| c.execute("UPDATE server_settings SET fleet_supply_mode = 'plenty'", [])).unwrap();
         assert_eq!(db.get_server_settings().unwrap().fleet_supply_mode, "unlimited", "a stored value that is no mode reads as the default");
+    }
+
+    /// A NEW SERVER PLAYS FORGIVING, AND AN ADMIN'S RULESET PERSISTS (2026-11-21; the operator:
+    /// "Let's make sure the first server we have setup, via united-humanity is the forgiving game
+    /// mode"). A fresh database's rules are the Forgiving preset, the same as
+    /// `ServerSettings::default()`; Custom's levels and Realistic round-trip through the positional
+    /// SQL without bleeding into the Media columns before them.
+    ///
+    /// Seen red 2026-11-21 with the schema's DEFAULT 'realistic': "a new server plays Forgiving /
+    /// left: \"realistic\" / right: \"forgiving\"".
+    #[test]
+    fn a_new_server_plays_forgiving_and_an_admins_rules_persist() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        assert_eq!(s.gameplay_rules.preset, "forgiving", "a new server plays Forgiving");
+        assert_eq!(s.gameplay_rules, ServerSettings::default().gameplay_rules, "the schema's DEFAULT is the code's");
+        let mut updated = s.clone();
+        let mut levels = std::collections::BTreeMap::new();
+        levels.insert("body_heat".to_string(), "off".to_string());
+        updated.gameplay_rules = crate::relay::storage::GameplayRules::custom(levels.clone());
+        updated.media_public_previews_only = false; // the column just before them
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+        let got = db.get_server_settings().expect("get2");
+        assert_eq!((got.gameplay_rules.preset.as_str(), &got.gameplay_rules.levels), ("custom", &levels), "Custom's levels persist");
+        assert!(!got.media_public_previews_only, "no positional-index bleed");
+        updated.gameplay_rules = crate::relay::storage::GameplayRules::preset("realistic").unwrap();
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+        assert_eq!(db.get_server_settings().unwrap().gameplay_rules.preset, "realistic");
+    }
+
+    /// A SERVER FROM BEFORE THE GAMEPLAY RULES UPGRADES TO FORGIVING (2026-11-21): the live table
+    /// without the two columns (BUG-046's shape) gains them by the guarded ALTERs, plays Forgiving,
+    /// and keeps everything its owner had set.
+    ///
+    /// Seen red 2026-11-21 with the two guarded ALTERs taken out: "get_server_settings after the
+    /// upgrade: SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: \"no such
+    /// column: gameplay_preset\", ...".
+    #[test]
+    fn a_server_from_before_the_rules_upgrades_to_forgiving() {
+        let path = humanity_core::test_temp::db("srvset_rules");
+        {
+            let db = Storage::open(&path).expect("open");
+            let mut s = db.get_server_settings().expect("get");
+            s.message_retention_days = 7;
+            assert!(db.set_server_settings(&s, "op_key").expect("set"));
+        }
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch("ALTER TABLE server_settings DROP COLUMN gameplay_preset; ALTER TABLE server_settings DROP COLUMN gameplay_levels;").expect("drop columns");
+        }
+        let db = Storage::open(&path).expect("reopen must not fail");
+        let got = db.get_server_settings().expect("get_server_settings after the upgrade");
+        assert_eq!(got.gameplay_rules.preset, "forgiving", "the upgrade plays Forgiving");
+        assert_eq!(got.message_retention_days, 7, "the owner's settings are kept");
     }
 
     /// A server whose database predates the clock setting upgrades to real

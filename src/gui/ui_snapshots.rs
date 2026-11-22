@@ -5786,6 +5786,43 @@ fn snapshot_crafting_cooking() {
     });
 }
 
+/// Settings > Gameplay while in a server's shared world that plays Realistic (2026-11-21,
+/// docs/design/server-rules.md): the note naming the server's rules, every ruled setting greyed at
+/// Realistic's level and tagged "this server's rules", the person's own Off for body heat kept
+/// underneath; Animation (personal) still the person's to change.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_gameplay_joined() {
+    render_page_png("settings_gameplay_joined", 960, 2600, |ctx, theme, state| {
+        if state.settings.server_rules.is_none() {
+            state.settings.set_level("body_heat", "off");
+            let realistic = crate::relay::storage::GameplayRules::preset("realistic").unwrap();
+            state.settings.server_rules = Some(crate::relay::storage::GameplayRules { levels: realistic.levels_in_play(), ..realistic });
+        }
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_gameplay_content);
+    });
+}
+
+/// Server Settings > ADMIN > Gameplay rules (2026-11-21): a Forgiving server, the admin picking
+/// Custom (started from Realistic's levels, body heat moved to Forgiving), every ruled setting's
+/// levels drawn, Apply lit because the pick differs from the server's.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_server_settings_rules() {
+    render_page_png("server_settings_rules", 960, 1900, |ctx, theme, state| {
+        if state.server_settings.is_none() {
+            state.server_settings = Some(crate::relay::storage::ServerSettings::default());
+            let mut levels = crate::relay::storage::GameplayRules::preset("realistic").unwrap().levels_in_play();
+            levels.insert("body_heat".into(), "forgiving".into());
+            state.admin_console.rules_draft = Some(crate::relay::storage::GameplayRules::custom(levels));
+        }
+        theme.apply_to_egui(ctx);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::gameplay_rules_admin::draw(ui, theme, state));
+        });
+    });
+}
+
 /// The same card in Simplified (the default): the station picks, no controls.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]

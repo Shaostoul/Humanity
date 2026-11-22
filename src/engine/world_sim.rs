@@ -344,7 +344,7 @@ pub(crate) fn build(parts: Parts<'_>) -> WorldSim {
     spawn_wilds(
         world,
         data_store,
-        crate::gui::gameplay_levels::value_of(&gui.settings.gameplay, "hostile_wildlife"),
+        gui.settings.level_value("hostile_wildlife"),
         content.contains(&HomeContent::WildSpawns),
     );
 

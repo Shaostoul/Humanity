@@ -76,6 +76,16 @@
       ]
     },
     {
+      "name": "Set the gameplay rules of the shared world",
+      "what": "The realism levels everyone in this server's shared world plays by, the same for all of them: body heat, illness and injury, farm animals, carrying weight, death, the mining drone, the walking pace, hostile wildlife, the vitals drain, the garden's and the ship's levels, skill learning, cooking and preserving. Forgiving on a new server (every setting at the level a new player gets), Realistic (every setting at its full, real-world level), or Custom (a level for each). Each person's own Settings > Gameplay still plays when they play alone, and shows the server's rules greyed while they are in its world. Takes effect at once for every game in the world, without a restart.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Gameplay rules: pick Forgiving, Realistic or Custom (and Custom's levels), then Apply to the shared world (src/gui/pages/gameplay_rules_admin.rs; server_settings_update with gameplay_rules, src/relay/handlers/gameplay_rules.rs announce; saved as server_settings.gameplay_preset and gameplay_levels; the presets are data/gameplay/presets.json).",
+      "also_available": [
+        "web-page: the chat's Game Admin window (command palette), Gameplay rules"
+      ]
+    },
+    {
       "name": "See the fleet's totals",
       "what": "Everything every player has used from the fleet and given it, summed, naming no one. Held back until at least three players other than the admin asking have a ledger, because with fewer the totals minus the admin's own lines would be someone's own ledger. A player sees their own ledger in the game (Inventory > The fleet) or on the web (the chat's command palette, Your fleet ledger); no admin can see one player's.",
       "where": "native-app",
