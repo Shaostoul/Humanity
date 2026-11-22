@@ -157,7 +157,19 @@ compile there says so. The wrapper's header has the detail; docs/design/cross-pl
   result, and its 60-second warnings come from the same loop, so a thread that reports and then
   cannot exit stops every line after it (scripts/tests/fixtures/lib-tests/tiny_suite.rs makes
   that hang on purpose; plain libtest stays silent past 60 s). libtest starts tests in name order,
-  so the suspects are the first unfinished ones, at most one per test thread.
+  so the suspects are the first unfinished ones, at most one per test thread. Run with
+  `--test-threads 1`, libtest writes each name as its test STARTS, so a run that stops on a
+  half-written `test x ... ` names the test that was running, said first on its own line; with
+  more threads it writes a name only once its test has ended, so a half line there is a finished
+  test cut off mid-print and is never named a suspect.
+- **The report reads each of the program's two streams on its own (2026-11-21).** libtest writes a
+  result line to stdout in two writes (the name, then the result) and the GPU watchdog writes to
+  stderr from its own thread, so read as one text a watchdog line could land inside libtest's
+  line: under load the report repeated `test ignored_unless_asked ... GPU TEST STILL RUNNING: ...`
+  as one line, and the policy test that wants the watchdog line on a line of its own failed only
+  when the machine was busy. libtest's report (results, failures, the summary, a rerun's proof) is
+  read from stdout, the watchdog's lines from stderr, each repeated on a line of its own; the saved
+  `.log` keeps both as they arrived, which is what the screen showed (`scripts/lib/test-output.js`).
 - **Before a stalled (or timed-out) program is stopped, every thread's stack is dumped**
   (2026-11-14): `target/lib-tests/hang-<time>-<program>.stacks.txt`, beside `.log`, the run's
   output up to then, and the report prints the frames of each thread named after a test (libtest

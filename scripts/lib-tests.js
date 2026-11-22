@@ -137,6 +137,15 @@
 //      why: no test matched in any program, or every match is #[ignore]d. --list is not a run.
 //   9. A full pass is recorded only if the checkout is still the one it began on: the tests read
 //      the tree as they run, so a pass across an edit is a pass of neither version.
+//  10. Each of a test program's two streams is read on its own (scripts/lib/test-output.js,
+//      2026-11-21). libtest writes a result line to stdout in two writes (the name, then the
+//      result) and the GPU watchdog writes to stderr from its own thread, so read as one text a
+//      watchdog line could land inside libtest's line: under load the hang report repeated
+//      "test ignored_unless_asked ... GPU TEST STILL RUNNING: ..." as one line. libtest's report
+//      is read from stdout, the watchdog's lines from stderr, each on a line of its own; both as
+//      they arrived are only the saved log. A result line libtest began and never finished names
+//      the running test when it runs one at a time (it writes the name as the test starts), and
+//      a finished one otherwise (it writes the name once the test has ended): hangReport.
 
 "use strict";
 const fs = require("fs");
@@ -145,6 +154,7 @@ const { spawn, spawnSync } = require("child_process");
 const L = require("./lib/test-pass-ledger.js");
 const P = require("./lib/lib-test-programs.js");
 const SD = require("./lib/stack-dump.js");
+const O = require("./lib/test-output.js");
 
 // HOS_LIB_TESTS_ROOT and HOS_LIB_TESTS_EXE are for scripts/tests/lib-tests-policy.test.js: another
 // checkout (a throwaway repository), and the test programs to run instead of building ours (one
@@ -391,23 +401,23 @@ function programEnv(dir) {
  * ok" line is shown as one mark (. i F), the way -q prints; unless the program was given its own
  * format, every result line is read, so the tests that finished are known (`done`). A program that
  * prints nothing for opts.stallMin minutes is stopped (`stalled`), and so is one running past
- * `timeoutMin` (`timedOut`). Resolves { code, out, timedOut, stalled, secs, done, warned, parsed }.
+ * `timeoutMin` (`timedOut`). Resolves { code, out, stdout, stderr, timedOut, stalled, secs, done,
+ * warned, parsed, hang }: `out` is both streams as they arrived (the log), each stream alone beside
+ * it, and every line-reader reads one stream (point 10).
  */
 function runProgram(exe, args, timeoutMin) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     const c = spawn(exe, args, { cwd: programDir(exe), env: programEnv(programDir(exe)), stdio: ["inherit", "pipe", "pipe"] });
-    let out = "";
-    const keep = (d) => {
-      if (out.length < 64 * 1024 * 1024) out += d;
-    };
+    // Whole characters per chunk, so a chunk boundary never splits one into two garbled halves.
+    c.stdout.setEncoding("utf8");
+    c.stderr.setEncoding("utf8");
     const parsed = !ownFormat;
     const done = new Set();
     const warned = new Set();
     let total = null;
     let marks = 0;
     let midLine = false; // the screen's last line is a row of marks with no newline yet
-    let partial = ""; // stdout since its last newline
     const say = (text) => {
       if (midLine) process.stdout.write("\n");
       midLine = false;
@@ -423,6 +433,7 @@ function runProgram(exe, args, timeoutMin) {
       }
     };
     const onLine = (line) => {
+      if (!parsed) return;
       const r = RESULT_RE.exec(line);
       const w = r ? null : WARNED_RE.exec(line);
       const n = r || w ? null : RUNNING_RE.exec(line.trim());
@@ -436,6 +447,8 @@ function runProgram(exe, args, timeoutMin) {
         mark(r[2] === "ok" ? "." : r[2] === "FAILED" ? "F" : "i");
       } else say(line);
     };
+    // Each stream split into lines on its own; `out`, both as they arrived, is only the log (point 10).
+    const got = O.collector(onLine);
     // Stopping a program that has gone quiet (point 5), or run too long.
     let stalled = false;
     let timedOut = false;
@@ -443,7 +456,7 @@ function runProgram(exe, args, timeoutMin) {
     let hang = null;
     const stop = () => {
       // Every thread's stack BEFORE it is stopped (2026-11-14), saved beside the run's log.
-      hang = saveHang(exe, c.pid, out);
+      hang = saveHang(exe, c.pid, got.out);
       c.kill();
       // A process that cannot be killed must not hang this script too.
       setTimeout(() => finish(1), 30 * 1000).unref();
@@ -465,17 +478,13 @@ function runProgram(exe, args, timeoutMin) {
       : null;
     c.stdout.on("data", (d) => {
       arm();
-      keep(d);
       if (!compact) process.stdout.write(d);
-      if (!parsed) return;
-      const lines = (partial + d).split(/\r?\n/);
-      partial = lines.pop();
-      for (const l of lines) onLine(l);
+      got.add("stdout", d);
     });
     c.stderr.on("data", (d) => {
       arm();
       process.stderr.write(d);
-      keep(d);
+      got.add("stderr", d);
     });
     let settled = false;
     const finish = (code, extra = "") => {
@@ -483,9 +492,11 @@ function runProgram(exe, args, timeoutMin) {
       settled = true;
       clearTimeout(stallTimer);
       if (timer) clearTimeout(timer);
-      if (partial && parsed) onLine(partial);
+      got.end();
+      if (extra) got.add("stderr", extra);
       if (compact && midLine) process.stdout.write("\n");
-      resolve({ code, out: out + extra, timedOut, stalled, secs: Math.round((Date.now() - t0) / 1000), done, warned, parsed, hang });
+      const { out, stdout, stderr } = got;
+      resolve({ code, out, stdout, stderr, timedOut, stalled, secs: Math.round((Date.now() - t0) / 1000), done, warned, parsed, hang });
     };
     c.on("error", (e) => finish(1, String(e)));
     c.on("close", (code) => finish(code === null ? 1 : code));
@@ -561,16 +572,20 @@ function hangReport(exe, args, res, why) {
   console.error("");
   console.error(`FAILED: ${why}, so it was stopped: a hung test (on 2026-11-01 one hung silently for two hours).`);
   const list = res.parsed ? listTests(exe, args) : null;
+  const threads = threadCount(args);
+  // A result line libtest began and never finished (point 10): with one thread, the test that was
+  // running, said on its own line and first; with more, a finished test cut off mid-print, left out
+  // of the suspects (scripts/lib/test-output.js, suspects).
+  const { running, inFlight, finished } = O.suspects({ list, done: res.done, threads, half: O.halfLine(res) });
+  if (running) console.error(`libtest runs one test at a time here and writes each name as the test starts: it had written "test ${running} ... " and never its result, so ${running} was running when it was stopped.`);
   if (list) {
-    const threads = threadCount(args);
-    const inFlight = list.filter((n) => !res.done.has(n)).slice(0, threads);
-    console.error(`${res.done.size} of ${list.length} tests had finished. libtest starts tests in name order, at most ${threads} at a time, and prints each only after its thread has EXITED, so the hung test is one of these ${inFlight.length}:`);
+    console.error(`${finished} of ${list.length} tests had finished. libtest starts tests in name order, at most ${threads} at a time, and prints each result only after its thread has EXITED, so the hung test is one of these ${inFlight.length}:`);
     for (const n of inFlight) console.error(`  ${n}${res.warned.has(n) ? "   (it said it had been running over 60 seconds)" : ""}`);
   } else if (res.warned.size) {
     console.error("Tests that said they had been running over 60 seconds:");
     for (const n of res.warned) console.error(`  ${n}`);
   }
-  for (const l of gpuTurnReport(res.out)) console.error(l);
+  for (const l of gpuTurnReport(res)) console.error(l);
   if (res.hang) {
     // The stack dump taken before it was stopped (point 7): each test thread's frames, innermost first.
     const h = res.hang;
@@ -596,12 +611,11 @@ function hangReport(exe, args, res, why) {
 /**
  * What the GPU turn says about a stopped or crashed run (point 6): the lines the GPU helper's
  * watchdog wrote straight to stderr (it names a test that has held the GPU too long, even while
- * libtest prints nothing), and who held the turn last, from GPU_TURN_FILE.
+ * libtest prints nothing), and who held the turn last, from GPU_TURN_FILE. The watchdog lines come
+ * from the run's stderr alone, each on a line of its own (point 10).
  */
-function gpuTurnReport(out) {
-  const lines = [];
-  const said = String(out || "").split(/\r?\n/).filter((l) => /GPU TEST (STILL RUNNING|HUNG):/.test(l));
-  for (const l of [...new Set(said)]) lines.push(`  ${l.trim()}`);
+function gpuTurnReport(res) {
+  const lines = O.watchdogLines(res).map((l) => `  ${l}`);
   let turn = null;
   try {
     turn = fs.readFileSync(GPU_TURN_FILE, "utf8").trim();
@@ -706,9 +720,9 @@ function gpuBanner(skipped) {
 }
 
 /** The summary to record: every program's run as one line (scripts/lib/lib-test-programs.js), and a
- * partial pass's own completed by the GPU tests it left. `runs`: [{ name, out }]. */
+ * partial pass's own completed by the GPU tests it left. `runs`: [{ name, stdout }]. */
 function resultLine(runs, extra = "") {
-  const own = P.combinedSummary(runs.map((r) => ({ name: r.name, summary: summaryOf(r.out) }))) || "(no summary)";
+  const own = P.combinedSummary(runs.map((r) => ({ name: r.name, summary: summaryOf(r.stdout) }))) || "(no summary)";
   const line = partialPass ? `${partialPass.result || "(no summary)"}; then its ${partialPass.gpu_skipped.length} GPU test(s): ${own}` : own;
   return line + extra;
 }
@@ -761,7 +775,7 @@ function nameFilters(args) {
  */
 function nothingRan(runs, args) {
   if (args.some((a) => a === "--list")) return null;
-  const counts = runs.map((r) => L.resultCounts(r.out));
+  const counts = runs.map((r) => L.resultCounts(r.stdout));
   if (counts.some((c) => !c)) return null;
   if (counts.reduce((n, c) => n + c.passed + c.failed, 0) > 0) return null;
   const ignored = counts.reduce((n, c) => n + c.ignored, 0);
@@ -811,7 +825,7 @@ async function main() {
   }
   const secs = runs.reduce((a, r) => a + r.secs, 0);
   // The programs' counts added up (not for a run that prints no result line, such as --list).
-  if (programs.length > 1 && runs.some((r) => summaryOf(r.out))) console.log(`lib-tests: ${resultLine(runs)}`);
+  if (programs.length > 1 && runs.some((r) => summaryOf(r.stdout))) console.log(`lib-tests: ${resultLine(runs)}`);
   if (runs.every((r) => r.code === 0)) {
     const none = nothingRan(runs, runArgs);
     if (none) {
@@ -829,11 +843,11 @@ async function main() {
   const failed = [];
   for (const r of runs) {
     if (r.code === 0) continue;
-    const names = L.parseFailures(r.out);
+    const names = L.parseFailures(r.stdout);
     if (!names.length) {
       if (programs.length > 1) console.error(`lib-tests: ${r.name}'s test program exited ${r.code} without a list of failed tests`);
       // The GPU helper's watchdog stops the program when a test holds the GPU too long: say who.
-      for (const l of gpuTurnReport(r.out)) console.error(l);
+      for (const l of gpuTurnReport(r)) console.error(l);
       process.exit(r.code);
     }
     for (const name of names) failed.push({ run: r, name });
@@ -857,7 +871,7 @@ async function main() {
       process.exit(1);
     }
     // Point 3's proof, part one: the rerun ran THAT test and passed it (not merely exit 0).
-    const proof = again.code === 0 ? L.passedAlone(again.out, name) : null;
+    const proof = again.code === 0 ? L.passedAlone(again.stdout, name) : null;
     if (proof && proof.ok) passed.push({ run, name });
     else if (proof) noProof.push({ name, why: proof.why });
     else real.push(name);
@@ -884,7 +898,7 @@ async function main() {
     const entry = {
       at: new Date().toISOString(),
       test: name,
-      first_failure: failureExcerpt(run.out, name),
+      first_failure: failureExcerpt(run.stdout, name),
       passed_alone: true,
       // Proven since 2026-11-21: the same checkout and the same build, and the rerun named it ok.
       same_inputs: true,

@@ -409,10 +409,84 @@ test("a stopped run names the test holding the GPU turn and repeats the watchdog
     assert.notStrictEqual(r.status, 0, r.out);
     assert.match(r.out, /The GPU turn was HELD by renderer::x::tests::stuck/);
     assert.match(r.out, /\n  GPU TEST STILL RUNNING: renderer::x::tests::stuck has held the GPU for 60 s/);
+    // Nothing of libtest's is glued to it, in whatever order the two streams arrived (the next test
+    // makes the glued order on purpose).
+    assert.doesNotMatch(r.out, /\.\.\. *GPU TEST/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(runLog(root), { force: true });
   }
+});
+
+// 2026-11-21: run one test at a time, libtest writes "test hangs_silently_when_asked ... " (flushed)
+// as the test STARTS, and the test then writes the watchdog's line to stderr and hangs: the run ends
+// on a half-written libtest line, followed in the log by the watchdog's. The report keeps that half
+// line as what it is, the test that was running, on its own line, and the watchdog line on its own.
+// The half line is written before the test's thread even starts, so this glued order is made by the
+// program, not by timing. Seen red against the runner before point 10, three runs of three: "The
+// input was expected to not match the regular expression /\.\.\. *GPU TEST/", the report repeating
+// "  test hangs_silently_when_asked ... GPU TEST STILL RUNNING: renderer::x::tests::stuck has held
+// the GPU for 60 s (src/renderer/test_gpu.rs)" as one line, and no line naming the running test.
+test("run one at a time, the half-written line names the running test, and the watchdog line stands alone", () => {
+  const exe = suiteExe();
+  const root = repo();
+  try {
+    const r = run(root, exe, ["--stall-min", "0.05", "--test-threads", "1"], { TINY_SILENT_HANG: "1", TINY_GPU_TURN_HOLDER: "renderer::x::tests::stuck" });
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.doesNotMatch(r.out, /\.\.\. *GPU TEST/);
+    assert.match(r.out, /\n  GPU TEST STILL RUNNING: renderer::x::tests::stuck has held the GPU for 60 s/);
+    assert.match(r.out, /it had written "test hangs_silently_when_asked \.\.\. " and never its result, so hangs_silently_when_asked was running when it was stopped/);
+    assert.match(r.out, /the hung test is one of these 1:\n  hangs_silently_when_asked\n/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+// 2026-11-21: the glued hang report, made on purpose and in order, no timing involved. Under machine
+// load the watchdog's line (stderr) arrived between libtest's two writes of one result line (stdout:
+// "test ignored_unless_asked ... ", then "ignored\n"), and the report, reading both streams as one
+// text, repeated "  test ignored_unless_asked ... GPU TEST STILL RUNNING: ..." as one line, so the
+// test above failed under load and passed alone. GLUED is that arrival order, chunk by chunk (a
+// probe of the tiny suite the same day saw libtest's line split across two reads exactly so:
+// "test flaky_once ... " in one, "ok\n" in the next). scripts/lib/test-output.js, point 10.
+// Seen red against the report as it was (both streams one text, split into lines, each whole line
+// repeated): "Expected values to be strictly deep-equal: + 'test ignored_unless_asked ... GPU TEST
+// STILL RUNNING: renderer::x::tests::stuck has held the GPU for 60 s (src/renderer/test_gpu.rs)'
+// - 'GPU TEST STILL RUNNING: renderer::x::tests::stuck has held the GPU for 60 s (...)'".
+const GLUED = [
+  ["stdout", "\nrunning 9 tests\ntest gpu_device_test ... ok\ntest ignored_unless_asked ... "],
+  ["stderr", "GPU TEST STILL RUNNING: renderer::x::tests::stuck has held the GPU for 60 s (src/renderer/test_gpu.rs)\n"],
+  ["stdout", "ignored\n"],
+];
+
+test("a watchdog line landing inside libtest's half-printed line is repeated whole, and libtest's line still reads", () => {
+  const O = require("../lib/test-output.js");
+  const lines = [];
+  const c = O.collector((l) => lines.push(l));
+  for (const [stream, chunk] of GLUED) c.add(stream, chunk);
+  assert.strictEqual(c.end(), "", "nothing was left half-printed");
+  const watchdog = "GPU TEST STILL RUNNING: renderer::x::tests::stuck has held the GPU for 60 s (src/renderer/test_gpu.rs)";
+  assert.deepStrictEqual(O.watchdogLines(c), [watchdog]);
+  assert.ok(lines.includes("test ignored_unless_asked ... ignored"), `libtest's line, read from stdout alone, is whole: ${JSON.stringify(lines)}`);
+  assert.match(c.out, /test ignored_unless_asked \.\.\. GPU TEST STILL RUNNING/, "the log keeps the order things arrived in");
+  // A watchdog line glued to text on stderr itself (a test's own eprint! with no newline, under
+  // --nocapture) still starts at its marker; repeated lines are said once.
+  assert.deepStrictEqual(O.watchdogLines({ stderr: `half a note ${watchdog}\n${watchdog}\n` }), [watchdog]);
+  // The line libtest began and never finished, read from stdout's end.
+  assert.strictEqual(O.halfLine({ stdout: "running 2 tests\ntest a ... ok\ntest hangs ... " }), "hangs");
+  assert.strictEqual(O.halfLine({ stdout: "running 2 tests\ntest a ... ok\n" }), null);
+  assert.strictEqual(O.halfLine({ stdout: "test a ... ok" }), null, "a finished line with no newline yet is not half a line");
+  // What a half line means: one thread, the running test, first; several, a test that had ENDED
+  // (libtest names a test only after its thread exits), so never a suspect. Seen red with the
+  // several-thread case's half line ignored (`ended` always null): inFlight [ 'b', 'c' ] and
+  // finished 1 where [ 'c', 'd' ] and 2 were expected, the finished b named as a suspect.
+  const list = ["a", "b", "c", "d", "e"];
+  const done = new Set(["a"]);
+  assert.deepStrictEqual(O.suspects({ list, done, threads: 1, half: "b" }), { running: "b", inFlight: ["b"], finished: 1 });
+  assert.deepStrictEqual(O.suspects({ list, done, threads: 2, half: "b" }), { running: null, inFlight: ["c", "d"], finished: 2 });
+  assert.deepStrictEqual(O.suspects({ list, done, threads: 2, half: null }), { running: null, inFlight: ["b", "c"], finished: 1 });
+  assert.deepStrictEqual(O.suspects({ list: null, done, threads: 1, half: "b" }), { running: "b", inFlight: null, finished: null });
 });
 
 test("what counts as the full suite, and the failures list", () => {
