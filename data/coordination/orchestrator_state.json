@@ -1787,6 +1787,16 @@
       "date": "2026-11-21",
       "decision": "MERGED the lib-tests hang-report fix (fc1c939fb): stdout and stderr read apart (scripts/lib/test-output.js), a watchdog line can no longer glue into a libtest line, a trailing half line names the running test only with one test thread. FOLLOW-UP for after the pause (not dispatched, usage): `just verify`'s 40-minute timeout covers the build as well as the tests, so on a contended day the build-slot queue alone can use it up and the message ('failed or ran past 40 minutes (a hung test...)') points at a hang that never happened (signed requests round 6 and the hang-report agent both hit it today): the wrapper should say the BUILD was still waiting for memory when cargo was killed before any test started. Also unaudited: other rigs that combine a child's stdout and stderr into one string before splitting lines.",
       "why": "A check that misreports a queue as a hang wastes a round of investigation."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "SIGNED REQUESTS round 7 (229b086e3, main merged in as f0980b653 in worktree-agent-a8b8ba196716c41db): the owner's door keeps its own per-address counts (Tor visitors on 127.0.0.1 can no longer lock the owner out), run_relay's door path tested through serve_on with the owner key carried from the page's settings, Add to my servers replaces the dead loopback entry in place, Copy address never offers a network node's loopback port, two vacuous checks made real; the slow-boot replay recorded as a residual needing control of the server's clock (the simple rule let any stranger keep a wrong reading), with honest wording in cryptography.md. On the merged tree: relay check exit 0 (warnings 0), verify-relay exit 0, test-lib audience 30 and host_node 24 passed. HELD unmerged for the one release with the owner branch: the release's gates (verify, test-lib, release build, verify-runtime, verify-second-player, verify-copresence) run once on the combined tree. BUGs: the branch carries 344-349; the owner branch also numbered from 344, so whichever merges second renumbers.",
+      "why": "Ship the server, website and desktop changes together, gated once."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "MERGED household figures (4d1c91578, BUG-344 keeps its number; the signed-requests and owner branches renumber after it): a household's figures count its own machines only, the ship's machines (the Commons, the pods) are the ship's, the static meter 21.8 kWh a day, the one-person homestead draws General Services' pod, the Water and Air words re-measured 2026-11-21 with each figure's source; a fleet-level view of the ship's machines left for the fleet ledger page. PRIVACY FLAG raised to the operator (not changed without his word, it has been on main since 2026-07-01): data/self_sufficiency/location.ron scores the homestead for 'Silverdale, WA (Kitsap County ...) -- the operator's own region', and both home files' Energy notes quote that town.",
+      "why": "The household's numbers must be its own; the operator's location is his to publish or not."
     }
   ],
   "active_scopes_to_avoid": [
