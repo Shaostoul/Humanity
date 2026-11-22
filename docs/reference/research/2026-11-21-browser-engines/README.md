@@ -313,6 +313,10 @@ The operator's idea: let people pick, and make a service that needs engine X use
 desired service". **It is workable, and it is how the Windows and Android sets above already fall out.** The condition is
 that the choice is data, not code, and that we are honest about the cost of each extra engine.
 
+**The operator's decision on the count (2026-11-21), on being told each engine is its own security stream and
+wiring and that sign-ins do not carry between engines:** "Agreed. We want the fewest possible." So an engine is
+added only when a service genuinely needs what no engine already offered can do.
+
 ### Which engine each kind of page needs (my assessment from the sources above; "unmeasured" means no source)
 
 | Kind of page | Windows | Android | Why |
