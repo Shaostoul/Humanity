@@ -240,6 +240,28 @@ fn snapshot_music_stand_ins() {
     });
 }
 
+/// THE HUD IN GENERAL SERVICES' HALL (2026-11-21, the arrival rungs' follow-up), at the operator's
+/// 2560 x 1440: standing beside the public pod, the room card at the bottom left names the place
+/// "General Services", by key (`room_types::zone_words`), where it read "general-services-1:room_3"
+/// before the zone's own floor took the zone's name. The rooms are the shipped ship's, built the
+/// way the world load builds them (`RoomTypeRegistry::room_bounds`), and the card is the HUD's own
+/// pick (`room_card_at`). Drawn over the theme background, not a world.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_hud_general_services_hall() {
+    render_page_png("hud_general_services_hall", 2560, 1440, |ctx, theme, state| {
+        if state.ship_structure.is_none() {
+            let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+            let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
+            state.room_bounds = humanity_ship::room_types::RoomTypeRegistry::load(&data).room_bounds(&ship.generate_meshes().room_info);
+            state.ship_structure = Some(ship);
+        }
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(theme.bg_primary())).show(ctx, |_ui| {});
+        // In the hall, a step south of the public pod's door (data/machines/ship.ron respawn_pod_gs).
+        crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::new(191.0, 1.7, 134.0));
+    });
+}
+
 /// THE DEATH SCREEN'S LIST OF WHERE TO WAKE (2026-11-21, docs/design/game-setting-and-intro.md
 /// 2.2 and 5.6, rung 2), at the operator's 2560 x 1440: the lore's words ("Your body died. You did
 /// not.", asleep on the lifeline with its glossary marks), the cause, and the two places a
@@ -251,10 +273,33 @@ fn snapshot_death_screen_wake() {
     render_page_png("death_screen_wake", 2560, 1440, |ctx, theme, state| {
         state.player_death_cause = Some("dehydration".into());
         state.wake.places = vec![
-            crate::gui::wake_view::WakeEntry { place: "home".into(), name: humanity_core::i18n::t("hud.wake_home").into(), usual: true },
-            crate::gui::wake_view::WakeEntry { place: "general-services-1".into(), name: "General Services".into(), usual: false },
+            crate::gui::wake_view::WakeEntry { place: "home".into(), name: humanity_core::i18n::t("hud.wake_home").into(), usual: true, note: None },
+            crate::gui::wake_view::WakeEntry { place: "general-services-1".into(), name: "General Services".into(), usual: false, note: None },
         ];
         state.wake.filled = true;
+        crate::gui::pages::hud::draw_death_screen(ctx, theme, state);
+    });
+}
+
+/// THE ONE-PERSON HOMESTEAD'S DEATH SCREEN (2026-11-21, the arrival rungs' follow-up), at the
+/// operator's 2560 x 1440: its own pod upstairs first, then General Services, whose pod this
+/// household's world does not draw (home_solo.ron holds only what one person runs, and links none
+/// of the ship's rows), so the sentence under it says why and that you still wake there
+/// (`hud.wake_not_drawn`). The list is the one engine/wake.rs makes for the shipped files
+/// (`places_for`, `entries`), not one typed here.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_death_screen_wake_solo() {
+    render_page_png("death_screen_wake_solo", 2560, 1440, |ctx, theme, state| {
+        if !state.wake.filled {
+            let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+            let ship = humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
+            let home = humanity_systems::grow_machines::load_home(&data.join("machines/home_solo.ron")).expect("home_solo.ron");
+            let listed = humanity_ship::respawners::usual_first(&crate::engine::wake::places_for(&ship, Some(&home), &data), None);
+            state.wake.places = crate::engine::wake::entries(&listed, Some(&home));
+            state.wake.filled = true;
+        }
+        state.player_death_cause = Some("dehydration".into());
         crate::gui::pages::hud::draw_death_screen(ctx, theme, state);
     });
 }

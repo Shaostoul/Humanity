@@ -59,7 +59,8 @@ pub struct Respawner {
     pub machine_id: String,
     /// The zone it stands in.
     pub zone: String,
-    /// The zone's label ("General Services"), for the words a person reads.
+    /// The zone's name ("General Services"), for the words a person reads: by key when the
+    /// zone has one (`room_types::zone_words`), else its label.
     pub zone_label: String,
     pub access: Access,
     /// Where a person wakes at it: the floor just outside its door, ship metres, y the floor of
@@ -132,7 +133,7 @@ pub fn respawners_in(ship: &ShipStructure, home: &MachineHome) -> Vec<Respawner>
         out.push(Respawner {
             machine_id: p.id.clone(),
             zone: zone.id.clone(),
-            zone_label: zone.label.clone(),
+            zone_label: crate::room_types::zone_words(&zone.id, &zone.label),
             access,
             floor: wake_floor(pos, p.size.2, p.rotation),
         });

@@ -978,7 +978,10 @@ pub struct MachineHome {
     /// "home", and a connection when either end is such a row. data/machines/home.ron names it
     /// because its battery bank powers the Commons' machines and its loops count them (how the
     /// household was modelled before the split); home_solo.ron does not, so it loads without
-    /// them, as it always has. None (the default) = a self-contained file.
+    /// them, as it always has: its figures add up every machine it holds, and the ship's would
+    /// count as one person's own (its header says it in full; its world draws none of the ship's
+    /// machines, and the death screen says so, src/engine/wake.rs `drawn_here`). None (the
+    /// default) = a self-contained file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ship_machines: Option<String>,
     /// Machine types, keyed by id. BTreeMap (not HashMap) so `save()` emits the catalog in

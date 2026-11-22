@@ -93,6 +93,31 @@ fn a_respawn_lands_on_the_chosen_pods_floor_on_every_storey() {
     assert_eq!(storeys.into_iter().collect::<Vec<_>>(), vec![0, 30], "both storeys are woken on");
 }
 
+/// A PLACE WHOSE POD THIS HOME DOES NOT DRAW SAYS WHY ON THE DEATH SCREEN (2026-11-21, the arrival
+/// rungs' follow-up). The world draws the household's machine file, and home_solo.ron links none of
+/// the ship's rows (its figures add up every machine it holds, `drawn_here` says why), so with the
+/// one-person homestead General Services' pod is not drawn though the list offers it (found in
+/// ship.ron, `places_for`). Its entry carries the key's words; the family home's does not, and
+/// neither household's own pod does. The list is the one the game makes (`places_for`, `entries`).
+///
+/// Seen red 2026-11-21 with `entries` giving no entry a note (the death screen as the arrival rungs
+/// left it): "home_solo.ron: General Services' pod is not drawn: the death screen says why",
+/// left None.
+#[test]
+fn a_place_whose_pod_this_home_does_not_draw_says_why() {
+    let ship = ship_on("p1");
+    for (file, gs_drawn) in [("home.ron", true), ("home_solo.ron", false)] {
+        let home = machines(file);
+        let listed = respawners::usual_first(&places_for(&ship, Some(&home), &data()), None);
+        let list = entries(&listed, Some(&home));
+        let own = list.iter().find(|e| e.place == respawners::HOME).unwrap_or_else(|| panic!("{file}: a home place: {list:?}"));
+        assert_eq!(own.note, None, "{file}: the home's own pod is drawn");
+        let gs = list.iter().find(|e| e.place == "general-services-1").unwrap_or_else(|| panic!("{file}: General Services: {list:?}"));
+        let want = (!gs_drawn).then(|| t("hud.wake_not_drawn").to_string());
+        assert_eq!(gs.note, want, "{file}: General Services' pod {}", if gs_drawn { "is drawn: no note" } else { "is not drawn: the death screen says why" });
+    }
+}
+
 /// The wake spot is outside the pod's box (a step out of its door), never inside it.
 #[test]
 fn you_wake_outside_the_pod_not_inside_it() {

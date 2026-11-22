@@ -16,6 +16,9 @@ pub struct WakeEntry {
     pub name: String,
     /// True for the player's usual place (the save's `wake_at`), listed first.
     pub usual: bool,
+    /// Why this place's pod is not drawn in this household's world, said under its button (the key
+    /// `hud.wake_not_drawn`, engine/wake.rs `entries`); None when it is drawn.
+    pub note: Option<String>,
 }
 
 /// The death screen's list of where to wake.

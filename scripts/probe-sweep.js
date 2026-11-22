@@ -1155,7 +1155,9 @@ async function main() {
           clearDone("remote_players_done.json");
           req("remote_players_request.json", { seconds: 0 });
           const pj = await waitFile("remote_players_done.json", 15000);
-          rec.probe = pj ? { camera_end: pj.camera_end ?? null, wake: pj.wake ?? null } : { error: "the game answered no probe" };
+          // `household`: the live save's household (the probe's home_session), which the showcase
+          // `household` verb changes (2026-11-21, verify-respawn's one-person homestead vantage).
+          rec.probe = pj ? { camera_end: pj.camera_end ?? null, wake: pj.wake ?? null, household: (pj.home_session && pj.home_session.household) ?? null } : { error: "the game answered no probe" };
           log(`  probe: ${JSON.stringify(rec.probe).slice(0, 300)}`);
         }
         // Capture window opens: anyone else on this GPU from here to the last

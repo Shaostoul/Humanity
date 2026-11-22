@@ -72,6 +72,56 @@ fn the_homestead_wakes_you_upstairs_and_general_services_is_public() {
     assert!(inside(gs[0].floor, ((x0, x1), (z0 + 34.0, z1))), "in the hall, at {:?}", gs[0].floor);
 }
 
+/// WHICH HOUSEHOLDS DRAW THE SHIP'S PODS (2026-11-21, the arrival rungs' follow-up): the world
+/// draws a household's machine file (`placements`, what the world load and the editor place), so
+/// the ship's own machines, General Services' and Cabin Block A's pods among them, are drawn only
+/// for a household file that links the ship's rows (`ship_machines`). Every household of every
+/// start in data/homes/starts.ron whose file exists does, and draws General Services' pod in its
+/// hall, except the one-person homestead (home_solo.ron): its machine list is the honest baseline
+/// of what one person runs, its power, water and food figures add up every machine in it, and its
+/// composter and wall screen are smaller types than the ship's of the same name, so it links
+/// none (src/engine/wake.rs `drawn_here`; its death screen says so under General Services,
+/// `a_place_whose_pod_this_home_does_not_draw_says_why`). A new household file that forgets
+/// the link fails here, and so does the solo file if it gains one without its figures being
+/// made to count only its own machines.
+///
+/// Seen red 2026-11-21 written as "every household draws them": "households that do not draw the
+/// ship's pods: homestead/solo (home_solo.ron) draws no General Services pod; homestead/solo
+/// (home_solo.ron) draws no Cabin Block A pod".
+#[test]
+fn every_household_but_the_one_person_homestead_draws_the_ships_pods() {
+    let starts = crate::starts::Starts::load(&data());
+    let ship = ship_on("p1");
+    let zones = ship.zone_rects();
+    let mut missing = Vec::new();
+    let mut checked = 0;
+    for s in &starts.starts {
+        for h in &s.households {
+            let path = data().join("machines").join(&h.machines);
+            if !path.exists() {
+                continue; // the Apartment, shown but not offered: its file comes with its block
+            }
+            checked += 1;
+            let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{} loads", h.machines));
+            let placed = home.placements(&std::collections::HashMap::new(), Some(&zones));
+            match placed.iter().find(|p| p.id == "respawn_pod_gs") {
+                Some(p) => {
+                    let ((x0, x1), (z0, z1)) = area(&ship, "general-services-1", None);
+                    let at = glam::Vec3::new(p.pos.0, p.pos.1, p.pos.2);
+                    assert!(inside(at, ((x0, x1), (z0 + 34.0, z1))), "{}/{} ({}): the pod stands in General Services' hall, at {at:?}", s.id, h.id, h.machines);
+                    assert!(placed.iter().any(|p| p.id == "respawn_pod_cabins_1"), "{}/{}: Cabin Block A's pod is drawn too", s.id, h.id);
+                }
+                None => {
+                    assert!(home.ship_machines.is_none(), "{}/{} ({}) links the ship's rows and still draws no General Services pod", s.id, h.id, h.machines);
+                    missing.push(h.machines.clone());
+                }
+            }
+        }
+    }
+    assert!(checked >= 8, "the households checked: {checked}");
+    assert_eq!(missing, vec!["home_solo.ron".to_string()], "the households that draw none of the ship's pods");
+}
+
 /// A cabin has no room for a pod, so a cabin holder's "home" place is Cabin Block A's shared pod,
 /// by the washroom: the residence zone their door opens on. A homestead holder may not wake there.
 #[test]

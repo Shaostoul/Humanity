@@ -44,7 +44,7 @@ const REUSE_OFF_REREAD_S: f32 = 3.0;
 const COMPUTE_FALLBACK_CAP: usize = 64;
 /// A crew member's position is their standing height, this far over their feet
 /// (`net_route`'s figure, net/sync.rs `NPC_LOCAL_STANDING_Y`).
-const CREW_POSITION_OVER_FEET_M: f32 = 1.0;
+pub(crate) const CREW_POSITION_OVER_FEET_M: f32 = 1.0;
 /// The showroom's podium height (`world_load::place_avatar`).
 const SHOWROOM_PODIUM_M: f32 = 0.15;
 
@@ -545,6 +545,11 @@ pub(crate) struct AnimationRuntime {
     /// characters.ron's fallback body (the test figure), for a same-boot comparison of the real
     /// bodies' costs against the rung 1 figure's.
     pub(crate) fallback_only: bool,
+    /// The crew left out of the picture (showcase `crew_figures` "hidden", 2026-11-21): their
+    /// bodies (or box figures) are not drawn, their names still are, so verify-copresence can
+    /// photograph its crew look again without them and count what the crew changed in the picture
+    /// (scripts/lib/copresence-judge.js `crewDrawnPixels`). Permanent dev tooling.
+    pub(crate) crew_hidden: bool,
     /// The body sliders' A/B (showcase `varied_shapes`, 2026-11-09): false draws the crew and the
     /// dev crowd as the body as made (no shape targets), as main did, for a same-boot measure of
     /// what varied shapes cost.
@@ -619,6 +624,7 @@ impl Default for AnimationRuntime {
             clock: 0.0,
             bodies_on: true,
             fallback_only: false,
+            crew_hidden: false,
             varied_shapes: true,
             crowd: Vec::new(),
             walk: Default::default(),
@@ -1510,7 +1516,9 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
     // A crew member looks at the player when the player is near and in front of them (rung 2b: a
     // point of interest; the crowd's timetable will give them others).
     let my_head = state.camera.position;
-    for (_e, (t, n)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemoteNpc)>().iter() {
+    // The showcase `crew_figures` "hidden" leaves them out (`AnimationRuntime::crew_hidden`).
+    let crew_shown = !state.animation.crew_hidden;
+    for (_e, (t, n)) in world.query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemoteNpc)>().iter().filter(|_| crew_shown) {
         let facing = facing_of_turn(t.rotation);
         let feet = t.position - Vec3::new(0.0, CREW_POSITION_OVER_FEET_M, 0.0);
         let to_me = my_head - (feet + Vec3::Y * 1.5);

@@ -2242,6 +2242,13 @@ impl ShipStructure {
                 if zi != home_idx {
                     r.id = format!("{}:{}", z.id, r.id);
                     r.is_spawn_room = false;
+                    // The zone's own floor (2026-11-21): a room none of this zone's own rooms
+                    // names (General Services' hall, the Commons' floor, a street) is the zone
+                    // itself, so it reads as the zone, by key (`zone_words`). Until then it kept
+                    // the anonymous id and the HUD said "general-services-1:room_3".
+                    if r.label.is_empty() {
+                        r.label = crate::room_types::zone_words(&z.id, &z.label);
+                    }
                 }
                 out.room_info.push(r);
             }
@@ -2284,7 +2291,14 @@ impl ShipStructure {
                 is_spawn_room: false,
                 // A corridor is a generated tube, not a zone-named room: no function to join.
                 room_type: None,
-                label: String::new(),
+                // Named by the two zones it joins, by key (2026-11-21; it read "corridor_4").
+                label: {
+                    let words = |zi: usize| {
+                        let z = &self.zones[zi];
+                        crate::room_types::zone_words(&z.id, &z.label)
+                    };
+                    crate::room_types::corridor_words(&words(g.from_zone_idx), &words(g.to_zone_idx))
+                },
             });
         }
         // The neighbours' homes and corridors (see above): drawn, never a room, never walked into.

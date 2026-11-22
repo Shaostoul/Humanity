@@ -1569,43 +1569,106 @@ function figurePixels(img, nameplate = null, after = null) {
 // simulated the Pioneer, whose rooms lie inside plot p1, and every crew figure was drawn inside
 // the home on p1.
 
-/// Is this pixel a crew member's amber body AS THE GAME DRAWS IT? The crew's material is
-/// (0.92, 0.62, 0.18), slightly emissive (lib.rs, "Crew NPCs"), but lit and tone-mapped in the
-/// Commons it comes out about (176, 151, 71): measured on the first crew.png (2026-10-04, run
-/// 20261004-155649-plots-game-first, the body of Botanist Yara 5 m away), green about 0.86 of
-/// red and blue about 0.40. So: bright enough, green 0.78 to 0.95 of red, blue 0.25 to 0.52.
-/// Not counted: the HUD's orange activity line under a crew member's name (223, 131, 33: green
-/// 0.59 of red, which the first test, written from the material colour, counted instead of the
-/// body), oak as the Commons draws it (dark, and blue 0.6 of red), the floor and walls (grey,
-/// green above red), white lamps and the sun, and the players' teal. On that picture the test
-/// found 17,302 pixels, all but 19 of them on the crew's figures.
-function isFigureAmber(r, g, b) {
-  return r > 110 && g >= 0.78 * r && g <= 0.95 * r && b >= 0.25 * r && b <= 0.52 * r;
-}
+// IS A CREW FIGURE IN THE PICTURE? (2026-11-21, the arrival rungs' follow-up.) Until character
+// animation rung 1 a crew member was an amber box, and the judge counted amber pixels under a
+// name. The crew are people now, in their working clothes (data/characters/characters.ron, the
+// "crew" wearer: worksuits and sportsuits, blue in crew.png), and every run's crew_seen failed
+// with 0 amber pixels while six crew stood named on screen. A colour is a guess at what the crew
+// wear, so the judge no longer asks one: the rig photographs its crew look twice, with the crew
+// (crew.png) and, the camera held still, without them (crew_without.png, the showcase
+// `crew_figures` "hidden", src/engine/animation.rs `crew_hidden`), and counts what the crew's
+// figures CHANGE in the picture inside each crew member's box on the screen: the box the game
+// drew the figure in (the recorder's `rect`, src/engine/ipc.rs `crew_screen_rect`). Whatever they
+// wear, and amber boxes too, a drawn figure changes the pixels it covers and nothing else does.
 
-/// Fewest crew-amber pixels under a crew member's nameplate that count as a crew figure seen
-/// there. A crew member 35 m away in the first crew.png is about 10 x 40 px of body; 150 is
-/// well under that and far over the 19 stray pixels the whole rest of that picture held.
+/// How much one channel must differ, 0 to 255, between the two pictures for a pixel to count as
+/// changed by a figure: a body against the deck or a wall differs by tens to hundreds.
+const CREW_DIFF_MIN = 24;
+
+/// How far, in pixels, the picture without the crew is searched for a match before a pixel of the
+/// picture with them counts as changed. The same view drawn twice is NOT the same pixels at its
+/// edges: on the first real runs (2026-11-21, 20261121-224935, the camera identical to the
+/// micrometre) every edge of the deck's grid, the glass roof's bars and the shadows they cast
+/// moved by a pixel or two between the two pictures, 6.84% of the walker-first picture outside
+/// the crew's boxes and 3.14% of the game-first one. Within 2 px that fell to 1.42% and 0.46%,
+/// while the crew's own figures, a body several pixels across, kept their counts (the nearest
+/// 5,629 px fell to 4,290; 71,847 to 65,697).
+const CREW_SHIFT_PX = 2;
+
+/// Fewest changed pixels inside a crew member's box that count as a crew figure seen there. A crew
+/// member 35 m away is about 12 x 48 px of figure in a 2560 x 1387 picture, over 400 px; 150 is
+/// well under that, and far over the few pixels a moving name leaves.
 const CREW_MIN_PX = 150;
 
-/// Count crew-amber pixels in `img` in the box under a crew member's nameplate at `nameplate`
-/// ([x, y], window pixels): 120 px either side and 400 px down (a crew figure stands up to 40 m
-/// away, where it is small). Returns { count, box }.
-function crewPixels(img, nameplate) {
-  const box = [
-    Math.max(0, Math.round(nameplate[0] - 120)),
-    Math.max(0, Math.round(nameplate[1])),
-    Math.min(img.width, Math.round(nameplate[0] + 120)),
-    Math.min(img.height, Math.round(nameplate[1] + 400)),
-  ];
+/// The most of the picture OUTSIDE every crew member's box that may differ between the two
+/// pictures (within CREW_SHIFT_PX), as a fraction: the crew's shadows, their names moving, the
+/// HUD's clock and the shadow edges that shift between two drawings of one view change a little of
+/// it (1.42% and 0.46% on the first real runs); a light that changed changes nearly all of it, and
+/// then every box would count a figure that is not there. (A moved camera is caught first, by the
+/// camera itself: CREW_STILL_M.)
+const CREW_OUTSIDE_MAX = 0.05;
+
+/// How far the camera may move between the two pictures and still count as held: a centimetre,
+/// and a thousandth of a radian.
+const CREW_STILL_M = 0.01;
+const CREW_STILL_RAD = 0.001;
+
+/** Did the crew's figures change pixel (x, y) of `a` against `b` (images of one size)? Only
+ *  when no pixel of `b` within CREW_SHIFT_PX of it is within CREW_DIFF_MIN of it on every channel. */
+function crewChanged(a, b, x, y) {
+  const { width: w, height: h } = a;
+  const i = (y * w + x) * 4;
+  for (let yy = Math.max(0, y - CREW_SHIFT_PX); yy <= Math.min(h - 1, y + CREW_SHIFT_PX); yy++) {
+    for (let xx = Math.max(0, x - CREW_SHIFT_PX); xx <= Math.min(w - 1, x + CREW_SHIFT_PX); xx++) {
+      const j = (yy * w + xx) * 4;
+      if (Math.abs(a.rgba[i] - b.rgba[j]) <= CREW_DIFF_MIN && Math.abs(a.rgba[i + 1] - b.rgba[j + 1]) <= CREW_DIFF_MIN && Math.abs(a.rgba[i + 2] - b.rgba[j + 2]) <= CREW_DIFF_MIN) return false;
+    }
+  }
+  return true;
+}
+
+/** A box [x0, y0, x1, y1] (window pixels, any order of floats) as whole pixels inside an image of
+ *  `w` x `h`, or null when it is not an array of four numbers or misses the image. */
+function boxIn(rect, w, h) {
+  if (!Array.isArray(rect) || rect.length !== 4 || !rect.every((v) => Number.isFinite(Number(v)))) return null;
+  const [x0, y0, x1, y1] = rect.map(Number);
+  const b = [Math.max(0, Math.floor(x0)), Math.max(0, Math.floor(y0)), Math.min(w, Math.ceil(x1)), Math.min(h, Math.ceil(y1))];
+  return b[2] > b[0] && b[3] > b[1] ? b : null;
+}
+
+/** Count the pixels inside `rect` (a crew member's box on the screen) that differ between the
+ *  picture with the crew `withImg` and the one without them `withoutImg` (each { width, height,
+ *  rgba }, scripts/lib/png.js decode). Returns { count, box } (box null, count 0, when the box is
+ *  off the picture or the pictures differ in size). */
+function crewDrawnPixels(withImg, withoutImg, rect) {
+  if (!withImg || !withoutImg || withImg.width !== withoutImg.width || withImg.height !== withoutImg.height) return { count: 0, box: null };
+  const box = boxIn(rect, withImg.width, withImg.height);
+  if (!box) return { count: 0, box: null };
   let count = 0;
   for (let y = box[1]; y < box[3]; y++) {
     for (let x = box[0]; x < box[2]; x++) {
-      const i = (y * img.width + x) * 4;
-      if (isFigureAmber(img.rgba[i], img.rgba[i + 1], img.rgba[i + 2])) count++;
+      if (crewChanged(withImg, withoutImg, x, y)) count++;
     }
   }
   return { count, box };
+}
+
+/** The control: how many pixels OUTSIDE every box in `rects` differ between the two pictures, of
+ *  how many. Returns { changed, total }, or null when the pictures are missing or differ in size. */
+function crewPictureControl(withImg, withoutImg, rects) {
+  if (!withImg || !withoutImg || withImg.width !== withoutImg.width || withImg.height !== withoutImg.height) return null;
+  const { width: w, height: h } = withImg;
+  const boxes = (rects || []).map((r) => boxIn(r, w, h)).filter(Boolean);
+  let changed = 0;
+  let total = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (boxes.some((b) => x >= b[0] && x < b[2] && y >= b[1] && y < b[3])) continue;
+      total++;
+      if (crewChanged(withImg, withoutImg, x, y)) changed++;
+    }
+  }
+  return { changed, total };
 }
 
 /** Is `p` inside a box { min, max } across the floor (x and z), a centimetre of slack? */
@@ -1645,11 +1708,14 @@ function onPlotXZ(p, plot, tol = 0.01) {
  *   expectCrew  how many crew the tree's data/npc/crew.ron has (the relay stands every one).
  *   look        the crew look: the game in the Commons, facing up its east aisle toward the
  *               mess hall. { cam: [x, y, z, yaw, pitch] (where it stood), frames (its own
- *               recording), seen: [{ name, pos, found, pos_px, amber }] (where each crew member
- *               was drawn when the rig looked, else the recording's first frame; the ui `find` of each drawn
- *               crew member's nameplate, the game's own word that the name is on screen, which
- *               the HUD hides past 40 m and behind a wall, and the amber pixels counted under
- *               it in crew.png) }.
+ *               recording), cam_without (where it stood after the picture without the crew),
+ *               seen: [{ name, pos, found, pos_px, rect, drawn }] (where each crew member was
+ *               drawn when the rig looked, else the recording's first frame; the ui `find` of
+ *               each drawn crew member's nameplate, the game's own word that the name is on
+ *               screen, which the HUD hides past 40 m and behind a wall; the box its figure
+ *               filled on the screen; and the pixels inside that box crew.png and
+ *               crew_without.png differ by, `crewDrawnPixels`), control: { changed, total } (the
+ *               pixels outside every box the two pictures differ by, `crewPictureControl`) }.
  * Checks:
  *   crew_recorded        every recording's frames carry a `crew` list: a recorder from before
  *                        increment 3 records none, and nothing would be judged
@@ -1666,13 +1732,16 @@ function onPlotXZ(p, plot, tol = 0.01) {
  *   crew_in_the_commons  in the look's recording every crew figure stands in the Commons
  *   crew_seen            AT LEAST ONE CREW FIGURE VISIBLE in the look's picture: a crew member's
  *                        nameplate on screen, its figure drawn in the Commons in front of the
- *                        camera, and a crew figure's amber body in the picture under the name
- *                        (CREW_MIN_PX). Under the name, not necessarily that crew member's own
- *                        body: crew standing in a line up the aisle share a column, and the
- *                        nearest one's body fills every box (the first runs counted the same
- *                        ~16,000 px under five names), so this says one figure is seen, not
- *                        which. The positions and names are the ones of the moment the picture
- *                        was taken (the rig asks straight after it).
+ *                        camera, and at least CREW_MIN_PX pixels inside its box on the screen
+ *                        that the crew's figures changed (crew.png against crew_without.png,
+ *                        whatever the crew wear), the two pictures taken from one camera
+ *                        (CREW_STILL_M, CREW_STILL_RAD) and alike outside every box
+ *                        (CREW_OUTSIDE_MAX). Inside its box, not necessarily that crew member's
+ *                        own figure: crew standing in a line up the aisle share boxes, so this
+ *                        says one figure is seen, not which. The positions, names and boxes are
+ *                        the ones of the moment the picture was taken (the rig asks straight
+ *                        after it). Until 2026-11-21 this counted the amber of the old box
+ *                        figures under a name, and failed every run once the crew were people.
  * Returns { pass, checks }.
  */
 function judgeCrew({ recordings, plots, commons, walls, expectCrew, look }) {
@@ -1788,26 +1857,41 @@ function judgeCrew({ recordings, plots, commons, walls, expectCrew, look }) {
     const v = cam && pos ? viewAngle(cam, pos) : null;
     const inFront = !!(v && v.ahead > 0 && v.deg < 50);
     const inC = !!(pos && commons && inBoxXZ(pos, commons));
-    const amberOk = Number.isFinite(s.amber) && s.amber >= CREW_MIN_PX;
-    return { ...s, pos, deg: v ? v.deg : null, ok: !!s.found && inFront && inC && amberOk, inFront, inC, amberOk };
+    const drawnOk = Number.isFinite(s.drawn) && s.drawn >= CREW_MIN_PX;
+    return { ...s, pos, deg: v ? v.deg : null, ok: !!s.found && inFront && inC && drawnOk, inFront, inC, drawnOk };
   });
   const good = seen.filter((s) => s.ok);
+  // The two pictures are one view: the camera held still between them, and outside the crew's
+  // boxes they are alike (else every box counts what the camera or the light changed).
+  const camOff = lk && Array.isArray(lk.cam_without) ? lk.cam_without.map(Number) : null;
+  const moved = cam && camOff ? Math.hypot(camOff[0] - cam[0], camOff[1] - cam[1], camOff[2] - cam[2]) : null;
+  const turned = cam && camOff ? Math.max(Math.abs(camOff[3] - cam[3]), Math.abs(camOff[4] - cam[4])) : null;
+  const still = moved !== null && moved <= CREW_STILL_M && turned <= CREW_STILL_RAD;
+  const ctl = lk && lk.control && lk.control.total > 0 ? lk.control : null;
+  const alike = !!ctl && ctl.changed / ctl.total <= CREW_OUTSIDE_MAX;
+  const pair = !camOff
+    ? "the camera after the picture without the crew was not recorded"
+    : !still
+      ? `the camera MOVED between the two pictures (${moved.toFixed(3)} m, ${turned.toFixed(4)} rad; at most ${CREW_STILL_M} m and ${CREW_STILL_RAD} rad)`
+      : !ctl
+        ? "no picture without the crew to compare (crew_without.png)"
+        : `${((100 * ctl.changed) / ctl.total).toFixed(2)}% of the picture outside the crew's boxes differs between the two${alike ? "" : ` (MORE than ${100 * CREW_OUTSIDE_MAX}%: not one view)`}`;
   add(
     "crew_seen",
-    !!cam && good.length > 0,
+    !!cam && good.length > 0 && still && alike,
     !lk
       ? "the crew look never ran"
       : !cam
         ? "the look recorded no camera"
         : !seen.length
           ? "no crew member was drawn to look for"
-          : `${good.length ? "at least one crew figure visible" : "NO crew figure visible"} from ${fmtP(cam)} facing ${f(cam[3])} rad (${good.length} of ${seen.length} named crew members pass, the amber under a name being any crew figure's): ` +
+          : `${good.length && still && alike ? "at least one crew figure visible" : "NO crew figure seen"} from ${fmtP(cam)} facing ${f(cam[3])} rad (${good.length} of ${seen.length} named crew members pass, a box's changed pixels being any crew figure's); ${pair}: ` +
             seen
               .map(
                 (s) =>
                   `${s.name} ${s.found ? `named on screen at x ${Number(s.pos_px[0]).toFixed(0)}` : "NOT named on screen"}, ` +
                   `drawn ${s.pos ? fmtP(s.pos) : "nowhere"}${s.inC ? "" : " (NOT in the Commons)"}${s.deg !== null ? ` ${s.deg.toFixed(0)} deg off the view${s.inFront ? "" : " (NOT in front)"}` : ""}, ` +
-                  `${Number.isFinite(s.amber) ? `${s.amber} crew-amber px under the name` : "no picture"}${s.amberOk ? "" : ` (fewer than ${CREW_MIN_PX})`}`,
+                  `${Number.isFinite(s.drawn) ? `${s.drawn} px changed in its box` : "no box or no pictures"}${s.drawnOk ? "" : ` (fewer than ${CREW_MIN_PX})`}`,
               )
               .join("; "),
   );
@@ -2281,9 +2365,12 @@ module.exports = {
   checkWord,
   outcomeLine,
   judgeCrew,
-  isFigureAmber,
-  crewPixels,
+  crewDrawnPixels,
+  crewPictureControl,
   CREW_MIN_PX,
+  CREW_DIFF_MIN,
+  CREW_SHIFT_PX,
+  CREW_OUTSIDE_MAX,
   CREW_WALL_CLEAR_M,
   wallDistXZ,
   lineCoords,

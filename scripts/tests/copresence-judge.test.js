@@ -1185,7 +1185,7 @@ test("guest: each broken guest run FAILS its own check", () => {
 // game drew, every frame. Made-up recordings of the shipped crew where they work, and one
 // broken thing at a time.
 
-const { judgeCrew, isFigureAmber, crewPixels, CREW_MIN_PX, CREW_WALL_CLEAR_M, wallDistXZ } = require("../lib/copresence-judge.js");
+const { judgeCrew, crewDrawnPixels, crewPictureControl, CREW_MIN_PX, CREW_DIFF_MIN, CREW_SHIFT_PX, CREW_OUTSIDE_MAX, CREW_WALL_CLEAR_M, wallDistXZ } = require("../lib/copresence-judge.js");
 
 const CREW_PLOTS = [
   { id: "p1", origin: [0, 0, 0], size: [55, 3, 89] },
@@ -1229,11 +1229,17 @@ const CREW_OK = {
   expectCrew: 6,
   look: {
     cam: LOOK_CAM,
+    // Where the camera stood for the picture without the crew: the same place (2026-11-21).
+    cam_without: LOOK_CAM,
     frames: crewFrames(30),
+    // `rect`: the box its figure filled on the screen; `drawn`: the pixels inside it the two
+    // pictures differ by (crewDrawnPixels).
     seen: [
-      { name: "Dr. Kel", found: true, pos_px: [1280, 600], amber: 900 },
-      { name: "Chief Tan", found: false, pos_px: null, amber: null },
+      { name: "Dr. Kel", found: true, pos_px: [1280, 600], rect: [1255, 610, 1305, 790], drawn: 900 },
+      { name: "Chief Tan", found: false, pos_px: null, rect: null, drawn: null },
     ],
+    // Outside every box, the two pictures differ by a shadow and the HUD's clock.
+    control: { changed: 4000, total: 3500000 },
   },
 };
 
@@ -1260,7 +1266,17 @@ test("crew: each broken crew run FAILS its own check and no other", () => {
     ["one crew member never drawn", w({ expectCrew: 7 }), ["crew_drawn", "crew_back_after_rejoin"]],
     ["a crew figure on First Street during the look", w({ look: { ...CREW_OK.look, frames: crewFrames(30, CREW_AT.map(([id, n, p], i) => [id, n, i === 3 ? [70, 1, 120] : p])) } }), "crew_in_the_commons"],
     ["no nameplate on screen during the look", w({ look: { ...CREW_OK.look, seen: CREW_OK.look.seen.map((s) => ({ ...s, found: false })) } }), "crew_seen"],
-    ["the named crew member's figure not in the picture", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber: CREW_MIN_PX - 1 }] } }), "crew_seen"],
+    ["the named crew member's figure not in the picture", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], drawn: CREW_MIN_PX - 1 }] } }), "crew_seen"],
+    // The picture pair (2026-11-21): a moved camera, or a changed light, differs everywhere, and
+    // every box would count a figure that is not there; a run with no second picture or no box
+    // (one from before) counts nothing.
+    ["the camera moved 5 cm between the two pictures", w({ look: { ...CREW_OK.look, cam_without: [91.05, 1.7, 58, 0, 0] } }), "crew_seen"],
+    ["the camera turned between the two pictures", w({ look: { ...CREW_OK.look, cam_without: [91, 1.7, 58, 0.01, 0] } }), "crew_seen"],
+    ["the camera after the second picture not recorded", w({ look: { ...CREW_OK.look, cam_without: null } }), "crew_seen"],
+    ["the two pictures differ everywhere (the light changed)", w({ look: { ...CREW_OK.look, control: { changed: 3000000, total: 3500000 } } }), "crew_seen"],
+    ["6% of the picture outside the boxes differs", w({ look: { ...CREW_OK.look, control: { changed: 210000, total: 3500000 } } }), "crew_seen"],
+    ["no picture without the crew", w({ look: { ...CREW_OK.look, control: null } }), "crew_seen"],
+    ["no box for the named crew member (a run from before 2026-11-21)", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], rect: null, drawn: null }] } }), "crew_seen"],
     ["the camera facing away from the crew", w({ look: { ...CREW_OK.look, cam: [91, 1.7, 58, Math.PI, 0] } }), "crew_seen"],
     // The review of increment 3, findings 13 to 16: guards no case above could fail.
     // A crew member named and in front, with a crew figure under the name, but drawn NORTH of the
@@ -1275,10 +1291,9 @@ test("crew: each broken crew run FAILS its own check and no other", () => {
       w({ look: { ...CREW_OK.look, frames: crewFrames(30).map((fr, k) => (k === 15 ? { ...fr, crew: fr.crew.map((c, i) => (i === 2 ? { ...c, pos: [100, 1, 50] } : c)) } : fr)) } }),
       "crew_in_the_commons",
     ],
-    // As few crew-amber pixels under the name as the red run's whole picture held off the crew
-    // (18 stray pixels): not a figure. Pinned as a number, not as CREW_MIN_PX - 1, so lowering
-    // the constant fails here.
-    ["20 crew-amber pixels under the name (stray pixels, no figure)", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber: 20 }] } }), "crew_seen"],
+    // As few changed pixels in the box as a moving name leaves: not a figure. Pinned as a number,
+    // not as CREW_MIN_PX - 1, so lowering the constant fails here.
+    ["20 changed pixels in the box (a name moving, no figure)", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], drawn: 20 }] } }), "crew_seen"],
     // A crew figure drawn 0.1 m from the room block's east wall, in one frame of the walk at home:
     // in the Commons, on no plot, and only this check sees it (finding 15).
     [
@@ -1309,7 +1324,8 @@ test("crew: each broken crew run FAILS its own check and no other", () => {
 // in the table above, e.g. (a) crew_seen without its in-the-Commons term: "the named crew member
 // drawn outside the Commons, in front of the camera should fail crew_seen (only); failed:
 // nothing"; (e) CREW_MIN_PX = 1: "20 crew-amber pixels under the name (stray pixels, no figure)
-// should fail crew_seen (only); failed: nothing"; (f) no rows passing: "with no crew drawn,
+// should fail crew_seen (only); failed: nothing" (the same case counts changed pixels since
+// 2026-11-21); (f) no rows passing: "with no crew drawn,
 // crew_never_on_a_plot passed". The two new checks went red the same way with their guards out
 // ("a crew figure drawn in the room block's wall should fail crew_clear_of_walls (only); failed:
 // nothing", "nothing recorded after the step back in or Respawn should fail
@@ -1322,11 +1338,14 @@ test("crew: no crew drawn at all still fails crew_never_on_a_plot on its own", (
   assert.ok(failed.includes("crew_clear_of_walls"), `with no crew drawn, crew_clear_of_walls passed: failed ${failed.join(", ")}`);
 });
 
-test("crew: the picture's amber threshold is pinned (20 stray pixels fail, 150 pass)", () => {
-  const at = (amber) => judgeCrew({ ...CREW_OK, look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber }] } }).checks.find((c) => c.id === "crew_seen").ok;
-  assert.equal(at(20), false, "20 crew-amber pixels counted as a crew figure seen");
-  assert.equal(at(150), true, "150 crew-amber pixels (a figure 35 m away is about 400) not counted as a crew figure seen");
+test("crew: the picture's thresholds are pinned (20 changed pixels fail, 150 pass; 2% outside the boxes)", () => {
+  const at = (drawn) => judgeCrew({ ...CREW_OK, look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], drawn }] } }).checks.find((c) => c.id === "crew_seen").ok;
+  assert.equal(at(20), false, "20 changed pixels counted as a crew figure seen");
+  assert.equal(at(150), true, "150 changed pixels (a figure 35 m away is over 400) not counted as a crew figure seen");
   assert.equal(CREW_MIN_PX, 150);
+  assert.equal(CREW_DIFF_MIN, 24);
+  assert.equal(CREW_SHIFT_PX, 2);
+  assert.equal(CREW_OUTSIDE_MAX, 0.05);
 });
 
 test("crew: a wall's distance is across the floor, to the nearest point of the segment", () => {
@@ -1336,31 +1355,73 @@ test("crew: a wall's distance is across the floor, to the nearest point of the s
   assert.ok(Math.abs(wallDistXZ([3, 7, 4], [0, 0, 0, 0]) - 5) < 1e-9, "a wall of no length is a point");
 });
 
-// The crew's amber body AS THE GAME DRAWS IT in the Commons counts; the HUD's orange activity
-// line, the players' teal, oak partitions, steel and the dark do not. The colours are measured
-// off the first crew.png (2026-10-04, run 20261004-155649-plots-game-first).
-// Seen red 2026-10-04: with the first test, written from the material colour (green 0.45 to
-// 0.85 of red, blue under 0.38), "the crew's body as the game draws it in the Commons is not
-// counted" (it had passed that picture's run by counting the orange activity text instead);
-// with the green floor at 0.72 of red (the first calibration), "oak counted as a crew member's
-// body".
-test("crew: amber is the crew's body as drawn, not their activity text, oak, teal or steel", () => {
-  const px = (c) => c.map((v) => Math.round(v * 255));
-  assert.ok(isFigureAmber(176, 151, 71), "the crew's body as the game draws it in the Commons is not counted");
-  assert.ok(isFigureAmber(168, 142, 64), "the crew's body in its own shade is not counted");
-  assert.ok(isFigureAmber(120, 100, 46), "the crew's body in deep shade is not counted");
-  assert.ok(!isFigureAmber(223, 131, 33), "the orange activity line under a crew member's name counted as their body");
-  assert.ok(!isFigureAmber(68, 57, 40), "oak as the Commons draws it counted as a crew member's body");
-  assert.ok(!isFigureAmber(...px([0.55, 0.40, 0.24])), "oak counted as a crew member's body");
-  assert.ok(!isFigureAmber(...px([0.8, 0.67, 0.45])), "pine counted as a crew member's body");
-  assert.ok(!isFigureAmber(...px([0.2, 0.75, 0.75])), "teal counted as a crew member's body");
-  assert.ok(!isFigureAmber(...px([0.55, 0.57, 0.62])), "steel counted as a crew member's body");
-  assert.ok(!isFigureAmber(20, 12, 4), "the dark counted as a crew member's body");
-  // Counted in the box under the name only.
-  const img = { width: 400, height: 600, rgba: new Uint8Array(400 * 600 * 4) };
-  for (let y = 100; y < 300; y++) for (let x = 180; x < 220; x++) img.rgba.set([176, 151, 71, 255], (y * 400 + x) * 4);
-  assert.equal(crewPixels(img, [200, 90]).count, 200 * 40);
-  assert.equal(crewPixels(img, [380, 450]).count, 0, "nothing under a name drawn elsewhere");
+// WHAT THE CREW'S FIGURES CHANGE IN THE PICTURE (2026-11-21): the crew wear people's clothes
+// now (crew.png of 20261121-180656: blue tops, dark trousers, skin), so the judge counts the
+// pixels inside each crew member's box that the picture with the crew and the same view without
+// them differ by, whatever the colour, and the same count outside every box as a control.
+// Seen red 2026-11-21 with the amber judge on that run's crew.png (crew_seen in the walker-first
+// and game-first orders): "NO crew figure visible ... Crewmate Nia named on screen at x 1642,
+// drawn (92.0, 1.0, 56.0) 26 deg off the view, 0 crew-amber px under the name (fewer than 150)",
+// with Nia two metres from the camera filling the picture; and the new count's own red, with
+// no crew in either picture: 0 px in every box (below), and on a real run (20261121-224935
+// walker-first, re-judged with crew_without.png standing in for crew.png): "NO crew figure seen
+// ... 0 px changed in its box (fewer than 150)" for all six. The first real runs also failed the
+// pixel-for-pixel control (6.75% and 3.08% of the picture outside the boxes differing, every edge
+// moved a pixel or two), which is why a pixel is matched within CREW_SHIFT_PX.
+test("crew: a figure is what the two pictures differ by inside its box, whatever it wears", () => {
+  const W = 400;
+  const H = 300;
+  const blank = () => {
+    const img = { width: W, height: H, rgba: new Uint8Array(W * H * 4) };
+    // A grey deck and a slate wall, as the Commons draws them.
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) img.rgba.set(y < 150 ? [90, 96, 112, 255] : [181, 186, 192, 255], (y * W + x) * 4);
+    return img;
+  };
+  const paint = (img, [x0, y0, x1, y1], c) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) img.rgba.set([...c, 255], (y * W + x) * 4);
+  };
+  const without = blank();
+  // Today's crew member: a blue top over dark trousers, skin above; and an old amber box figure.
+  const withBlue = blank();
+  paint(withBlue, [100, 60, 130, 90], [200, 160, 140]);
+  paint(withBlue, [95, 90, 135, 150], [35, 55, 160]);
+  paint(withBlue, [98, 150, 132, 220], [25, 25, 30]);
+  const withAmber = blank();
+  paint(withAmber, [95, 60, 135, 220], [176, 151, 71]);
+  const box = [90, 55, 140, 225];
+  assert.equal(crewDrawnPixels(withBlue, without, box).count, 30 * 30 + 40 * 60 + 34 * 70, "the blue-clad figure's every pixel counts");
+  assert.equal(crewDrawnPixels(withAmber, without, box).count, 40 * 160, "an amber box figure counts too");
+  // No crew in the picture: nothing changed, in the box or out of it (the new count's red).
+  assert.equal(crewDrawnPixels(without, blank(), box).count, 0, "a picture with no crew in it counted a figure");
+  assert.equal(crewDrawnPixels(withBlue, without, [300, 55, 350, 225]).count, 0, "nothing counted in a box where no figure stands");
+  assert.equal(crewDrawnPixels(withBlue, without, null).count, 0, "no box, nothing counted");
+  assert.equal(crewDrawnPixels(withBlue, { ...without, width: 399 }, box).count, 0, "pictures of two sizes compare nothing");
+  // A grey a few levels off (the same view drawn twice) is not a change.
+  const nudged = blank();
+  for (let i = 0; i < nudged.rgba.length; i += 4) nudged.rgba[i] += CREW_DIFF_MIN;
+  assert.equal(crewDrawnPixels(nudged, without, box).count, 0, `${CREW_DIFF_MIN} levels counted as a change`);
+  // The same view drawn twice moves its edges by a pixel or two (the first real runs): a deck
+  // grid of thin dark lines drawn 2 px over counts nothing, in the box or out of it, and the figure
+  // still counts all but its outermost pixels.
+  const grid = (off) => {
+    const img = blank();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if ((x + off) % 16 < 2 || (y + off) % 16 < 2) img.rgba.set([30, 34, 40, 255], (y * W + x) * 4);
+    return img;
+  };
+  const jittered = grid(2);
+  assert.ok(crewDrawnPixels(grid(0), jittered, box).count === 0, "an edge 2 px over counted as a figure");
+  // (Only the picture's own border, where the line moved out of the frame, keeps a few.)
+  const edges = crewPictureControl(grid(0), jittered, [box]);
+  assert.ok(edges.changed / edges.total < 0.02, "edges 2 px over counted outside the boxes: " + edges.changed + " of " + edges.total);
+  // The control: outside the box, the figure picture is the same view; a light that changed (every
+  // pixel 40 levels brighter) is not.
+  const ctl = crewPictureControl(withBlue, without, [box]);
+  assert.deepEqual(ctl, { changed: 0, total: W * H - 50 * 170 });
+  const brighter = blank();
+  for (let i = 0; i < brighter.rgba.length; i += 4) for (let c = 0; c < 3; c++) brighter.rgba[i + c] = Math.min(255, brighter.rgba[i + c] + 40);
+  const lit = crewPictureControl(withBlue, brighter, [box]);
+  assert.ok(lit.changed / lit.total > CREW_OUTSIDE_MAX, `a changed light passed as one view: ${lit.changed} of ${lit.total}`);
+  assert.equal(crewPictureControl(withBlue, null, [box]), null);
 });
 
 // ── Increment 4: the relay's speed check ────────────────────────────────────────────────────

@@ -6,8 +6,15 @@
 //     bedroom room's own floor in data/homes/shipped/homestead.ron), the HUD names the Bedroom,
 //     and the camera stands within reach of the home pod's door;
 //   - "general-services-1" wakes on the ship's deck (floor 0) inside General Services' box
-//     (data/blueprints/ship_structure.ron), and the HUD names a room of it;
-//   - the death screen listed both places, home first (the usual place).
+//     (data/blueprints/ship_structure.ron), and the HUD names the hall by the place's words, the
+//     key ship_zones.general_services_1 in data/i18n/en.json (2026-11-21: it said
+//     "general-services-1:room_3", the hall's anonymous id);
+//   - the death screen listed both places, home first (the usual place);
+//   - with the one-person homestead's household (the showcase `household` verb, 2026-11-21),
+//     whose world draws none of the ship's machines (data/machines/home_solo.ron says why), the
+//     death screen in General Services' hall lists General Services and says its pod is not drawn
+//     (the probe's wake.not_drawn, src/engine/wake.rs `entries`), and the family household is put
+//     back after it.
 // Pure: `judge(manifest, data)` returns { pass, checks }.
 
 const fs = require("fs");
@@ -20,6 +27,7 @@ function treeData(repo) {
   const home = fs.readFileSync(path.join(repo, "data/homes/shipped/homestead.ron"), "utf8");
   const ship = fs.readFileSync(path.join(repo, "data/blueprints/ship_structure.ron"), "utf8");
   const machines = fs.readFileSync(path.join(repo, "data/machines/home.ron"), "utf8");
+  const words = JSON.parse(fs.readFileSync(path.join(repo, "data/i18n/en.json"), "utf8"));
   const num = (s) => s.split(",").map((v) => Number(v.trim()));
   const room = home.match(/id: "room-bedroom",\s*type_id: "[^"]*",\s*origin: \(([^)]*)\),\s*size: \(([^)]*)\)/);
   const gs = ship.match(/id: "general-services-1",[\s\S]*?origin: \(([^)]*)\),\s*body: \(\s*width: ([\d.]+),\s*depth: ([\d.]+),/);
@@ -31,6 +39,8 @@ function treeData(repo) {
     bedroom: { min: [ro[0], ro[1], ro[2]], max: [ro[0] + rs[0], ro[1] + rs[1], ro[2] + rs[2]], floor: ro[1] },
     services: { min: [go[0], go[1], go[2]], max: [go[0] + Number(gs[2]), go[1] + 3, go[2] + Number(gs[3])] },
     pod: num(pod[1]),
+    // The words the HUD names General Services' hall with (room_types.rs `zone_words`).
+    servicesName: (words.ship_zones || {}).general_services_1 || null,
   };
 }
 
@@ -45,7 +55,7 @@ function judge(manifest, data) {
   const inXZ = (p, box) => Array.isArray(p) && [0, 2].every((k) => p[k] >= box.min[k] - 0.05 && p[k] <= box.max[k] + 0.05);
 
   const shot = (id) => byId(id) && byId(id).screenshot;
-  for (const id of ["respawn-pod-bedroom", "respawn-death-screen", "respawn-wake-home", "respawn-wake-general-services"]) {
+  for (const id of ["respawn-pod-bedroom", "respawn-death-screen", "respawn-wake-home", "respawn-wake-general-services", "respawn-solo-general-services-pod"]) {
     add(`${id}_captured`, !!shot(id), shot(id) ? `${id}: ${shot(id)} (a person looks at it)` : `${id}: no picture was taken (${byId(id) ? byId(id).error || "no error recorded" : "the vantage did not run"})`);
   }
 
@@ -79,6 +89,30 @@ function judge(manifest, data) {
   add("services_on_the_deck", typeof gfloor === "number" && Math.abs(gfloor) < 0.05, `after waking in General Services the floor stood on is ${gfloor === null ? "unknown" : Number(gfloor).toFixed(2)} m`);
   add("services_inside", inXZ(gcam, data.services), `the camera at ${fmt(gcam)} is ${inXZ(gcam, data.services) ? "inside" : "NOT inside"} General Services (x ${data.services.min[0]}..${data.services.max[0]}, z ${data.services.min[2]}..${data.services.max[2]})`);
   add("services_last_place", gw.last && gw.last.place === "general-services-1", `the game says it woke at ${JSON.stringify(gw.last ? gw.last.place : null)}`);
+  const gName = gw.storey && gw.storey.room ? gw.storey.room.name : null;
+  add(
+    "services_hud_names_the_place",
+    !!data.servicesName && gName === data.servicesName,
+    `the HUD names ${JSON.stringify(gName)}; the hall is ${JSON.stringify(data.servicesName)} (en.json ship_zones.general_services_1)`,
+  );
+
+  // The one-person homestead's household, looking at General Services' pod (2026-11-21).
+  const solo = byId("respawn-solo-general-services-pod")?.probe || {};
+  const soloHousehold = solo.household ?? null;
+  const scam = posOf(solo.camera_end);
+  add("solo_household", soloHousehold === "solo", `the solo vantage's household is ${JSON.stringify(soloHousehold)}; "solo" (home_solo.ron) is expected`);
+  add("solo_in_general_services", inXZ(scam, data.services), `the solo vantage's camera at ${fmt(scam)} is ${inXZ(scam, data.services) ? "inside" : "NOT inside"} General Services`);
+  const sw = solo.wake || {};
+  const soloListed = Array.isArray(sw.listed) ? sw.listed : null;
+  const soloNotDrawn = Array.isArray(sw.not_drawn) ? sw.not_drawn : null;
+  add(
+    "solo_says_why_the_pod_is_not_drawn",
+    !!soloListed && soloListed.includes("general-services-1") && !!soloNotDrawn && soloNotDrawn.includes("general-services-1") && !soloNotDrawn.includes("home"),
+    `the solo household's death screen listed ${JSON.stringify(soloListed)}, saying the pod is not drawn under ${JSON.stringify(soloNotDrawn)}; General Services listed and said so, the home's own pod not, are expected`,
+  );
+  const back = byId("respawn-family-again")?.probe || {};
+  const backHousehold = back.household ?? null;
+  add("family_household_again", backHousehold === "family", `after the solo vantage the household is ${JSON.stringify(backHousehold)}; "family" is expected, so the rig's save keeps its own`);
 
   return { pass: checks.every((c) => c.ok), checks };
 }

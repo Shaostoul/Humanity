@@ -47,14 +47,22 @@ test("the plan the app wrote has the ship's two levels and the rooms on each", (
   assert.ok(plan.rooms.find((r) => r.name === "Bedroom").fill, "the Bedroom has its room type's colour");
 });
 
-// Seen red 2026-10-23 with every room named: "corridor_0 is named on the plan".
-test("a room with no name in the data is not named", () => {
-  for (const id of ["corridor_0", "commons:room_1"]) {
+// Seen red 2026-10-23 with every room named: "corridor_0 is named on the plan". Since
+// 2026-11-21 a zone's own floor reads as its zone ("The Commons") and a corridor has a name too;
+// seen red then with the plan still naming every room whose name is not its id: "corridor_0 is
+// named on the plan".
+test("a corridor is not named, and a zone's floor is named as its zone", () => {
+  const room = (id) => {
     const r = plan.rooms.find((x) => x.id === id);
     assert.ok(r, `no room ${id} in the plan`);
-    assert.ok(!Plan.roomIsNamed(r), `${id} is named on the plan`);
-  }
-  assert.ok(Plan.roomIsNamed(plan.rooms.find((x) => x.name === "Dining Room")));
+    return r;
+  };
+  assert.ok(!Plan.roomIsNamed(room("corridor_0")), "corridor_0 is named on the plan");
+  const floor = room("commons:room_1");
+  assert.ok(Plan.roomIsNamed(floor) && floor.name === "The Commons", `the Commons' floor: ${floor.name}`);
+  assert.ok(Plan.zoneFloor(floor) && !Plan.zoneFloor(room("corridor_0")));
+  const dining = plan.rooms.find((x) => x.name === "Dining Room");
+  assert.ok(Plan.roomIsNamed(dining) && !Plan.zoneFloor(dining));
 });
 
 test("a level's walls are those standing in its storey, body by body", () => {

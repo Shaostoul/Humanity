@@ -86,8 +86,11 @@
 // names a crew member only within 40 m and not behind a wall), photographs it (crew.png) and
 // records a few seconds. Judged under crew_* ids (copresence-judge.js judgeCrew): every crew
 // member drawn, no crew figure ever drawn on a plot, every one in the Commons during the look,
-// and at least one SEEN there: named on screen, drawn in front of the camera, and a crew
-// figure's amber body counted in the picture under the name. THE OVERSIZED JUMP (increment 4,
+// and at least one SEEN there: named on screen, drawn in front of the camera, and its figure
+// in the picture, counted as the pixels inside its box on the screen that differ from the same
+// view photographed again without the crew (crew_without.png, the showcase `crew_figures`;
+// 2026-11-21, when the crew became people in their own clothes and the old amber count saw
+// nothing). THE OVERSIZED JUMP (increment 4,
 // the relay's speed check): from the crew look the game jumps (the `cam` verb) to the shared
 // zones' place farthest away that the walker still has in view, farther than anyone can go in
 // one update; judged under jump_* ids
@@ -303,7 +306,8 @@ const {
   judgeReboot,
   judgeGuest,
   judgeCrew,
-  crewPixels,
+  crewDrawnPixels,
+  crewPictureControl,
   bankedAllowanceM,
   judgeJump,
   judgeHonestMoves,
@@ -1380,10 +1384,14 @@ async function takeShots(name, onLineAt, passS, out, prefix = "") {
  *  (where each crew member is drawn) and asks for every nameplate again: the positions, names
  *  and picture the judge reads are of that moment, not of the waiting loop (the review of
  *  increment 3, finding 14: a crew member recorded 5 m from the camera had walked on toward
- *  the mess hall by the time crew.png was taken). It records CREW_RECORD_S seconds
- *  (crew_samples.json). Returns what judgeCrew's look needs (the amber pixels are counted from
- *  crew.png by `crewChecks`, so --dry-verdict counts them again). */
-async function crewLook({ out, dp, from, walkRoute, turnTo, step }) {
+ *  the mess hall by the time crew.png was taken). Then the same view without the crew
+ *  (2026-11-21): the showcase `crew_figures` "hidden" leaves their figures out, the camera held
+ *  where it stands, crew_without.png is taken, one more recorder frame says where the camera
+ *  stood for it, and the crew are shown again. It records CREW_RECORD_S seconds
+ *  (crew_samples.json). Returns what judgeCrew's look needs (what each crew member's figure
+ *  changed inside its box is counted from the two pictures by `crewChecks`, so --dry-verdict
+ *  counts it again). */
+async function crewLook({ out, dp, from, walkRoute, turnTo, step, showcase }) {
   const [cx, cy, cz, cyaw, cpitch] = CREW_POSE.split(",").map(Number);
   const to = [cx, cy, cz];
   const route = doorRoute(dp, from, to, MEET_STEP_M);
@@ -1429,9 +1437,25 @@ async function crewLook({ out, dp, from, walkRoute, turnTo, step }) {
     for (const c of fa.crew) {
       const fd = await ui({ action: "find", text: c.name });
       const found = !!(fd && fd.found && fd.text === c.name);
-      seen.push({ name: c.name, id: c.id, pos: c.pos, found, pos_px: found ? fd.pos_px : null, pos_px_before: before.get(c.name) || null });
+      // `rect`: the box its figure filled on the screen this frame (ipc.rs `crew_screen_rect`).
+      seen.push({ name: c.name, id: c.id, pos: c.pos, rect: Array.isArray(c.rect) ? c.rect : null, found, pos_px: found ? fd.pos_px : null, pos_px_before: before.get(c.name) || null });
     }
   }
+  // The same view without the crew (2026-11-21): what the crew's figures change in the picture
+  // is what crew.png and this one differ by, inside each one's box. The camera stays where the
+  // rig parked it; the frame after says where it stood, and the judge refuses a moved one.
+  let bare = { ok: false, error: "crew.png was not taken" };
+  let camWithout = null;
+  if (shot.ok) {
+    await showcase({ crew_figures: "hidden" });
+    await sleep(600);
+    bare = await screenshot("crew_without");
+    if (bare.ok) fs.copyFileSync(bare.src, path.join(out, "crew_without.png"));
+    const pw = await probe();
+    if (pw && pw.camera_end) camWithout = [...pw.camera_end.pos, pw.camera_end.yaw, pw.camera_end.pitch];
+    await showcase({ crew_figures: "shown" });
+  }
+  step("crew_without", bare.ok && !!camWithout, bare.ok ? `crew_without.png from ${camWithout ? fmt(camWithout.slice(0, 3)) : "(no camera)"}` : `no picture without the crew: ${bare.error}`);
   const named = seen.filter((s) => s.found).map((s) => s.name);
   step("crew_look", named.length > 0 && shot.ok, `from ${cam ? fmt(cam.slice(0, 3)) : "(no camera)"} after ${waited.toFixed(1)} s (${frames} looks): ${seen.length} crew drawn, named on screen: ${named.join(", ") || "none"}; ${shot.ok ? "crew.png" : `no picture: ${shot.error}`}`);
   clearDone("remote_players_done.json");
@@ -1440,7 +1464,7 @@ async function crewLook({ out, dp, from, walkRoute, turnTo, step }) {
   const samples = rec && rec.ok === true ? "crew_samples.json" : null;
   if (samples) fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, samples));
   step("crew_samples", !!samples, samples ? `${rec.frame_count} frames over ${rec.recorded_s.toFixed(2)} s -> ${samples}` : `no recording came back: ${JSON.stringify(rec && rec.error)}`);
-  return { pose: CREW_POSE, route: route.points, cam, seen, shot: shot.ok ? "crew.png" : null, samples, waited_s: Number(waited.toFixed(1)) };
+  return { pose: CREW_POSE, route: route.points, cam, cam_without: camWithout, seen, shot: shot.ok ? "crew.png" : null, shot_without: bare.ok ? "crew_without.png" : null, samples, waited_s: Number(waited.toFixed(1)) };
 }
 
 /** Record CREW_AFTER_S seconds of what the game draws (every frame's players and crew) into
@@ -1461,8 +1485,9 @@ async function recordCrewAfter(file, stepId, out, step) {
 /** The crew checks of a --plots run (ship homes increment 3), from its manifest and evidence
  *  folder: every recording's crew rows (the walk at home, the meeting, the crew look), the
  *  ship's plots, the Commons from the door points, the number of crew the tree's crew.ron had
- *  (recorded at the run), and the crew look with the amber pixels counted from crew.png under
- *  each name found on screen. */
+ *  (recorded at the run), and the crew look with, for each crew member, the pixels inside its
+ *  box on the screen that crew.png and crew_without.png differ by, and the same count outside
+ *  every box (the control). */
 function crewChecks(m, dir) {
   const read = (name) => {
     const p = name ? path.join(dir, name) : null;
@@ -1480,15 +1505,15 @@ function crewChecks(m, dir) {
     { name: (m.respawn && m.respawn.crew_samples) || "respawn_crew_samples.json", frames: read(m.respawn && m.respawn.crew_samples), after: "Respawn" },
   ];
   let seen = [];
+  let control = null;
   if (look && Array.isArray(look.seen)) {
-    const pic = look.shot && fs.existsSync(path.join(dir, look.shot)) ? png.decode(fs.readFileSync(path.join(dir, look.shot))) : null;
-    seen = look.seen.map((s) => {
-      if (!s.found || !pic || !Array.isArray(s.pos_px)) return { ...s, amber: null };
-      // Under the name just before the capture and just after it: the more of the two (the
-      // figure walks). Runs before the review of increment 3 kept the after one as pos_px_after.
-      const counts = [s.pos_px, s.pos_px_after, s.pos_px_before].filter(Array.isArray).map((at) => crewPixels(pic, at).count);
-      return { ...s, amber: Math.max(...counts) };
-    });
+    const decode = (name) => (name && fs.existsSync(path.join(dir, name)) ? png.decode(fs.readFileSync(path.join(dir, name))) : null);
+    const pic = decode(look.shot);
+    const bare = decode(look.shot_without);
+    // Each crew member's box, as the game drew it at the moment of crew.png; with no box (a run
+    // from before 2026-11-21) or no pictures, nothing is counted and the look is not seen.
+    seen = look.seen.map((s) => ({ ...s, drawn: pic && bare && Array.isArray(s.rect) ? crewDrawnPixels(pic, bare, s.rect).count : null }));
+    control = crewPictureControl(pic, bare, look.seen.map((s) => s.rect).filter(Array.isArray));
   }
   const commons = m.meet && m.meet.commons ? m.meet.commons : null;
   return judgeCrew({
@@ -1500,7 +1525,7 @@ function crewChecks(m, dir) {
     // finding 15).
     walls: m.door_points ? groundWalls(m.door_points) : null,
     expectCrew: m.expect_crew,
-    look: look && !look.error ? { cam: look.cam, frames: read(look.samples), seen } : null,
+    look: look && !look.error ? { cam: look.cam, cam_without: look.cam_without || null, frames: read(look.samples), seen, control } : null,
   }).checks;
 }
 
@@ -2647,7 +2672,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // at the crew at work there and in the mess hall (crewLook).
       manifest.expect_crew = crewInTree();
       const markCrew = walkerOut.length;
-      manifest.crew_look = await crewLook({ out, dp, from: camB ? camB.pos : meetCam, walkRoute, turnTo, step });
+      manifest.crew_look = await crewLook({ out, dp, from: camB ? camB.pos : meetCam, walkRoute, turnTo, step, showcase });
       save();
 
       // ── THE OVERSIZED JUMP (increment 4: the relay's speed check). The game stands still where

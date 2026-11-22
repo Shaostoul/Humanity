@@ -12,6 +12,16 @@
 // `crate::machines::home_ron_path()` in place of the default `home.ron`. Same catalog/
 // instance/connection/loop shape as the family home -- just fewer units. Data-driven
 // (infinite-of-X): edit here, no code.
+//
+// NO `ship_machines` here (2026-11-21, on purpose): every other household file merges the ship's
+// own rows (data/machines/ship.ron), but this one's figures (the loops below, the power circuit,
+// the meters, the food it grows) add up every machine the file holds, so merging them would count
+// the Commons' garden, humidifiers and fish tank as one person's own, close the food loop this
+// home honestly leaves open (it grows about 94% of the food), and draw the ship's composter and
+// wall screen with this file's smaller types of the same names. So the one-person homestead's
+// world draws none of the ship's machines, General Services' and Cabin Block A's pods among them,
+// and the death screen says so under General Services (src/engine/wake.rs `drawn_here`). Linking
+// it waits on a household's figures counting only its own machines.
 (
     catalog: {
         "solar_panel": (

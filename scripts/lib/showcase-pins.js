@@ -95,6 +95,8 @@ const STICKY_PIN_RESETS = Object.freeze({
   // every `figure_path` stand-in), the box-figure A/B and the third-person camera.
   crowd: "0",
   figures: "bodies",
+  // The crew left out of the picture (2026-11-21, verify-copresence's crew look): shown again.
+  crew_figures: "shown",
   camera_mode: "first",
   // The player's look and walking pace (2026-11-09): the body a vantage shows in third person, the
   // look's height, and Settings' walking pace; each released to the default a fresh character has.

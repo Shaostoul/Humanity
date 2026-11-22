@@ -50,6 +50,7 @@ mod night_sky;
 mod orbits;
 pub mod overlays;
 mod planet_view;
+mod room_names;
 mod scene;
 pub mod ship_view;
 mod sky_events;

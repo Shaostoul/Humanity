@@ -132,12 +132,8 @@ pub fn rooms_on_level<'a>(rooms: &'a [RoomBounds], levels: &[ShipLevel], index: 
     rooms.iter().filter(|r| levels::level_at(levels, r.min.y) == Some(index)).collect()
 }
 
-/// Whether a room is NAMED on the map: the data gives it a name. A room it does not (a corridor
-/// tube, `corridor_0`; a zone's leftover floor, `commons:room_1`) is shown by the HUD under its
-/// id, which on a map is noise: it is filled and outlined, not named.
-pub fn room_is_named(r: &RoomBounds) -> bool {
-    r.display_name != r.id
-}
+/// Which rooms the map names (a corridor never, a zone's floor once): room_names.rs.
+pub use super::room_names::{room_is_named, zone_floor};
 
 /// A room's fill: its room type's colour from data/rooms.ron at the theme's fill opacity, or the
 /// theme's own for a room with no type (a corridor, an unnamed room).
@@ -294,6 +290,10 @@ pub(super) fn draw_inside(paint: &egui::Painter, theme: &Theme, proj: &MapProjec
     let yours = me.you_room.as_ref().map(|(id, _)| id.clone());
     offers.sort_by(|a, b| (Some(&b.0.id) == yours.as_ref()).cmp(&(Some(&a.0.id) == yours.as_ref())).then(b.2.total_cmp(&a.2)));
     for (r, centre, width) in offers {
+        // A zone's floor is one place, however many pockets: named once (`zone_floor`).
+        if zone_floor(r) && drawn.rooms_named.contains(&r.display_name) {
+            continue;
+        }
         let galley = paint.layout_no_wrap(r.display_name.clone(), egui::FontId::proportional(theme.map_label_size), theme.map_label());
         let size = galley.size();
         if size.x > width * 0.95 {

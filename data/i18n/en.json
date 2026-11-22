@@ -4130,6 +4130,7 @@
     }
   },
   "hud": {
+    "corridor_between": "Corridor between {{a}} and {{b}}",
     "death_asleep": "You are asleep on the [[lifeline]], and a [[respawner]] is growing you a new body. You keep everything you know.",
     "death_cause": "Cause: {{cause}}",
     "death_title": "Your body died. You did not.",
@@ -4142,6 +4143,7 @@
     "wake_chosen": "After a death you will wake here, at {{place}}.",
     "wake_here_prompt": "[E] wake at this {{name}} after a death",
     "wake_home": "your home's respawner",
+    "wake_not_drawn": "Its pod is not drawn with your home: your home's machine list holds only what your household runs, because its power, water and food figures add up everything in it. You still wake there.",
     "wake_not_yours": "This respawner belongs to the homes of its block. You can wake at your own respawner, or in General Services.",
     "wake_up": "Wake up",
     "wake_up_hint": "Wake up in a new body at your front door. This home has no respawner of its own.",
@@ -5426,6 +5428,21 @@
     "row_away": "Playing in the video box at the top right. Scroll back here, or press Go to message, to bring it back.",
     "pip": "Float it",
     "pip_hint": "Lets the video float over other windows too, using your browser's own picture-in-picture."
+  },
+  "ship_zones": {
+    "cabins_1": "Cabin Block A",
+    "commons": "The Commons",
+    "commons_2": "The South Commons",
+    "general_services_1": "General Services",
+    "home": "your home",
+    "row_alley_1": "Row Alley 1",
+    "row_alley_2": "Row Alley 2",
+    "row_alley_3": "Row Alley 3",
+    "row_alley_4": "Row Alley 4",
+    "row_alley_5": "Row Alley 5",
+    "row_green_1": "Row Street Green",
+    "row_street_1": "Row Street",
+    "street_1": "First Street"
   },
   "skill_families": {
     "arts": {

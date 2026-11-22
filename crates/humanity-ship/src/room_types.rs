@@ -263,6 +263,40 @@ pub fn purpose_words(id: &str, def: &RoomTypeDef) -> String {
     def.purpose.clone()
 }
 
+/// The name a person reads for the ship's zone `id` (2026-11-21, General Services' hall): the
+/// words of the key `ship_zones.<id>` (its hyphens as underscores, the way every key is written:
+/// `ship_zones.general_services_1`) in data/i18n/en.json when it has one (the ELI5 mandate: words
+/// by key, so they translate), else the zone's own `label` from data/blueprints/ship_structure.ron,
+/// which is also what the build editor writes. The HUD names a shared zone's own floor by it
+/// (`ShipStructure::generate_meshes`), and the death screen a respawner's place
+/// (`respawners::respawners_in`). The server build has no word source, so there it is the label.
+pub fn zone_words(id: &str, label: &str) -> String {
+    #[cfg(feature = "native")]
+    {
+        let key = format!("ship_zones.{}", id.replace('-', "_"));
+        if humanity_core::i18n::has(&key) {
+            return humanity_core::i18n::t_dyn(&key).to_string();
+        }
+    }
+    let _ = id;
+    label.to_string()
+}
+
+/// The name a person reads in a corridor between two zones, `a` and `b` being their names
+/// (`zone_words`): "Corridor between First Street and General Services", by the key
+/// `hud.corridor_between`. Until 2026-11-21 the HUD named a corridor by its id ("corridor_4").
+/// The server build has no word source and shows no room to anyone; there it is a plain sentence.
+pub fn corridor_words(a: &str, b: &str) -> String {
+    #[cfg(feature = "native")]
+    {
+        humanity_core::i18n::tf("hud.corridor_between", &[("a", &a), ("b", &b)])
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        format!("Corridor between {a} and {b}")
+    }
+}
+
 /// What a detected room is FOR, as the HUD shows it (see `RoomTypeRegistry::function_for`).
 #[derive(Debug, Clone, Default)]
 pub struct RoomFunction {
@@ -306,6 +340,54 @@ mod tests {
         // A type with no key keeps its file's words.
         assert!(!humanity_core::i18n::has("room_types.kitchen.purpose"));
         assert_eq!(reg.purpose("kitchen"), reg.types["kitchen"].purpose);
+    }
+
+    /// EVERY ROOM OF THE SHIPPED SHIP READS AS A PLACE, NEVER AS AN ID (2026-11-21, General
+    /// Services' follow-up): the HUD's "you are in" line and the map name each room the flood fill
+    /// finds by `function_for`, and a room that only a zone's own floor covers (General Services'
+    /// hall, the Commons' floor, every street) used to keep its anonymous id, so the HUD said
+    /// "general-services-1:room_3" in the hall beside the public pod, and a corridor said
+    /// "corridor_4". Now the zone's own floor is the zone, by key (`zone_words`), and a corridor
+    /// is named by the two zones it joins (`corridor_words`). Every room of General Services is
+    /// checked by name: its hall reads the key's words, its medbay and barracks their room types'.
+    ///
+    /// Seen red 2026-11-21 before the floor and corridor names: "rooms that read as an id:
+    /// commons:room_1 reads \"commons:room_1\"; ... street-1:home reads \"street-1:home\";
+    /// cabins-1:room_1 reads \"cabins-1:room_1\"; ... general-services-1:room_3 reads
+    /// \"general-services-1:room_3\"; corridor_0 reads \"corridor_0\"; ... corridor_5 reads
+    /// \"corridor_5\"" (27 rooms: the Commons' ten pockets, every street and alley, the hall
+    /// and the six corridors).
+    #[test]
+    #[cfg(feature = "native")]
+    fn every_room_of_the_shipped_ship_reads_as_a_place_never_an_id() {
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+        let reg = RoomTypeRegistry::load(&dir);
+        let ship = crate::ship_structure::ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).expect("the shipped ship");
+        let rooms = reg.room_bounds(&ship.generate_meshes().room_info);
+        let id_like = |n: &str| n.is_empty() || n.contains(':') || n.starts_with("room_") || n.starts_with("corridor_");
+        let bad: Vec<String> = rooms.iter().filter(|r| id_like(&r.display_name)).map(|r| format!("{} reads {:?}", r.id, r.display_name)).collect();
+        assert!(bad.is_empty(), "rooms that read as an id: {}", bad.join("; "));
+        // General Services, room by room: x 182..200, z 93..141 (medbay 93..111, barracks 111..127,
+        // the hall with the public pod 127..141).
+        let at = |x: f32, z: f32| {
+            rooms
+                .iter()
+                .find(|r| r.id.starts_with("general-services-1") && x >= r.min.x && x <= r.max.x && z >= r.min.z && z <= r.max.z && r.min.y < 1.0)
+                .unwrap_or_else(|| panic!("a General Services room at ({x}, {z})"))
+        };
+        assert_eq!(at(191.0, 134.0).display_name, humanity_core::i18n::t("ship_zones.general_services_1"), "the hall is General Services, by key");
+        assert_eq!(at(191.0, 134.0).display_name, "General Services");
+        assert_eq!(at(191.0, 102.0).display_name, reg.types["medbay"].name, "the medbay reads its room type");
+        assert_eq!(at(191.0, 119.0).display_name, reg.types["quarters"].name, "the barracks reads its room type");
+        let gs_rooms: Vec<&str> = rooms.iter().filter(|r| r.id.starts_with("general-services-1")).map(|r| r.id.as_str()).collect();
+        assert_eq!(gs_rooms.len(), 3, "General Services is three rooms: {gs_rooms:?}");
+        // The corridor from First Street to it names both.
+        let corridor = rooms.iter().find(|r| r.display_name.contains("General Services") && r.id.starts_with("corridor_")).map(|r| r.display_name.clone());
+        assert_eq!(corridor.as_deref(), Some("Corridor between First Street and General Services"));
+        // The home's door corridor names the home as the person reads it (`ship_zones.home`), not
+        // the editor's "Player Home".
+        let door = rooms.iter().find(|r| r.id == "corridor_0").map(|r| r.display_name.clone());
+        assert_eq!(door.as_deref(), Some("Corridor between your home and The Commons"));
     }
 
     #[test]

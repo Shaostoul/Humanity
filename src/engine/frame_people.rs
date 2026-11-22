@@ -107,7 +107,9 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 state.remote_npc_avatar = Some((body, head, mat));
             }
         }
-        if let Some((body, head, mat)) = state.remote_npc_avatar {
+        // Not while the showcase `crew_figures` "hidden" leaves the crew out (animation.rs
+        // `AnimationRuntime::crew_hidden`, 2026-11-21).
+        if let Some((body, head, mat)) = state.remote_npc_avatar.filter(|_| !state.animation.crew_hidden) {
             for (_e, (t, _n)) in state
                 .game_world
                 .world

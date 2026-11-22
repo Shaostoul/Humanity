@@ -43,21 +43,27 @@ fn the_bedroom_is_upstairs_and_the_dining_room_under_it_is_not() {
     assert!(bedroom.fill.is_some(), "the bedroom has no fill colour from data/rooms.ron");
 }
 
-/// A room the data gives no name is filled but not named: on the shipped ship's ground level the
-/// corridor tubes (`corridor_0`) and a zone's leftover floor (`commons:room_1`), which the HUD
-/// shows under their ids, are not named, and the Dining Room is.
+/// A corridor tube is filled but not named, and a zone's own floor is named as its zone: on the
+/// shipped ship's ground level the corridor tubes (`corridor_0`) are not named, the Commons' floor
+/// (`commons:room_1`) is "The Commons" (since 2026-11-21 a zone's floor reads as the zone, by key;
+/// until then it showed its id and was left unnamed), and the Dining Room is named. Only the zone's
+/// floor counts as `zone_floor`, which the map names once however many pockets it has.
 ///
 /// Seen red 2026-10-23 with every room named: "corridor_0 is named on the map" (the first rig run
-/// showed "corridor_0" and "commons:room_1" over the Commons and its corridors).
+/// showed "corridor_0" and "commons:room_1" over the Commons and its corridors). Seen red again
+/// 2026-11-21 once corridors had names of their own and the map still named every room whose name
+/// is not its id: "corridor_0 is named on the map".
 #[test]
-fn a_room_with_no_name_in_the_data_is_not_named() {
+fn a_corridor_is_not_named_and_a_zones_floor_is_named_as_its_zone() {
     let (_, rooms) = shipped();
     let by_id = |id: &str| rooms.iter().find(|r| r.id == id).unwrap_or_else(|| panic!("no room {id}"));
-    for id in ["corridor_0", "commons:room_1"] {
-        assert!(!room_is_named(by_id(id)), "{id} is named on the map");
-    }
+    assert!(!room_is_named(by_id("corridor_0")), "corridor_0 is named on the map");
+    let floor = by_id("commons:room_1");
+    assert!(room_is_named(floor) && floor.display_name == "The Commons", "the Commons' floor: {:?}", floor.display_name);
+    assert!(zone_floor(floor) && zone_floor(by_id("street-1:home")));
     let dining = rooms.iter().find(|r| r.display_name == "Dining Room").expect("the Dining Room");
-    assert!(room_is_named(dining));
+    assert!(room_is_named(dining) && !zone_floor(dining));
+    assert!(!zone_floor(by_id("corridor_0")));
 }
 
 /// The picker shows near your ship and a level picked is shown there; zoomed far out, neither

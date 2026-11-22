@@ -25,6 +25,7 @@ use crate::engine::state::EngineState;
 use glam::Vec3;
 use humanity_core::hot_reload::data_store::DataStore;
 use humanity_core::i18n::{fill, t};
+use humanity_ship::machines::MachineHome;
 use humanity_ship::respawners::{self, Access, WakePlace};
 use humanity_ship::ship_structure::ShipStructure;
 use std::sync::Mutex;
@@ -41,11 +42,16 @@ pub(crate) const DEV_DOOR: &str = "door";
 /// Services is always among them. Empty with no ship.
 pub(crate) fn places(state: &EngineState) -> Vec<WakePlace> {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else { return Vec::new() };
-    let home = state.gui_state.home_machines.as_ref();
+    places_for(ship, state.gui_state.home_machines.as_ref(), &state.data_dir)
+}
+
+/// `places` for a ship and a household's machines (pure apart from reading data/machines/ship.ron
+/// for a household file that links none of the ship's rows).
+pub(crate) fn places_for(ship: &ShipStructure, home: Option<&MachineHome>, data_dir: &std::path::Path) -> Vec<WakePlace> {
     let mut all = home.map(|h| respawners::respawners_in(ship, h)).unwrap_or_default();
     if !home.is_some_and(|h| h.ship_machines.is_some()) {
-        let file = state.data_dir.join("machines").join("ship.ron");
-        if let Some(rows) = humanity_ship::machines::MachineHome::load_file(&file) {
+        let file = data_dir.join("machines").join("ship.ron");
+        if let Some(rows) = MachineHome::load_file(&file) {
             for r in respawners::respawners_in(ship, &rows) {
                 if !all.iter().any(|a| a.machine_id == r.machine_id) {
                     all.push(r);
@@ -54,6 +60,35 @@ pub(crate) fn places(state: &EngineState) -> Vec<WakePlace> {
         }
     }
     places_on(ship, &all)
+}
+
+/// Is the respawner of `w` drawn in this household's world? The world draws the household's
+/// machine file (`MachineHome::placements`), so a pod that file does not hold is not drawn: the
+/// ship's own pods for a household file that links none of the ship's rows. home_solo.ron is such a
+/// file (2026-11-21): the one-person homestead's machine list is the honest baseline of what one
+/// person runs, and its power, water and food figures add up every machine it holds, so merging the
+/// ship's rows would count the Commons' garden, humidifiers and fish tank as this household's own
+/// (and draw the ship's composter and wall screen with the one-person home's smaller definitions).
+/// Until the household's figures count only its own machines, the death screen says so instead
+/// (`entries`).
+pub(crate) fn drawn_here(home: Option<&MachineHome>, w: &WakePlace) -> bool {
+    home.is_some_and(|h| h.all_instances().iter().any(|i| i.id == w.respawner.machine_id))
+}
+
+/// The death screen's list from the places to list (the usual place first): each one's words, the
+/// usual one marked, and for a place whose pod this household does not draw (`drawn_here`) the
+/// sentence that says why (`hud.wake_not_drawn`), so nobody wakes beside a pod they never saw.
+pub(crate) fn entries(listed: &[WakePlace], home: Option<&MachineHome>) -> Vec<crate::gui::wake_view::WakeEntry> {
+    listed
+        .iter()
+        .enumerate()
+        .map(|(i, w)| crate::gui::wake_view::WakeEntry {
+            place: w.place.clone(),
+            name: name_of(w),
+            usual: i == 0,
+            note: (!drawn_here(home, w)).then(|| t("hud.wake_not_drawn").to_string()),
+        })
+        .collect()
 }
 
 /// `places` from respawners already found: a home put away (a guest's) has none of its own.
@@ -117,11 +152,7 @@ pub(crate) fn refresh_view(state: &mut EngineState) {
     }
     let usual = usual(&state.data_store).flatten();
     let listed = respawners::usual_first(&places(state), usual.as_deref());
-    state.gui_state.wake.places = listed
-        .iter()
-        .enumerate()
-        .map(|(i, w)| crate::gui::wake_view::WakeEntry { place: w.place.clone(), name: name_of(w), usual: i == 0 })
-        .collect();
+    state.gui_state.wake.places = entries(&listed, state.gui_state.home_machines.as_ref());
     state.gui_state.wake.filled = true;
 }
 
@@ -184,6 +215,8 @@ pub(crate) fn probe_json(state: &EngineState) -> serde_json::Value {
     serde_json::json!({
         "places": places,
         "listed": state.gui_state.wake.places.iter().map(|w| w.place.clone()).collect::<Vec<_>>(),
+        // The listed places whose pod this household does not draw, each said so on the screen.
+        "not_drawn": state.gui_state.wake.places.iter().filter(|w| w.note.is_some()).map(|w| w.place.clone()).collect::<Vec<_>>(),
         "last": last,
         "usual": usual(&state.data_store).flatten(),
         "storey": crate::engine::storey_probe::frame_json(state),

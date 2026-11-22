@@ -4947,6 +4947,20 @@ general services and frontier). Where you wake after a death is a place, in data
   (`record_body`). The respawner room type's purpose is read by key (`room_types.respawner.purpose`).
 - Rig: `just verify-respawn` (a rig dies, wakes at home and at General Services, judged where it stands,
   `scripts/lib/respawn-judge.js`); snapshot `just snapshot death_screen_wake`.
+- **Follow-ups (2026-11-21):** a shared zone's own floor reads as the zone on the HUD and the map, by key
+  (`ship_zones.<id>`, `room_types::zone_words`): General Services' hall says "General Services", not
+  "general-services-1:room_3", and a corridor names the two zones it joins (`hud.corridor_between`; test
+  `every_room_of_the_shipped_ship_reads_as_a_place_never_an_id`; snapshot `just snapshot hud_general_services_hall`).
+  The Map page and the web plan name a zone's floor once (its biggest pocket, `zone_floor` / `zoneFloor`) and leave
+  corridors unnamed, as tubes. The one-person homestead (`home_solo.ron`) is the one household file that links none of
+  the ship's machines, on purpose (its figures add up every machine it holds; its header says why), so its world draws
+  no General Services or Cabin Block A pod, and its death screen says so under General Services (`hud.wake_not_drawn`,
+  `src/engine/wake.rs` `drawn_here`, `entries`; tests `a_place_whose_pod_this_home_does_not_draw_says_why`,
+  `every_household_but_the_one_person_homestead_draws_the_ships_pods`; snapshot `just snapshot death_screen_wake_solo`).
+  Dev verbs: showcase `household` (the live save's household, the home built again with its machines; verify-respawn
+  looks at the solo household's death screen with it) and `crew_figures` ("hidden" leaves the crew out of the picture,
+  for verify-copresence's crew look, which now counts what the crew's figures change between two pictures instead of
+  the old amber).
 
 ### Skills/Progression
 **The base set, skills rung 1 (2026-11-14, docs/design/skills.md, approved by the operator).** 90

@@ -1038,6 +1038,16 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         );
     }
+    // {"crew_figures":"hidden"} / {"crew_figures":"shown"} (2026-11-21): the crew's figures left
+    // out of the picture, their names still drawn (`AnimationRuntime::crew_hidden`). verify-
+    // copresence's crew look photographs its view with the crew and then without them, and the
+    // judge counts what the crew's figures changed inside each one's box on the screen
+    // (scripts/lib/copresence-judge.js `crewDrawnPixels`), whatever the crew wear. Permanent dev
+    // tooling; released between vantages (scripts/lib/showcase-pins.js).
+    if let Some(v) = grab("crew_figures") {
+        state.animation.crew_hidden = v == "hidden";
+        log::info!("Showcase: crew_figures -> {}", if state.animation.crew_hidden { "hidden" } else { "shown" });
+    }
     // {"camera_mode":"third"} / {"camera_mode":"first"}: the camera the V key toggles; third person
     // walks the same body with the camera behind it (rung 1).
     if let Some(v) = grab("camera_mode") {
@@ -1486,6 +1496,25 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
                 Err(why) => note_home_verb("choose_start", &start, false, &why),
             },
             None => note_home_verb("choose_start", &spec, false, "choose_start wants a start's id (letters, digits, - and _)"),
+        }
+    }
+    // {"household":"solo"} (2026-11-21): the live save's household changed the way Settings'
+    // household choice changes it, and the home built again at once with that household's machine
+    // file (save_slot.rs `change_start`, `build_home`: the player stands at the door), so a rig sees
+    // any household's world in one boot. verify-respawn looks at General Services' pod with the
+    // one-person homestead's household this way. A household the start does not have is its first
+    // (`Starts::household`). Permanent dev tooling.
+    if let Some(spec) = grab("household") {
+        match parse_start(&spec) {
+            Some(household) => {
+                let start = humanity_systems::persistence::live_save::active_home().start;
+                crate::engine::save_slot::change_start(state, &start, &household);
+                match crate::engine::save_slot::build_home(state) {
+                    Ok(()) => note_home_verb("household", &household, true, "the home built again with its machines"),
+                    Err(why) => note_home_verb("household", &household, false, &why),
+                }
+            }
+            None => note_home_verb("household", &spec, false, "household wants a household's id (letters, digits, - and _)"),
         }
     }
     // {"pairing":"home"} / {"pairing":"server"} (ship homes increment 6): the picker's Enter on
@@ -4969,23 +4998,48 @@ pub(crate) fn remote_players_json(world: &hecs::World) -> Vec<serde_json::Value>
 /// (the Transform net::sync wrote this frame, which the render pass builds the amber figure
 /// from, lib.rs "Crew"), their chore label and whether they are at work. The --plots rig judges
 /// that no crew figure is ever drawn on a plot and that the crew are seen in the Commons
-/// (scripts/lib/copresence-judge.js `judgeCrew`).
-pub(crate) fn remote_crew_json(world: &hecs::World) -> Vec<serde_json::Value> {
+/// (scripts/lib/copresence-judge.js `judgeCrew`). With `view` (the windowed recorder), each row
+/// also carries `rect`: the box a crew member's figure fills on the screen, [x0, y0, x1, y1] in the
+/// window's pixels (the screenshot's), null behind the camera (`crew_screen_rect`).
+pub(crate) fn remote_crew_json(world: &hecs::World, view: Option<&crate::engine::shared_build::ScreenView>) -> Vec<serde_json::Value> {
     let mut out: Vec<serde_json::Value> = world
         .query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemoteNpc)>()
         .iter()
         .map(|(_e, (t, n))| {
-            serde_json::json!({
+            let mut row = serde_json::json!({
                 "id": n.entity_id,
                 "name": n.name,
                 "pos": [t.position.x, t.position.y, t.position.z],
                 "activity": n.activity,
                 "working": n.working,
-            })
+            });
+            if let Some(v) = view {
+                row["rect"] = serde_json::json!(crew_screen_rect(t, v));
+            }
+            row
         })
         .collect();
     out.sort_by_key(|c| c.get("id").and_then(|i| i.as_u64()).unwrap_or(0));
     out
+}
+
+/// The box around a crew member's figure, metres: feet to the top of the tallest crew member's
+/// hair (1.73 m by body at the look height's 1.06, data/characters/characters.ron), and the width
+/// of shoulders and a walking arm's swing.
+pub(crate) const CREW_FIGURE_BOX_M: glam::Vec3 = glam::Vec3::new(0.7, 1.9, 0.7);
+
+/// Where a crew member's figure falls on the screen (2026-11-21, the copresence rig's crew look):
+/// `CREW_FIGURE_BOX_M` stood on their feet (`t` is the drawn Transform, their standing height over
+/// the feet, animation.rs `CREW_POSITION_OVER_FEET_M`), through the frame's camera; None when any
+/// corner is behind it. The judge counts, inside this box, what the figure changed in the picture
+/// (scripts/lib/copresence-judge.js `crewDrawnPixels`).
+pub(crate) fn crew_screen_rect(t: &humanity_core::ecs::components::Transform, view: &crate::engine::shared_build::ScreenView) -> Option<[f32; 4]> {
+    let feet = humanity_core::ecs::components::Transform {
+        position: t.position - glam::Vec3::new(0.0, crate::engine::animation::CREW_POSITION_OVER_FEET_M, 0.0),
+        rotation: t.rotation,
+        scale: CREW_FIGURE_BOX_M,
+    };
+    crate::engine::shared_build::screen_rect(&feet, view)
 }
 
 /// The recorder's camera: the eye and its look (`camera_start`, `camera_end`).
@@ -5066,7 +5120,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
     let Some(rec) = slot.as_mut() else { return };
     if rec.frames.len() < REMOTE_RECORD_MAX_FRAMES && rec.rows < REMOTE_RECORD_MAX_ROWS {
         let players = remote_players_json(&state.game_world.world);
-        let crew = remote_crew_json(&state.game_world.world);
+        // Each with the box its figure fills on the screen (2026-11-21, `crew_screen_rect`).
+        let (vw, vh) = gpu_ref!(state).renderer.viewport_size();
+        let view = crate::engine::shared_build::ScreenView { view_proj: state.camera.view_projection_matrix(), size: [vw as f32, vh as f32], offset: state.station_off };
+        let crew = remote_crew_json(&state.game_world.world, Some(&view));
         // The pieces the server keeps, with their boxes on the screen (ship homes increment 5).
         let shared = crate::engine::shared_build::recorder_rows(state);
         rec.rows += players.len() + crew.len() + shared.len();
@@ -5521,7 +5578,7 @@ mod remote_player_recorder_tests {
                 interpolation_t: 0.5,
             },
         ));
-        let crew = remote_crew_json(&world);
+        let crew = remote_crew_json(&world, None);
         assert_eq!(crew.len(), 1);
         let c = &crew[0];
         assert_eq!(c["id"], 12);
@@ -5534,7 +5591,42 @@ mod remote_player_recorder_tests {
             "drawn position {pos:?}, want {want:?} (the target is {target:?})"
         );
         // A world with no crew records an empty list, not a missing one.
-        assert_eq!(remote_crew_json(&hecs::World::new()), Vec::<serde_json::Value>::new());
+        assert_eq!(remote_crew_json(&hecs::World::new(), None), Vec::<serde_json::Value>::new());
+    }
+
+    /// A crew member's box on the screen stands on their FEET (2026-11-21, the copresence rig's
+    /// crew look, `crew_screen_rect`): the drawn Transform is their standing height, 1 m over the
+    /// feet, and the judge counts what the figure changed in the picture inside this box, so a box
+    /// stood on the Transform would cover the head and the air over it and miss the legs. Its
+    /// bottom edge is where the feet project, its top where the hair does, 1.9 m up; behind the
+    /// camera it is None.
+    ///
+    /// Seen red 2026-11-21 with the box stood on the Transform itself (no feet offset): "the box's
+    /// bottom 842.6 px is where the feet project (1055.6 px)".
+    #[test]
+    fn a_crew_members_box_on_the_screen_stands_on_their_feet() {
+        use glam::{Mat4, Vec3};
+        let (w, h) = (2560.0_f32, 1387.0_f32);
+        let eye = Vec3::new(0.0, 1.7, 0.0);
+        let view_proj = Mat4::perspective_rh(70f32.to_radians(), w / h, 0.1, 1000.0) * Mat4::look_at_rh(eye, Vec3::new(0.0, 1.7, -10.0), Vec3::Y);
+        let view = crate::engine::shared_build::ScreenView { view_proj, size: [w, h], offset: Vec3::ZERO };
+        let project = |p: Vec3| {
+            let c = view_proj * p.extend(1.0);
+            ((c.x / c.w * 0.5 + 0.5) * w, (0.5 - c.y / c.w * 0.5) * h)
+        };
+        // A crew member 5 m ahead, as net::sync draws them: the Transform 1 m over the floor.
+        let t = humanity_core::ecs::components::Transform { position: Vec3::new(0.0, 1.0, -5.0), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
+        let r = crew_screen_rect(&t, &view).expect("in front of the camera");
+        let feet = project(Vec3::new(0.0, 0.0, -5.0 + CREW_FIGURE_BOX_M.z * 0.5)).1;
+        // The box's near face is its lowest and its highest edge on the screen (feet below the
+        // eye, hair above it).
+        let hair = project(Vec3::new(0.0, CREW_FIGURE_BOX_M.y, -5.0 + CREW_FIGURE_BOX_M.z * 0.5)).1;
+        assert!((r[3] - feet).abs() < 1.0, "the box's bottom {:.1} px is where the feet project ({feet:.1} px)", r[3]);
+        assert!((r[1] - hair).abs() < 1.0, "the box's top {:.1} px is where the hair projects ({hair:.1} px)", r[1]);
+        assert!(r[0] < w * 0.5 && r[2] > w * 0.5 && r[2] - r[0] < r[3] - r[1], "centred and taller than wide: {r:?}");
+        // Behind the camera: no box.
+        let behind = humanity_core::ecs::components::Transform { position: Vec3::new(0.0, 1.0, 5.0), ..t };
+        assert_eq!(crew_screen_rect(&behind, &view), None);
     }
 }
 
