@@ -1727,6 +1727,11 @@
       "date": "2026-11-21",
       "decision": "OPERATOR, 2026-11-21: 'Yes' to both recommendations: (1) botulism in Realistic is fatal unless treated at a medbay; in Simplified serious but survivable (sent to the preserving continuation as added scope); (2) a household's figures count only its own machines, the ship's machines shown as the ship's (dispatched, wk-household.txt: ownership per machine as data, household loops/meters/self-sufficiency excluding the ship's, the one-person homestead linking ship.ron with its colliding machine types renamed so it draws the ship's pods, honest Home page figures).",
       "why": "Operator decisions."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Signed requests round 5 FINISHED (worktree-agent-aa19c73fdc531d67a, ec35ab747): reach from the raw connection address at the edge (client_addr::direct_peer), any proxied connection never local, loopback = this computer only, a node with a Public address lists no loopback name, one refusal sentence for every audience/port/reach failure, the start time only ever raised, passes on the owner's node naming only its Public address, tighter CGNAT and .local reach, cryptography.md on friends by different names, and the release bump re-versioning stamped scripts (bump-version.js step 8, --changed-list, the release skill stages it). BUGs 344-347 (main ends at 343). Gates: just verify exit 0 (6,688), relay check, the relay battery, release build, verify-second-player, verify-copresence 22/22. MY CALLS on its three questions (safe by default): keep 'Only this computer' + Public address refused; keep no friend passes on a home node without a Public address; keep a LAN name through a proxy refused. A targeted review of round 5 dispatched before merge; then the live-server changes (nginx $http_host, the time-sync drop-in, systemd-time-wait-sync with a 90 s cap, relay restart).",
+      "why": "Security branch: review before merge."
     }
   ],
   "active_scopes_to_avoid": [
