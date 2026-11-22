@@ -795,3 +795,13 @@ what we will say about it.
   Colorado State's drying figures, USDA FoodData Central rows; the University of Kentucky country ham
   recorded for salting's rung 2, and what no source gives (a home dry-salt ratio for salt fish); the
   refutation pass's four corrections, and which numbers are game choices.
+- [`2026-11-21-widevine-licensing.md`](2026-11-21-widevine-licensing.md),
+  how a browser or app gets Widevine (a licence agreement with Google, no fee stated; castLabs' signing
+  written for its Electron builds), what Netflix, Disney+ and Prime Video require, which browsers hold it,
+  and the AGPL Installation Information question stated for a lawyer. Paid streaming: no route a
+  project like ours can simply take.
+- [`2026-11-22-paid-server-and-platform-rules.md`](2026-11-22-paid-server-and-platform-rules.md),
+  the legal and platform side of a paid server beside the free one: AGPL-3.0 allows charging (and
+  section 13's source offer), Google Play's billing rule for in-app subscriptions and selling on the
+  website instead, payment processors and merchants of record (Lemon Squeezy closing), federal tax
+  basics; the research scan is docs/reference/research/2026-11-22-project-funding. Not legal advice.
