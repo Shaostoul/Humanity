@@ -1196,6 +1196,34 @@ read 26% over, the streamed side more sensitive to builds crowding the processor
 the suite holds it to twice, and `just music-quiet-budgets` judges the quarter when nothing is
 building (scripts/music-quiet-budgets.js waits for that, and fails a run a build walked into).
 
+**And through a slowdown that lasts the whole run (2026-11-21, the same file).** The gates still
+failed now and then in full runs beside other agents' builds (the calm score at 0.0634 and 0.0505 ms
+against its 0.05, the page's analyser, the style budget), each passing alone. The fastest-of-renders
+had removed the interruptions; what was left was the core itself running slower. With 12 busy
+threads beside the test, the calm score's fastest blocks read 0.075 ms by the wall clock and 0.076
+ms by the thread's own CPU cycles, against 0.041 ms alone: the thread ran the whole time, on a core
+whose other hyperthread, cache and memory it shared, so neither its own CPU time nor a minimum could
+tell that from a slower engine. So every gate now times a YARDSTICK among the subject's own blocks
+(fixed arithmetic that shares no code with the engine: ten band-pass filters and four feedback
+delay lines, 0.002 ms a unit) and divides the subject's cost by how much slower than quiet the
+yardstick ran, never by less than 1, so a quiet machine holds every figure in the table exactly.
+Under every load measured the yardstick slowed at least as much as the engine, so a loaded machine
+reads the engine at or a little under its quiet cost. The calm-score baseline it replaces is gone
+from the other gates, so a slower synth no longer loosens the budgets that scaled by it. Measured
+beside other agents' builds (the machine 1.64 to 1.72 times slower than quiet), in quiet-machine
+ms: the calm score 0.0391, the hum 0.0056, the page's analyser +0.0026, deep dubstep's drop 0.0295,
+synthwave 0.0433, the symphony as written 0.133 in its densest ten seconds; with 12 more busy
+threads of multiply-adds or integer work on top, within 10% of that and still passing. The old gate
+failed the multiply-adds: "the calm score: 0.0683 ms a block on average (budget 0.0500)". A spin of
+0.02 ms planted in the score's render fails the calm score's gate on a quiet machine (0.0612 ms) and
+beside the busy threads (0.0524); the reverb run twice more each block (+0.0117 ms, work shaped like
+the engine's) fails it quiet and loaded alike (0.0528, 0.0511). The limits: work that load slows less
+than the engine is judged at its cost over the slowdown (a plain spin at about two thirds of it), and
+beside 12 threads each walking 64 MB, an extreme memory load, the yardstick slowed 2.2 to 2.6 times
+and the engine about 1.45, so there the engine reads low and a regression has to be bigger to fail.
+A quiet machine judges every slowdown at its full cost. Whether the yardstick's quiet figure is
+still right (a new compiler can change it) is `just music-quiet-budgets`' second check.
+
 ## 15. Settings, and the words
 
 In Settings > Audio, beside the existing sliders. Keys go into `data/i18n/en.json` through

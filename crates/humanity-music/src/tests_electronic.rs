@@ -307,9 +307,18 @@ fn the_bass_toolkit_pieces_do_what_they_say() {
 /// the chain ticked four times a sample (`voice::fx_tick`, only the last kept), in the run and again
 /// alone: "the bass toolkit's whole chain: 0.0258 ms a block for one voice (budget 0.0243; the calm
 /// score 0.0449 ms beside it)".
+///
+/// SINCE 2026-11-21 the scale is the yardstick timed among the chain's own blocks (`tests_cost`),
+/// not the calm score, which shares the voices' code (a slower voice slowed the calm score too and
+/// loosened this budget) and was read in renders of its own. Measured beside other agents' builds
+/// (the machine 1.68 times slower): 0.0081 ms (0.0136 measured); with 12 busy threads of
+/// multiply-adds as well, 0.0079; integer work 0.0077, the 64 MB walk 0.0080, half each 0.0074. RED
+/// with a spin costing 0.0198 ms planted in `VoicePool::render`: "the bass toolkit's whole chain:
+/// 0.0281 ms a block for one voice (budget 0.0200; ...)" on a quiet machine, and 0.0206 beside the
+/// busy threads.
 #[test]
 fn the_bass_toolkit_fits_the_audio_budget() {
-    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, voice_blocks, BlockCost};
+    use crate::tests_cost::{cheapest, fastest_blocks, voice_blocks};
     let _g = crate::tests_audio::heavy();
     let def = r#"Instrument(id: "t", kind: Synth((
         oscillators: [(wave: Saw, detune_cents: -6.0), (wave: Saw, detune_cents: 6.0)],
@@ -325,12 +334,8 @@ fn the_bass_toolkit_fits_the_audio_budget() {
     let inst: Instrument = ron::from_str(def).unwrap();
     let insts = vec![inst];
     let banks: Vec<Option<std::sync::Arc<dyn crate::SampleBank>>> = vec![None];
-    let lib = shipped();
-    let (libr, insts, banks) = (&lib, &insts, &banks);
+    let (insts, banks) = (&insts, &banks);
     let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
-    for seed in [1u64, 2, 3] {
-        subjects.push(Box::new(move || calm_blocks(libr, seed)));
-    }
     for run in 0..5u64 {
         subjects.push(Box::new(move || {
             voice_blocks(insts, banks, run, 1500, 140.0 / 60.0, |k, pool| {
@@ -340,12 +345,11 @@ fn the_bass_toolkit_fits_the_audio_budget() {
             })
         }));
     }
-    let blocks = fastest_blocks(3, subjects);
-    let (calm, scale) = scale_of(&blocks[..3]);
-    let budget = 0.02 * scale;
-    let best = blocks[3..].iter().map(|t| BlockCost::of(t).mean).fold(f64::MAX, f64::min);
-    println!("the bass toolkit's whole chain: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)");
-    assert!(best <= budget, "the bass toolkit's whole chain: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)");
+    let t = fastest_blocks(3, subjects);
+    let chain = cheapest(&t);
+    let best = chain.cost().mean;
+    println!("the bass toolkit's whole chain: {best:.4} ms a block for one voice ({})", chain.how());
+    assert!(best <= 0.02, "the bass toolkit's whole chain: {best:.4} ms a block for one voice (budget 0.0200; {})", chain.how());
 }
 
 // ----- Deep dubstep (docs/design/music.md section 7e) ------------------------------------------------
@@ -543,9 +547,17 @@ fn deep_dubstep_renders_at_the_music_target() {
 /// calm score 0.0393 ms beside it)". (The wobble's two saws as seven-voice unisons read 0.0436 ms
 /// beside a calm score of 0.0416: costlier, and still within the budget, as the gate allows the
 /// drop half as much again as it costs now.)
+///
+/// SINCE 2026-11-21 judged by the yardstick timed among the drop's own blocks (`tests_cost`)
+/// instead of the calm score rendered beside it. Measured beside other agents' builds (the machine
+/// 1.69 times slower): 0.0295 ms (0.0500 measured); with 12 busy threads of multiply-adds as well,
+/// 0.0261; integer work 0.0288, the 64 MB walk 0.0195, half each 0.0242, all passing. RED with a
+/// spin costing 0.040 ms planted in every block of the score's render: "deep dubstep's drop: 0.0693
+/// ms a block on average (budget 0.0500; ...)" on a quiet machine, and 0.0543 beside the busy
+/// threads.
 #[test]
 fn deep_dubstep_fits_the_audio_budget() {
-    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, time_blocks, BlockCost};
+    use crate::tests_cost::{fastest_blocks, time_blocks};
     let _g = crate::tests_audio::heavy();
     let lib = shipped();
     let beat = 60.0 / 140.0;
@@ -553,9 +565,6 @@ fn deep_dubstep_fits_the_audio_budget() {
     let voices = std::cell::RefCell::new([0.0f64; 5]);
     let (lib_ref, voices_ref) = (&lib, &voices);
     let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
-    for seed in [1u64, 2, 3] {
-        subjects.push(Box::new(move || calm_blocks(lib_ref, seed)));
-    }
     for (k, seed) in seeds.into_iter().enumerate() {
         subjects.push(Box::new(move || {
             let mut s = dubstep(lib_ref, seed);
@@ -569,17 +578,13 @@ fn deep_dubstep_fits_the_audio_budget() {
             times
         }));
     }
-    let blocks = fastest_blocks(3, subjects);
-    let (calm, scale) = scale_of(&blocks[..3]);
-    let mut best = (f64::MAX, f64::MAX);
-    for (k, times) in blocks[3..].iter().enumerate() {
-        let c = BlockCost::of(times);
-        println!("deep dubstep seed {}: {:.4} ms a block, {:.1} voices on average", seeds[k], c.mean, voices.borrow()[k]);
-        if c.mean < best.0 {
-            best = (c.mean, c.p99);
-        }
+    let t = fastest_blocks(3, subjects);
+    for (k, m) in t.iter().enumerate() {
+        println!("deep dubstep seed {}: {:.4} ms a block, {:.1} voices on average ({})", seeds[k], m.cost().mean, voices.borrow()[k], m.how());
     }
-    println!("deep dubstep's drop: {:.4} ms a block on average, {:.4} ms at the 99th percentile (the calm score {calm:.4} ms beside it)", best.0, best.1);
-    assert!(best.0 <= 0.05 * scale, "deep dubstep's drop: {:.4} ms a block on average (budget {:.4}; the calm score {calm:.4} ms beside it)", best.0, 0.05 * scale);
-    assert!(best.1 <= 0.25 * scale, "deep dubstep's drop: {:.4} ms at the 99th percentile (budget {:.4})", best.1, 0.25 * scale);
+    let drop = crate::tests_cost::cheapest(&t);
+    let c = drop.cost();
+    println!("deep dubstep's drop: {:.4} ms a block on average, {:.4} ms at the 99th percentile", c.mean, c.p99);
+    assert!(c.mean <= 0.05, "deep dubstep's drop: {:.4} ms a block on average (budget 0.0500; {})", c.mean, drop.how());
+    assert!(c.p99 <= 0.25, "deep dubstep's drop: {:.4} ms at the 99th percentile (budget 0.25; {})", c.p99, drop.how());
 }

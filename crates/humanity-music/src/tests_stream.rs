@@ -245,13 +245,11 @@ fn block_times(rate: u32, whole: &[[i16; 2]], streamed: bool, voices: usize) -> 
         let (mut l, mut r, mut sl, mut sr) = ([0f32; 128], [0f32; 128], [0f32; 128], [0f32; 128]);
         let mut times = Vec::new();
         // 1.5 s: the attack's half second, then a second read from the rings.
-        for _ in 0..(1.5 * RATE / 128.0) as usize {
+        for k in 0..(1.5 * RATE / 128.0) as usize {
             service.pass();
             l.fill(0.0);
             r.fill(0.0);
-            let t0 = std::time::Instant::now();
-            vp.render(&res.instruments, &res.banks, &p, &mut l, &mut r, &mut sl, &mut sr, 128);
-            times.push(t0.elapsed().as_secs_f64() * 1000.0);
+            times.push(crate::tests_cost::timed(k, || vp.render(&res.instruments, &res.banks, &p, &mut l, &mut r, &mut sl, &mut sr, 128)));
         }
         assert_eq!(vp.voices.iter().filter(|v| v.active).count(), voices, "every note still sounds at the end");
         if streamed {
@@ -295,13 +293,24 @@ fn block_times(rate: u32, whole: &[[i16; 2]], streamed: bool, voices: usize) -> 
 /// machine)"), and
 /// `quiet_streaming_costs_at_most_a_quarter_more_than_whole` (ignored here) holds the quarter, run
 /// by `just music-quiet-budgets`, which waits for a machine with no build running.
+///
+/// SINCE 2026-11-21 each case is judged by the yardstick timed among its own blocks (`tests_cost`)
+/// instead of the calm score rendered beside them, the 16 notes against the fixed figures and the
+/// 32 streamed against the 32 whole each in quiet-machine ms. Measured beside other agents' builds
+/// (the machine 1.67 times slower): 16 streamed 0.0266 ms (0.0443 measured), 32 streamed 0.0532
+/// against 0.0523 whole; with 12 busy threads of multiply-adds as well, 0.0249, and 0.0492 against
+/// 0.0508; integer work 0.0261 (0.0526 against 0.0556), the 64 MB walk 0.0212 (0.0407 against
+/// 0.0385), half each 0.0238 (0.0481 against 0.0458), all passing. RED with a spin costing 0.040 ms
+/// planted in `VoicePool::render`: "16 streamed notes: 0.0633 ms a block on average (budget 0.0500;
+/// ...)" on a quiet machine (beside the busy threads it read 0.0490 and passed: a plain spin is
+/// judged there at about two thirds of its cost).
 #[test]
 fn the_block_cost_stays_within_budget_with_streaming_on() {
     let _heavy = heavy();
     let c = streaming_costs();
-    assert!(c.s16.mean <= 0.05 * c.scale, "16 streamed notes: {:.4} ms a block on average (budget {:.4}; the calm score {:.4} ms beside it)", c.s16.mean, 0.05 * c.scale, c.calm);
-    assert!(c.s16.p99 <= 0.25 * c.scale, "16 streamed notes: {:.4} ms at the 99th percentile (budget {:.4})", c.s16.p99, 0.25 * c.scale);
-    assert!(c.s32 <= c.w32 * 2.0, "32 streamed notes {:.4} ms a block against {:.4} ms held whole (at most twice on a loaded machine)", c.s32, c.w32);
+    assert!(c.s16.mean <= 0.05, "16 streamed notes: {:.4} ms a block on average (budget 0.0500; {})", c.s16.mean, c.how16);
+    assert!(c.s16.p99 <= 0.25, "16 streamed notes: {:.4} ms at the 99th percentile (budget 0.25; {})", c.s16.p99, c.how16);
+    assert!(c.s32 <= c.w32 * 2.0, "32 streamed notes {:.4} ms a block against {:.4} ms held whole (at most twice on a loaded machine; streamed: {}; whole: {})", c.s32, c.w32, c.how32, c.howw);
 }
 
 /// 32 streamed notes cost at most a quarter more than the same 32 held whole: the gate above's
@@ -313,37 +322,34 @@ fn the_block_cost_stays_within_budget_with_streaming_on() {
 fn quiet_streaming_costs_at_most_a_quarter_more_than_whole() {
     let _heavy = heavy();
     let c = streaming_costs();
-    assert!(c.s32 <= c.w32 * 1.25, "32 streamed notes {:.4} ms a block against {:.4} ms held whole", c.s32, c.w32);
+    assert!(c.s32 <= c.w32 * 1.25, "32 streamed notes {:.4} ms a block against {:.4} ms held whole (streamed: {}; whole: {})", c.s32, c.w32, c.how32, c.howw);
 }
 
-/// The streaming gates' measurements: 16 and 32 streamed notes, 32 held whole, and the calm score
-/// that scales the absolute budget, taking turns through five rounds, each block its fastest.
+/// The streaming gates' measurements: 16 and 32 streamed notes and 32 held whole, taking turns through
+/// five rounds, each block its fastest, each in quiet-machine ms by the yardstick beside it
+/// (`tests_cost`), with what was measured for the messages.
 struct StreamingCosts {
     s16: crate::tests_cost::BlockCost,
     s32: f64,
     w32: f64,
-    calm: f64,
-    scale: f64,
+    how16: String,
+    how32: String,
+    howw: String,
 }
 
 fn streaming_costs() -> StreamingCosts {
-    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, BlockCost};
-    let lib = shipped();
     let (rate, whole) = crate::decode::decode_file(&core_file()).unwrap();
     let whole = &whole;
-    let lib = &lib;
     let subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = vec![
-        Box::new(move || calm_blocks(lib, 1)),
         Box::new(move || block_times(rate, whole, true, 16)),
         Box::new(move || block_times(rate, whole, true, 32)),
         Box::new(move || block_times(rate, whole, false, 32)),
     ];
-    let blocks = fastest_blocks(5, subjects);
-    let (calm, scale) = scale_of(&blocks[..1]);
-    let c = StreamingCosts { s16: BlockCost::of(&blocks[1]), s32: BlockCost::of(&blocks[2]).mean, w32: BlockCost::of(&blocks[3]).mean, calm, scale };
+    let t = crate::tests_cost::fastest_blocks(5, subjects);
+    let c = StreamingCosts { s16: t[0].cost(), s32: t[1].cost().mean, w32: t[2].cost().mean, how16: t[0].how(), how32: t[1].how(), howw: t[2].how() };
     println!(
-        "16 streamed notes: {:.4} ms a block on average, {:.4} ms at the 99th percentile; 32 streamed {:.4} ms, 32 held whole {:.4} ms (the calm score {calm:.4} ms beside them)",
-        c.s16.mean, c.s16.p99, c.s32, c.w32
+        "16 streamed notes: {:.4} ms a block on average, {:.4} ms at the 99th percentile; 32 streamed {:.4} ms, 32 held whole {:.4} ms ({})",
+        c.s16.mean, c.s16.p99, c.s32, c.w32, c.how16
     );
     c
 }

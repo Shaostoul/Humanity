@@ -473,56 +473,63 @@ fn the_hum_strains_and_the_klaxon_sounds_in_a_breach() {
 /// be), the gate still fails: "the calm score: 0.4379 ms at the 99th percentile (budget 0.25)";
 /// with 0.03 ms more in every block, "the calm score: 0.0703 ms a block on average (budget
 /// 0.0500)". The mean keeps its trimmed slowest 2% and the best of the five seeds, as before.
+///
+/// LOAD CANNOT FAIL IT, A SLOWER ENGINE STILL DOES (2026-11-21, `tests_cost`). The fastest of five
+/// renders still failed beside other agents' builds ("the calm score: 0.0634 ms" and "0.0505 ms a
+/// block on average (budget 0.0500)", data/coordination/flaky-tests.jsonl), and failed again with
+/// 12 busy threads of multiply-adds beside it: "the calm score: 0.0683 ms a block on average
+/// (budget 0.0500)". That load is not interruptions (the thread's own CPU cycles read what the wall
+/// clock reads) but a core shared for the whole run, so each seed and the hum are now judged in
+/// quiet-machine ms: their fastest blocks over how much slower than quiet the yardstick timed among
+/// them ran. Measured beside other agents' builds, the machine 1.67 times slower: the calm score
+/// 0.0391 ms (0.0652 measured), the hum 0.0056 (0.0092); with the 12 busy threads on top, 0.0393
+/// and 0.0056; with 12 threads of integer work instead, 0.0393 and 0.0056; walking 64 MB, 0.0266
+/// and 0.0053; half each, 0.0349 and 0.0054, all passing (the memory walk slows the yardstick more
+/// than the engine: below). Still RED for a slower engine: a spin costing 0.0198 ms planted in
+/// every block of the score's `render` reads "the calm score: 0.0612 ms a block on average (budget
+/// 0.0500; ...)" on a quiet machine and 0.0524 beside the busy threads; in the bed's `render`, "the
+/// hum: 0.0258 ms a block (budget 0.02; ...)" and 0.0203 loaded. Work shaped like the engine's is
+/// judged at its full cost under load: the score's reverb run twice more in every block (+0.0117
+/// ms) reads 0.0528 ms, red, on a quiet machine, and 0.0511 beside the multiply-adds and 0.0513
+/// beside the integer work, both red; beside the 64 MB walk it read 0.0312 and passed, that load
+/// slowing the yardstick 2.46 times and the engine 1.45 (the one load measured where a regression
+/// must be bigger to fail). A serial chain of the same quiet cost read 0.0554 (red) on a machine
+/// 1.42 times slower, and passed at 0.0490 beside the busy threads: work that load slows less than
+/// the engine is judged at its cost over the slowdown.
 #[test]
 fn the_audio_thread_cost_per_block_is_within_the_budget() {
     let _heavy = heavy();
     let lib = shipped();
-    const REPS: usize = 5;
-    let blocks = (10.0 * RATE / 128.0) as usize;
-    let mut best = (f64::MAX, f64::MAX);
+    let lib = &lib;
+    // Five seeds of the calm score, 10 s each after 2 s untimed, and 20 s of the hum (2026-11-15: it
+    // was one render's plain mean, and a run beside other agents' builds read "the hum: 0.0409 ms a
+    // block (budget 0.02)" and passed alone; RED for its defect then, 0.03 ms of busy work added to
+    // every block of the bed's `render`: "the hum: 0.0366 ms a block (budget 0.02)"), all taking
+    // turns through five renders, each block its fastest, the yardstick among them (`tests_cost`).
+    let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
     for seed in [1u64, 2, 3, 4, 5] {
-        let mut fastest = vec![f64::MAX; blocks];
-        for _ in 0..REPS {
-            let mut s = score(&lib, "mothership_calm", "mothership_calm", seed);
+        subjects.push(Box::new(move || {
+            let mut s = score(lib, "mothership_calm", "mothership_calm", seed);
             render_score(&mut s, RATE, 2.0);
-            for t in fastest.iter_mut() {
-                let mut buf = [[0f32; 2]; 128];
-                let t0 = std::time::Instant::now();
-                s.render(&mut buf);
-                *t = t.min(t0.elapsed().as_secs_f64() * 1000.0);
-            }
-        }
-        let mut times = fastest;
-        times.sort_by(|a, b| a.total_cmp(b));
-        // The mean without the slowest 2% of blocks, and the 99th percentile holding the slow tail
-        // to its own budget.
-        let kept = &times[..(times.len() as f64 * 0.98) as usize];
-        let mean = kept.iter().sum::<f64>() / kept.len() as f64;
-        let p99 = times[(times.len() as f64 * 0.99) as usize];
-        if mean < best.0 {
-            best = (mean, p99);
-        }
+            crate::tests_cost::time_blocks((10.0 * RATE / 128.0) as usize, |buf| s.render(buf))
+        }));
     }
-    println!("the calm score: {:.4} ms a block on average, {:.4} ms at the 99th percentile", best.0, best.1);
-    assert!(best.0 <= 0.05, "the calm score: {:.4} ms a block on average (budget 0.0500)", best.0);
-    assert!(best.1 <= 0.25, "the calm score: {:.4} ms at the 99th percentile (budget 0.25)", best.1);
-    // The hum the same way (2026-11-15): 20 s rendered REPS times from scratch, each block its
-    // fastest. It was one render's plain mean, and on 2026-11-15 a run beside other agents' builds
-    // read "the hum: 0.0409 ms a block (budget 0.02)" and passed alone: a handful of blocks the OS
-    // interrupted for milliseconds each, among 7500, doubled the mean of an engine that costs
-    // about a hundredth of a millisecond. Still RED for its defect (2026-11-15, 0.03 ms of busy
-    // work added to every block of the bed's `render`): "the hum: 0.0366 ms a block (budget 0.02)".
-    let mut hum = vec![f64::MAX; (20.0 * RATE / 128.0) as usize];
-    for _ in 0..REPS {
+    subjects.push(Box::new(|| {
         let mut b = BedEngine::new(RATE, 1, BedContext::default());
-        let times = crate::tests_cost::time_blocks(hum.len(), |buf| b.render(buf));
-        for (h, t) in hum.iter_mut().zip(times) {
-            *h = h.min(t);
-        }
-    }
-    let hum_mean = hum.iter().sum::<f64>() / hum.len() as f64;
-    println!("the hum: {hum_mean:.4} ms a block on average");
-    assert!(hum_mean <= 0.02, "the hum: {hum_mean:.4} ms a block (budget 0.02)");
+        crate::tests_cost::time_blocks((20.0 * RATE / 128.0) as usize, |buf| b.render(buf))
+    }));
+    let t = crate::tests_cost::fastest_blocks(5, subjects);
+    // The cheapest seed: its mean without the slowest 2% of blocks, and its 99th percentile holding
+    // the slow tail to its own budget, both in quiet-machine ms.
+    let calm = crate::tests_cost::cheapest(&t[..5]);
+    let c = calm.cost();
+    println!("the calm score: {:.4} ms a block on average, {:.4} ms at the 99th percentile ({})", c.mean, c.p99, calm.how());
+    assert!(c.mean <= 0.05, "the calm score: {:.4} ms a block on average (budget 0.0500; {})", c.mean, calm.how());
+    assert!(c.p99 <= 0.25, "the calm score: {:.4} ms at the 99th percentile (budget 0.25; {})", c.p99, calm.how());
+    let hum = &t[5];
+    let hum_mean = hum.plain_mean();
+    println!("the hum: {hum_mean:.4} ms a block on average ({})", hum.how());
+    assert!(hum_mean <= 0.02, "the hum: {hum_mean:.4} ms a block (budget 0.02; {})", hum.how());
 }
 
 // ----- `render` allocates nothing ----------------------------------------------------------------

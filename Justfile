@@ -569,7 +569,8 @@ music-render mood genre seconds *args:
 
 # The music budgets only a quiet machine can judge (2026-11-15): builds the music tests, waits (up to
 # --wait-min N, 60) for no build and no game to be running, runs the ignored `quiet_*` tests (the
-# streamed notes' quarter over notes held whole), and fails if a build arrived during the run.
+# streamed notes' quarter over notes held whole; the timing yardstick still reading its quiet figure,
+# which every music budget scales by), and fails if a build arrived during the run.
 # Why the suite cannot judge them beside builds: scripts/music-quiet-budgets.js.
 # Judge the music budgets that need a quiet machine
 music-quiet-budgets *args:

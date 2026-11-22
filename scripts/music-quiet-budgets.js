@@ -2,14 +2,19 @@
 // The music budgets only a quiet machine can judge (2026-11-15). `just music-quiet-budgets`
 //
 // WHY: the audio thread's budget tests in crates/humanity-music measure on whatever machine runs
-// them, and most of them now hold beside other builds (crates/humanity-music/src/tests_cost.rs:
-// the piece and its calm-score baseline taking turns, each block its fastest of several renders).
-// One judgement does not: that 32 streamed notes cost at most a quarter more than the same 32
-// held whole. Reading rings the worker has just written is more sensitive to builds crowding the
-// processor's shared cache than reading recordings straight through, so beside a release build
-// the ratio itself moves (one of five rounds read 0.0631 against 0.0500 ms, 2026-11-15), and the
-// quarter's margin is too thin to judge there. Those tests are `quiet_*` and #[ignore]d in the
-// suite (which keeps a loose bound that holds anywhere); this runs them when nothing is building.
+// them, and they hold beside other builds (crates/humanity-music/src/tests_cost.rs: each block its
+// fastest of several renders, divided by how much slower than quiet a yardstick timed among those
+// blocks ran, 2026-11-21). Two judgements need a quiet machine:
+// - that 32 streamed notes cost at most a quarter more than the same 32 held whole. Reading rings
+//   the worker has just written is more sensitive to builds crowding the processor's shared cache
+//   than reading recordings straight through, so beside a release build the ratio itself moves
+//   (one of five rounds read 0.0631 against 0.0500 ms, 2026-11-15), and the quarter's margin is too
+//   thin to judge there;
+// - that the yardstick still reads its quiet figure (YARDSTICK_QUIET_MS): every budget divides by
+//   how much slower than that figure it ran, so a figure a new compiler made stale would tighten or
+//   loosen every gate, and only a quiet machine can read it.
+// Those tests are `quiet_*` and #[ignore]d in the suite (which keeps a loose bound that holds
+// anywhere); this runs them when nothing is building.
 //
 // What it does: builds the music crate's test program (running nothing), waits (bounded, default
 // 60 min, --wait-min N) until no build and no game is running (scripts/lib/machine-guard.js, the

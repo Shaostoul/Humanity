@@ -301,9 +301,21 @@ fn a_mute_silences_a_part_without_changing_the_piece() {
 /// how much slower than its quiet 0.037 ms the calm score (the page closed IS the calm score) ran
 /// beside them. Still RED for its defect (2026-11-15, the band filters run eight times over): "the
 /// analyser alone: 0.0294 ms a block (budget 0.0150; about 0.007 when measured)".
+///
+/// SINCE 2026-11-21 (`tests_cost`), replacing that calm-score scale: it still failed beside other
+/// agents' builds ("with the page open: 0.0716 ms a block (budget 0.0703 ...)", the analyser alone
+/// at 0.0211 and 0.0189 against 0.0150), the page closed and open read at different moments of a
+/// machine whose load came and went. Now each render of each seed, closed and open, is judged in
+/// quiet-machine ms by the yardstick timed among its own blocks, against the fixed figures.
+/// Measured beside other agents' builds (the machine 1.70 times slower): 0.0398 ms closed, 0.0423
+/// open (+0.0026, 0.0717 measured); with 12 busy threads of multiply-adds as well, +0.0029; integer
+/// work +0.0024, the 64 MB walk +0.0017, half each +0.0030, all passing. RED for a costlier
+/// analyser: a spin costing 0.0198 ms planted in it reads "with the page open: 0.0646 ms a block
+/// (budget 0.0600 ...)" on a quiet machine, and "the analyser alone: 0.0155 ms a block (budget
+/// 0.0150 ...)" beside the busy threads.
 #[test]
 fn the_pages_analyser_is_within_the_budget() {
-    use crate::tests_cost::{fastest_blocks, time_blocks, BlockCost, CALM_QUIET_MS};
+    use crate::tests_cost::{cheapest, fastest_blocks, time_blocks};
     let _heavy = crate::tests_audio::heavy();
     let lib = shipped();
     let mood = lib.mood_index("mothership_calm").unwrap() as u16;
@@ -320,11 +332,10 @@ fn the_pages_analyser_is_within_the_budget() {
             }));
         }
     }
-    let blocks = fastest_blocks(3, subjects);
-    let best = |b: &[Vec<f64>]| b.iter().map(|t| BlockCost::of(t).mean).fold(f64::MAX, f64::min);
-    let (off, on) = (best(&blocks[..5]), best(&blocks[5..]));
-    let scale = (off / CALM_QUIET_MS).max(1.0);
-    println!("the calm score: {off:.4} ms a block, {on:.4} ms with the Music page's analyser ({:+.4})", on - off);
-    assert!(on <= 0.06 * scale, "with the page open: {on:.4} ms a block (budget {:.4}: 0.05 + 0.01 for the page, scaled by the calm score's {off:.4} ms)", 0.06 * scale);
-    assert!(on - off <= 0.015 * scale, "the analyser alone: {:.4} ms a block (budget {:.4}; about 0.007 when measured)", on - off, 0.015 * scale);
+    let t = fastest_blocks(3, subjects);
+    let (closed, open) = (cheapest(&t[..5]), cheapest(&t[5..]));
+    let (off, on) = (closed.cost().mean, open.cost().mean);
+    println!("the calm score: {off:.4} ms a block, {on:.4} ms with the Music page's analyser ({:+.4}); open: {}", on - off, open.how());
+    assert!(on <= 0.06, "with the page open: {on:.4} ms a block (budget 0.0600: 0.05 + 0.01 for the page; {})", open.how());
+    assert!(on - off <= 0.015, "the analyser alone: {:.4} ms a block (budget 0.0150; about 0.003 when measured; open: {}; closed: {})", on - off, open.how(), closed.how());
 }

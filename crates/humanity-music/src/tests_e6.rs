@@ -734,9 +734,17 @@ fn the_new_genres_render_at_the_music_target() {
 /// ms, the calm score 0.0420 ms beside it. Still RED for its defect the same day, with every
 /// unison copy computed three times over (`osc.rs`), in the full run and again alone:
 /// "synthwave: 0.0552 ms a block on average (budget 0.0523; the calm score 0.0387 ms beside it)".
+///
+/// SINCE 2026-11-21 judged by the yardstick timed among each genre's own blocks (`tests_cost`)
+/// instead of the calm score rendered beside it. Measured beside other agents' builds (the machine
+/// 1.67 to 1.69 times slower): synthwave, the costliest, 0.0433 ms (0.0729 measured); with 12 busy
+/// threads of multiply-adds as well, 0.0410; integer work 0.0429, the 64 MB walk 0.0272, half each
+/// 0.0340, all passing. RED with a spin costing 0.040 ms planted in every block of the score's
+/// render: "house: 0.0741 ms a block on average (budget 0.0500; ...)" and the other three over on a
+/// quiet machine; beside the busy threads house 0.0628, still over.
 #[test]
 fn the_new_genres_fit_the_audio_budget() {
-    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, time_blocks, BlockCost};
+    use crate::tests_cost::{cheapest, fastest_blocks, time_blocks};
     let _g = crate::tests_audio::heavy();
     let lib = shipped();
     let mut wrong = Vec::new();
@@ -744,9 +752,6 @@ fn the_new_genres_fit_the_audio_budget() {
         let voices = std::cell::RefCell::new([0.0f64; 3]);
         let (lib, voices) = (&lib, &voices);
         let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
-        for seed in [1u64, 2, 3] {
-            subjects.push(Box::new(move || calm_blocks(lib, seed)));
-        }
         for (k, seed) in [1u64, 2, 3].into_iter().enumerate() {
             subjects.push(Box::new(move || {
                 let mut s = genre_score(lib, id, seed);
@@ -763,21 +768,16 @@ fn the_new_genres_fit_the_audio_budget() {
                 times
             }));
         }
-        let blocks = fastest_blocks(3, subjects);
-        let (calm, scale) = scale_of(&blocks[..3]);
-        let mut best = (f64::MAX, f64::MAX, 0.0);
-        for (k, times) in blocks[3..].iter().enumerate() {
-            let c = BlockCost::of(times);
-            if c.mean < best.0 {
-                best = (c.mean, c.p99, voices.borrow()[k]);
-            }
+        let t = fastest_blocks(3, subjects);
+        let genre = cheapest(&t);
+        let k = t.iter().position(|m| std::ptr::eq(m, genre)).unwrap();
+        let c = genre.cost();
+        println!("{id}: {:.4} ms a block on average, {:.4} ms at the 99th percentile, {:.1} voices ({})", c.mean, c.p99, voices.borrow()[k], genre.how());
+        if c.mean > 0.05 {
+            wrong.push(format!("{id}: {:.4} ms a block on average (budget 0.0500; {})", c.mean, genre.how()));
         }
-        println!("{id}: {:.4} ms a block on average, {:.4} ms at the 99th percentile, {:.1} voices (the calm score {calm:.4} ms beside it)", best.0, best.1, best.2);
-        if best.0 > 0.05 * scale {
-            wrong.push(format!("{id}: {:.4} ms a block on average (budget {:.4}; the calm score {calm:.4} ms beside it)", best.0, 0.05 * scale));
-        }
-        if best.1 > 0.25 * scale {
-            wrong.push(format!("{id}: {:.4} ms at the 99th percentile (budget {:.4})", best.1, 0.25 * scale));
+        if c.p99 > 0.25 {
+            wrong.push(format!("{id}: {:.4} ms at the 99th percentile (budget 0.25; {})", c.p99, genre.how()));
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("; "));
@@ -798,9 +798,18 @@ fn the_new_genres_fit_the_audio_budget() {
 /// day, with each of the drum machine's metal squares worked thirty times over (`drum_machine.rs`),
 /// in the run and again alone: "reverse_cymbal: 0.0472 ms a block for one voice (budget 0.0211; the
 /// calm score 0.0391 ms beside it)".
+///
+/// SINCE 2026-11-21 the scale is the yardstick timed among each voice's own blocks (`tests_cost`),
+/// sharing no code with the voices. Measured beside other agents' builds: reverse_cymbal, the
+/// costliest, 0.0044 ms (0.0074 measured, the machine 1.68 times slower); with 12 busy threads of
+/// multiply-adds as well, 0.0044; integer work 0.0046, the 64 MB walk 0.0043, half each 0.0043. RED
+/// with a spin costing 0.0198 ms planted in `VoicePool::render`: "reese_bass: 0.0229 ms a block for
+/// one voice (budget 0.0200; ...)" and the other three over on a quiet machine (beside the busy
+/// threads the same spin read 0.0167 and passed: a plain spin, which load slows less than the
+/// engine, is judged there at about two thirds of its cost).
 #[test]
 fn the_new_instruments_fit_the_per_voice_budget() {
-    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, voice_blocks, BlockCost};
+    use crate::tests_cost::{cheapest, fastest_blocks, voice_blocks};
     let _g = crate::tests_audio::heavy();
     let lib = shipped();
     let ids = ["reese_bass", "synth_lead", "downlifter", "reverse_cymbal"];
@@ -809,11 +818,8 @@ fn the_new_instruments_fit_the_per_voice_budget() {
         .map(|id| vec![lib.instruments[lib.instrument_index(id).unwrap_or_else(|| panic!("the instrument {id}"))].clone()])
         .collect();
     let banks: Vec<Option<std::sync::Arc<dyn crate::SampleBank>>> = vec![None];
-    let (libr, banks) = (&lib, &banks);
+    let banks = &banks;
     let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
-    for seed in [1u64, 2, 3] {
-        subjects.push(Box::new(move || calm_blocks(libr, seed)));
-    }
     for insts in &pools {
         for run in 0..3u64 {
             subjects.push(Box::new(move || {
@@ -826,15 +832,14 @@ fn the_new_instruments_fit_the_per_voice_budget() {
             }));
         }
     }
-    let blocks = fastest_blocks(3, subjects);
-    let (calm, scale) = scale_of(&blocks[..3]);
-    let budget = 0.02 * scale;
+    let t = fastest_blocks(3, subjects);
     let mut over = Vec::new();
     for (n, id) in ids.iter().enumerate() {
-        let best = blocks[3 + n * 3..3 + n * 3 + 3].iter().map(|t| BlockCost::of(t).mean).fold(f64::MAX, f64::min);
-        println!("{id}: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)");
-        if best > budget {
-            over.push(format!("{id}: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)"));
+        let voice = cheapest(&t[n * 3..n * 3 + 3]);
+        let best = voice.cost().mean;
+        println!("{id}: {best:.4} ms a block for one voice (budget 0.0200; {})", voice.how());
+        if best > 0.02 {
+            over.push(format!("{id}: {best:.4} ms a block for one voice (budget 0.0200; {})", voice.how()));
         }
     }
     assert!(over.is_empty(), "{}", over.join("; "));

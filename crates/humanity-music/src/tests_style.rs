@@ -316,14 +316,26 @@ fn an_imported_files_programs_pick_their_instruments_and_a_missing_one_is_said()
 /// rule): the symphony, the fullest score shipped (twelve staves), rendered as written, in retro FM
 /// and as a solo piano, timed block by block over its densest ten seconds (the window with the most
 /// notes begun) and over its first ninety seconds, each block's fastest of two renders. The worst
-/// mean, scaled by how busy the machine is (the calm score's cost in the same run), is at most 0.25 ms
-/// a block (under a tenth of the 2.67 ms a 128-frame block lasts at 48 kHz), and no style costs more
-/// than a quarter over the piece as written.
+/// mean in quiet-machine ms (`tests_cost`: over how much slower than quiet the yardstick timed among
+/// its blocks ran) is at most 0.25 ms a block (under a tenth of the 2.67 ms a 128-frame block lasts at
+/// 48 kHz), and no style costs more than a quarter over the piece as written.
 ///
 /// Seen RED 2026-11-21 against a 0.10 ms budget (twice the calm score's 0.05): the symphony AS
 /// WRITTEN already fails it, "as written: 0.1114 ms a block, over the 0.10 ms budget" (its densest ten
 /// seconds, 690 notes from bar 484, at 0.2032 ms unscaled on a machine 1.82 times busier than quiet),
 /// so the written player's budget is set by what the as-written orchestra costs, and a style is held to it.
+///
+/// LOAD CANNOT FAIL IT (2026-11-21): it failed once in a full run beside other agents' builds and
+/// passed alone, each style measured after the one before against a calm score read once before
+/// them all. Now the three styles' stretches take turns through the same renders, each judged by
+/// the yardstick timed among its own blocks. Measured beside other agents' builds (1.72 times
+/// slower): as written 0.1330 ms (0.2287 measured), retro FM 0.1112, solo piano 0.0834; with 12
+/// busy threads of multiply-adds as well, 0.1193, 0.1082 and 0.0803; with integer work 0.1249,
+/// 0.1086 and 0.0784; walking 64 MB 0.0713, 0.0785 and 0.0540; half each 0.0973, 0.0881 and 0.0706,
+/// all passing. RED with a spin costing 0.161 ms planted in every block of the score's render: "as
+/// written: 0.2841 ms a block, over the 0.25 ms budget" on a quiet machine (beside the busy threads
+/// the same spin read 0.2202 and passed: a plain spin, which load slows less than the engine, is
+/// judged there at about two thirds of its cost).
 #[test]
 fn each_style_stays_within_the_block_budget() {
     let _g = crate::tests_audio::heavy();
@@ -340,8 +352,6 @@ fn each_style_stays_within_the_block_budget() {
     }
     let dense_bar = p.timeline.bar_at(best.1).unwrap_or(0);
     let pieces = [("as written", p.clone()), ("retro FM", apply(style(&lib, "retro_fm"), &p).piece), ("solo piano", apply(style(&lib, "solo_piano"), &p).piece)];
-    let calm = crate::tests_cost::calm_blocks(&lib, 1);
-    let (calm_ms, scale) = crate::tests_cost::scale_of(&[calm]);
     let time = |p: &WrittenPiece, bar: usize, seconds: f32| {
         let r = res(&lib);
         let mut player = p.player(&r, RATE, 432.0);
@@ -349,20 +359,36 @@ fn each_style_stays_within_the_block_budget() {
         let mut e = ScoreEngine::written(r, RATE, 1, MusicContext::default(), player);
         crate::tests_cost::time_blocks((seconds * RATE / 128.0) as usize, |buf| e.render(buf))
     };
+    // Every style's two stretches take turns through the same renders (2026-11-21: each style was
+    // measured after the one before, so a machine getting busier between them judged the load in
+    // the quarter-over comparison), each block its fastest of two, the yardstick among them.
+    let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
+    for (_, styled) in &pieces {
+        subjects.push(Box::new(move || time(styled, dense_bar, 10.0)));
+        subjects.push(Box::new(move || time(styled, 0, 90.0)));
+    }
+    let t = crate::tests_cost::fastest_blocks(2, subjects);
     let mut worst = Vec::new();
-    for (name, styled) in &pieces {
-        let runs = crate::tests_cost::fastest_blocks(2, vec![Box::new(|| time(styled, dense_bar, 10.0)), Box::new(|| time(styled, 0, 90.0))]);
-        let (dense, opening) = (crate::tests_cost::BlockCost::of(&runs[0]), crate::tests_cost::BlockCost::of(&runs[1]));
+    for (k, (name, _)) in pieces.iter().enumerate() {
+        let (dense, opening) = (&t[2 * k], &t[2 * k + 1]);
+        let (d, o) = (dense.cost(), opening.cost());
         println!(
-            "block budget, {name}: densest 10 s (from bar {dense_bar}, {} notes) mean {:.4} ms, p99 {:.4} ms; first 90 s mean {:.4} ms, p99 {:.4} ms (calm score {calm_ms:.4} ms, scale {scale:.2})",
-            best.0, dense.mean, dense.p99, opening.mean, opening.p99
+            "block budget, {name}: densest 10 s (from bar {dense_bar}, {} notes) mean {:.4} ms, p99 {:.4} ms ({}); first 90 s mean {:.4} ms, p99 {:.4} ms ({})",
+            best.0,
+            d.mean,
+            d.p99,
+            dense.how(),
+            o.mean,
+            o.p99,
+            opening.how()
         );
-        worst.push((*name, dense.mean.max(opening.mean) / scale));
+        let (w, how) = if d.mean >= o.mean { (d.mean, dense.how()) } else { (o.mean, opening.how()) };
+        worst.push((*name, w, how));
     }
     let written = worst[0].1;
-    for (name, w) in &worst {
-        assert!(*w <= 0.25, "{name}: {w:.4} ms a block, over the 0.25 ms budget");
-        assert!(*w <= written * 1.25, "{name}: {w:.4} ms a block, more than a quarter over the piece as written ({written:.4} ms)");
+    for (name, w, how) in &worst {
+        assert!(*w <= 0.25, "{name}: {w:.4} ms a block, over the 0.25 ms budget ({how})");
+        assert!(*w <= written * 1.25, "{name}: {w:.4} ms a block, more than a quarter over the piece as written ({written:.4} ms; {how})");
     }
 }
 

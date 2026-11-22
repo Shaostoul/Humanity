@@ -612,19 +612,25 @@ fn is_new(i: &Instrument) -> bool {
 /// eight times over (`osc::sample`), in the run and again alone: "wavetable_growl: 0.0481 ms a block
 /// for one voice (budget 0.0329; the calm score 0.0609 ms beside it); wavetable_pad: 0.0468 ms" (the
 /// calm score's own synths slow too, which its own quiet gate catches).
+///
+/// SINCE 2026-11-21 the scale is the yardstick timed among each voice's own blocks (`tests_cost`),
+/// which shares no code with the voices, so a slower oscillator no longer loosens the budget it is
+/// judged by. Measured beside other agents' builds: the costliest, wavetable_growl, 0.0087 ms
+/// (0.0146 measured, the machine 1.68 times slower); with 12 busy threads of multiply-adds as well,
+/// 0.0077; integer work 0.0083, the 64 MB walk 0.0082, half each 0.0078. RED with a spin costing
+/// 0.0198 ms planted in `VoicePool::render`: "kick_808: 0.0250 ms a block for one voice (budget
+/// 0.0200; ...)", wavetable_growl 0.0283 and others over on a quiet machine; beside the busy
+/// threads kick_808 0.0203 and wavetable_growl 0.0223, still over.
 #[test]
 fn every_new_instrument_fits_the_per_voice_budget() {
-    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, voice_blocks, BlockCost};
+    use crate::tests_cost::{cheapest, fastest_blocks, voice_blocks};
     let _g = crate::tests_audio::heavy();
     let lib = shipped();
     let news: Vec<(Vec<Instrument>, bool)> =
         lib.instruments.iter().filter(|i| is_new(i)).map(|i| (vec![i.clone()], matches!(i.kind, InstrumentKind::DrumMachine(_)))).collect();
     let banks: Vec<Option<std::sync::Arc<dyn crate::SampleBank>>> = vec![None];
-    let (libr, banks) = (&lib, &banks);
+    let banks = &banks;
     let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
-    for seed in [1u64, 2, 3] {
-        subjects.push(Box::new(move || calm_blocks(libr, seed)));
-    }
     for (insts, drum) in &news {
         let drum = *drum;
         for run in 0..3u64 {
@@ -637,24 +643,23 @@ fn every_new_instrument_fits_the_per_voice_budget() {
             }));
         }
     }
-    let blocks = fastest_blocks(3, subjects);
-    let (calm, scale) = scale_of(&blocks[..3]);
-    let budget = 0.02 * scale;
+    let t = fastest_blocks(3, subjects);
     let mut worst = (0.0, String::new());
     let mut over = Vec::new();
     for (n, (insts, _)) in news.iter().enumerate() {
-        let best = blocks[3 + n * 3..3 + n * 3 + 3].iter().map(|t| BlockCost::of(t).mean).fold(f64::MAX, f64::min);
+        let voice = cheapest(&t[n * 3..n * 3 + 3]);
+        let best = voice.cost().mean;
         let id = &insts[0].id;
-        println!("{id}: {best:.4} ms a block for one voice");
+        println!("{id}: {best:.4} ms a block for one voice ({})", voice.how());
         if best > worst.0 {
             worst = (best, id.clone());
         }
-        if best > budget {
-            over.push(format!("{id}: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)"));
+        if best > 0.02 {
+            over.push(format!("{id}: {best:.4} ms a block for one voice (budget 0.0200; {})", voice.how()));
         }
     }
     let seen = news.len();
-    println!("{seen} new instruments, the costliest {} at {:.4} ms a block (budget {budget:.4}; the calm score {calm:.4} ms beside it)", worst.1, worst.0);
+    println!("{seen} new instruments, the costliest {} at {:.4} ms a block (budget 0.0200)", worst.1, worst.0);
     assert!(over.is_empty(), "{}", over.join("; "));
     assert!(seen >= 16, "only {seen} of the rungs' instruments are shipped");
 }

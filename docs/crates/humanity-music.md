@@ -80,8 +80,12 @@ And 62 more items, 73 references (`node scripts/crate-cards.js --interface human
   Source: [infinite-of-x.md](../design/infinite-of-x.md); CLAUDE.md, Infinite-of-X.
 - **The budget is a gate.** The calm score averages at most 0.05 ms per 128-frame block, the hum
   0.02 ms (`the_audio_thread_cost_per_block_is_within_the_budget`); measure a change with
-  `just music-render` before and after. Source: music.md section 14; CLAUDE.md, "Compute and
-  bandwidth are a hard budget".
+  `just music-render` before and after. A new timing gate measures through `src/tests_cost.rs`
+  (`fastest_blocks` with `time_blocks`, `voice_blocks` or `timed`, judged by `Timed::cost`): each
+  block its fastest of several renders, divided by how much slower than quiet the yardstick timed
+  among those blocks ran, so other builds cannot fail it and a slower engine still does; prove both
+  (busy threads beside it pass, a planted spin fails). Source: music.md section 14; CLAUDE.md,
+  "Compute and bandwidth are a hard budget".
 - **Loudness by the app's one meter.** Each mood and genre is levelled (its `level_db`) so it renders
   at the music category's target in data/audio/loudness.toml (-18 LUFS), the hum at the ambient
   one (-26), every output under -1 dBTP; re-measure after changing an instrument's level. Source:

@@ -116,8 +116,9 @@ compile there says so. The wrapper's header has the detail; docs/design/cross-pl
   - A wait ends by TIME, never by a count of turns or frames: the web tests' `settle()` gave up
     after 5000 idle turns, about 27 ms, less than one WebCrypto call takes on a busy machine
     (`choice-web.test.js`).
-  - A budget against a baseline measures the two through the same minutes, TAKING TURNS, and
-    takes each block's fastest of several renders where the work is deterministic
+  - A budget against a baseline measures the two through the same moments, TAKING TURNS (since
+    2026-11-21 the baseline is timed among the subject's own blocks), and takes each block's fastest
+    of several renders where the work is deterministic
     (`crates/humanity-music/src/tests_cost.rs`); a baseline read before or after judges the load.
     Where two paths respond to load differently (reading freshly written rings against reading
     straight through), even that moves the ratio: the suite keeps a loose bound and the fine one
@@ -130,7 +131,17 @@ compile there says so. The wrapper's header has the detail; docs/design/cross-pl
     process as it joins (`TreeWatch` in `scripts/build-slot/hos-build-slot.rs`), and its test
     stretches the listing to 10 minutes so only the event can pass it.
   - A fixed budget with no baseline is a load test: the per-voice and bass toolkit budgets measure
-    beside the calm score the same way (`tests_cost::voice_blocks`).
+    beside a baseline the same way (`tests_cost::voice_blocks`).
+  - A slowdown that lasts the whole run is neither an interruption nor a slower program (2026-11-21):
+    another program on the core's other hyperthread, its cache and its memory made the music's
+    calm score 1.5 to 1.85 times slower while its thread ran the whole time, so the thread's own CPU
+    time read the same as the wall clock and a minimum of several renders kept it. A time budget
+    divides by a YARDSTICK timed among the subject's own blocks: fixed arithmetic that shares no code
+    with what is judged (a baseline made of the judged code slows with it and hides a regression),
+    whose slowdown under every load measured is at least the subject's, never divided by less than 1
+    so a quiet machine holds the figure exactly (`tests_cost::Timed::cost`). Prove it both ways: busy
+    threads on every logical processor beside the gate must not fail it, and a spin of known cost
+    planted in the measured path must.
   - A hang guard is sized for a machine whose every core is busy: Windows lets a starved
     below-normal thread wait about four seconds before it boosts it.
   - A test that only fails under load can be a real defect only load shows: "pictures from ffmpeg:
