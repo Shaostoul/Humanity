@@ -73,7 +73,7 @@ pub(super) fn draw_pins_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
         // pass — /unpin <N> previously had no clickable path).
         let can_unpin = {
             let vr = viewer_role(state);
-            vr == "admin" || vr == "moderator" || vr == "mod"
+            crate::net::roles::is_staff_role(&vr) // the owner too (BUG-332)
         };
         let mut unpin_index: Option<usize> = None;
         ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
@@ -282,8 +282,8 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
         && state.voice_active_room.is_none();
 
     let my_role = viewer_role(state);
-    let is_mod = my_role == "moderator" || my_role == "mod" || my_role == "admin";
-    let is_admin = my_role == "admin";
+    let is_mod = crate::net::roles::is_staff_role(&my_role); // the owner too (BUG-332)
+    let is_admin = crate::net::roles::is_admin_role(&my_role);
     let roles = state.chat_roles.clone();
 
     let mut open = true;

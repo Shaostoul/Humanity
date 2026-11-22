@@ -470,7 +470,7 @@ function setMyMaxChars(n) {
 function getMaxMsgLength() {
   if (myMaxChars > 0) return myMaxChars;
   const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
-  return myRole === 'admin' ? 10000 : 2000;
+  return HosRoles.isAdminRole(myRole) ? 10000 : 2000;
 }
 const MAX_MSG_LENGTH = 2000; // default, updated dynamically
 
@@ -595,9 +595,9 @@ function showUserContextMenu(e, name, publicKey, message) {
   const targetRole = targetPeer.role || 'user';
   const myRole = (peerData[myKey] && peerData[myKey].role) || 'user';
   // The owner manages members as an admin does (the relay checks admin or owner for
-  // each of these commands, as the voice modal already did).
-  const amMod   = myRole === 'mod' || myRole === 'admin' || myRole === 'owner';
-  const amAdmin  = myRole === 'admin' || myRole === 'owner';
+  // each of these commands, as the voice modal does; /shared/roles.js).
+  const amMod   = HosRoles.isStaffRole(myRole);
+  const amAdmin  = HosRoles.isAdminRole(myRole);
 
   // Color-coded ctx-item: user=default, mod=green left border, admin=blue, danger=red
   const ci = (onclick, label, tier) => {
@@ -1508,6 +1508,14 @@ const _origSendMessage2 = sendMessage;
 sendMessage = async function() {
   const input = document.getElementById('msg-input');
   const val = input.value.trim();
+  // A typed /claim, with or without a code, before ANY routing: the server alone, never the DM or
+  // group on screen (app.js takeTypedClaim, the owner review's finding 6). /claim alone opens Claim
+  // ownership.
+  if (takeTypedClaim(val)) {
+    input.value = '';
+    input.style.height = 'auto';
+    return;
+  }
   if (val === '/profile') {
     input.value = '';
     openEditProfileModal();
@@ -1666,6 +1674,8 @@ sendMessage = async function() {
 const knockNoticeShown = new Set();
 async function sendComposedContent(content) {
   if (!content) return false;
+  // A /claim line never goes to a person or group, whoever asked to send it (finding 6).
+  if (takeTypedClaim(content)) return true;
   // A P2P group's messages are posted over the web API, not this socket.
   if (!window.activeP2pGroup && (!ws || ws.readyState !== WebSocket.OPEN)) return false;
   // Never my recovery phrase (step F, chat-warnings.js): a DM or a post is
@@ -2158,7 +2168,7 @@ var federatedRetryMs = 30000;
       const micHtml = ch.voice_enabled
         ? `<span class="ch-voice-slot ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.id)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
         : '<span class="ch-voice-slot" aria-hidden="true"></span>';
-      const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
+      const cogHtml = HosRoles.isStaffRole(myRoleCh) ?`<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
       // Live voice roster under the channel: who is connected to voice here
       // (from the relay's voice_channel_list broadcast). (v0.481)
       const vpHtml = (vc && vc.participants) ? vc.participants.map(p => {
@@ -2177,7 +2187,7 @@ var federatedRetryMs = 30000;
 
     // Text channel create button (admin/mod only)
     let createChannelBtn = '';
-    if (myRoleCh === 'admin' || myRoleCh === 'mod') {
+    if (HosRoles.isStaffRole(myRoleCh)) {
       createChannelBtn = '<div style="padding:var(--space-xs) 0;"><button class="vr-btn" data-action="create-text-channel" style="width:100%;margin-top:var(--space-xs);font-size:0.7rem;">+ Create Channel</button></div>';
     }
 
@@ -2218,7 +2228,7 @@ var federatedRetryMs = 30000;
 
     // Add Server button (only show for admins).
     const myRole = (window.myPeerRole || '').toLowerCase();
-    if (myRole === 'admin') {
+    if (HosRoles.isAdminRole(myRole)) {
       html += `<div style="padding:var(--space-md) var(--space-md);">
         <button ${hosOn.attr('click', `promptAddServer()`)} style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
       </div>`;
@@ -2557,6 +2567,8 @@ const CMD_PALETTE_ACTIONS = {
   // The Reports view (chat-reports.js, step D). The Moderation section's View
   // Reports item sends /reports, which opens it too (sendMessage above).
   openReports:           function() { if (typeof openReportsView === 'function') openReportsView(); },
+  // Claim ownership (chat-owner.js): the claim code from the server's own log, while it has no owner.
+  openOwnerClaim:        function() { if (typeof window.openOwnerClaim === 'function') window.openOwnerClaim(); },
 };
 fetch('/data/commands.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })
@@ -2565,8 +2577,8 @@ fetch('/data/commands.json', { cache: 'no-cache' })
 
 function getCmdPaletteItems() {
 const myRole = (typeof peerData !== 'undefined' && typeof myKey !== 'undefined' && peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
-const isMod = myRole === 'admin' || myRole === 'mod';
-const isAdmin = myRole === 'admin';
+const isMod = HosRoles.isStaffRole(myRole);
+const isAdmin = HosRoles.isAdminRole(myRole);
 
 return CMD_PALETTE_DATA.categories
   .filter(function(cat) {

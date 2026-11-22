@@ -131,7 +131,7 @@ pub async fn post_admin_backups(State(state): State<Arc<RelayState>>, Json(req):
         return answer(StatusCode::UNAUTHORIZED, false, "That request was already used: try again.", None);
     }
     let role = state.db.get_role(&req.key).unwrap_or_default();
-    if role != "admin" && role != "owner" {
+    if !crate::relay::handlers::msg_handlers::is_admin_role(&role) {
         return answer(StatusCode::FORBIDDEN, false, "Only this server's admins can see or change its backups.", None);
     }
     let db = &state.db;

@@ -67,6 +67,11 @@ pub(crate) fn note_reports_frame(gs: &mut GuiState, frame: &serde_json::Value) {
 /// A `private` line from the relay about held items (its answer to an action, or a refusal) is
 /// also shown on Held copies.
 pub(crate) fn on_private(gs: &mut GuiState, message: &str) {
+    // The relay's answer to a report decision is shown on the Reports page too, where it was made
+    // (the third review's S3: a hide during an owner change says there that its sealed copy waits).
+    if message.starts_with("Report #") {
+        gs.reports.status = message.to_string();
+    }
     if held::is_held_words(message) {
         gs.reports.held.status = message.to_string();
         if message.starts_with("Nothing was done") || message.contains("could not") {
@@ -164,32 +169,38 @@ fn start_pending(gs: &mut GuiState) {
     let Some(seed) = gs.private_key_bytes.clone() else { return };
     p.started = true;
     let p = p.clone();
+    let me = gs.profile_public_key.clone();
     let base = crate::gui::widgets::image_cache::http_base(&gs.server_url);
     let (tx, rx) = std::sync::mpsc::channel();
     gs.reports.held.running = Some(rx);
     std::thread::spawn(move || {
-        let _ = tx.send(run(&seed, &base, &p));
+        let _ = tx.send(run(&seed, &me, &base, &p));
     });
 }
 
 /// The job itself (on its own thread).
-fn run(seed: &[u8], base: &str, p: &Pending) -> Result<String, String> {
+fn run(seed: &[u8], me: &str, base: &str, p: &Pending) -> Result<String, String> {
     use humanity_protocol::pq_crypto::{derive_kyber_seed, KyberKeypair};
     let kyber = KyberKeypair::from_seed(&derive_kyber_seed(seed)).map_err(|e| e.to_string())?;
     let (id, grant) = (p.item.id, p.grant.as_str());
-    let fetch = |part: usize| held::fetch_part(base, id, part, grant);
+    // Every request signed by this app's own key (the owner review's finding 1).
+    let caller = held::Caller::new(me, seed);
+    let fetch = |part: usize| held::fetch_part(base, id, part, grant, &caller);
+    // What opens must be the very item chosen: its package, report, author and post time as the list
+    // showed them (the fourth review's finding 8).
+    let chosen = humanity_protocol::held_seal::Chosen { package: &p.item.package, report_id: p.item.report_id, author: &p.item.author, stamp: p.item.stamp.max(0) as u64 };
     match p.kind {
         JobKind::Export => {
             let file = p.file.clone().ok_or_else(|| t("held.no_file").to_string())?;
-            let done = held::export_with(&kyber, &p.item.package, &file, now_ms(), fetch).map_err(|e| tf("held.export_failed", &[("why", &e)]))?;
+            let done = held::export_with(&kyber, &chosen, &file, now_ms(), fetch).map_err(|e| tf("held.export_failed", &[("why", &e)]))?;
             Ok(tf("held.export_done", &[("id", &id), ("path", &done.path.display())]))
         }
         JobKind::Restore => humanity_protocol::held_seal::restore_with(
             &kyber,
-            &p.item.package,
+            &chosen,
             fetch,
-            |part, key, src| held::upload_part(base, id, part, grant, key, src),
-            |key| held::finish_restore(base, id, grant, key),
+            |part, key, src| held::upload_part(base, id, part, grant, key, &caller, src),
+            |key| held::finish_restore(base, id, grant, key, &caller),
         )
         .map_err(|e| tf("held.restore_failed", &[("why", &e)])),
     }

@@ -63,6 +63,9 @@ function applyPrefs() {
     if (el.type === 'checkbox') el.checked = !!prefs[k];
     else el.value = prefs[k] !== undefined ? prefs[k] : DEFAULTS[k];
   });
+  // My own key's fingerprint (2026-11-21, the owner branch's fifth review, H1): the groups an owner
+  // who names me asks me to read out, from here (/shared/own-fingerprint.js).
+  if (window.HosOwnFingerprint) window.HosOwnFingerprint.showOnSettings();
   // Show public key if available
   try {
     const id = JSON.parse(localStorage.getItem('hos_identity'));

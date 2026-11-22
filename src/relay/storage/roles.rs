@@ -248,8 +248,15 @@ impl Storage {
     /// Resolve a role id to its definition. Unknown / deleted ids fall
     /// back to the safe default-deny `RoleDef::default()` (unverified).
     /// An empty role string (legacy "no role") also maps to unverified.
+    /// The owner has no row of its own and counts as an admin everywhere, so
+    /// she reads as the Admin row (BUG-332's sweep: she read as Unverified, so
+    /// could not upload, stream or post past 280 characters).
     pub fn role_def(&self, role_id: &str) -> RoleDef {
-        let lookup_id = if role_id.is_empty() { "unverified" } else { role_id };
+        let lookup_id = match role_id {
+            "" => "unverified",
+            super::owner::OWNER_ROLE => "admin",
+            other => other,
+        };
         let res = self.with_conn(|conn| {
             conn.query_row(
                 "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,
@@ -294,7 +301,7 @@ impl Storage {
     /// or a role that was deleted, reads as Unverified, which has not.
     pub fn has_ship_rank(&self, key: &str) -> bool {
         let role = self.get_role(key).unwrap_or_default();
-        role == "owner" || self.role_def(&role).can_edit_ship
+        role == super::owner::OWNER_ROLE || self.role_def(&role).can_edit_ship
     }
 
     /// Which server_settings limit tier a role inherits. Always one of
@@ -348,9 +355,17 @@ impl Storage {
     }
 
     pub fn upsert_role(&self, r: &RoleDef) -> Result<(), rusqlite::Error> {
+        // A role's id is stored canonical, as every role a person holds is (storage/owner.rs
+        // `canonical_role`), and no role definition may be called `owner` in any spelling: the
+        // owner role is set only by the claim and the handover (the owner review's finding 10).
+        let mut canonical = r.clone();
+        canonical.id = super::owner::canonical_role(&r.id);
+        if canonical.id == super::owner::OWNER_ROLE {
+            return Err(super::owner::owner_protected());
+        }
         // A limit the sender did not send keeps its stored value (a new role takes the default),
         // then every limit is held to its range (B1 to B3, 2026-10-11).
-        let r = &self.unsent_limits_kept(r)?.with_limits_in_range();
+        let r = &self.unsent_limits_kept(&canonical)?.with_limits_in_range();
         self.with_conn(|conn| {
             // Is this id already a built-in?
             let existing_built_in: Option<i64> = conn.query_row(
@@ -698,7 +713,8 @@ mod tests {
         wright.built_in = false;
         wright.can_edit_ship = true;
         db.upsert_role(&wright).unwrap();
-        for (key, role) in [("0a", "owner"), ("0b", "admin"), ("0c", "verified"), ("0d", "shipwright")] {
+        db.claim_owner("0a", 0).unwrap();
+        for (key, role) in [("0b", "admin"), ("0c", "verified"), ("0d", "shipwright")] {
             db.set_role(key, role).unwrap();
         }
         assert!(db.has_ship_rank("0a"), "the server's owner has the rank");

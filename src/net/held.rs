@@ -55,6 +55,14 @@ pub struct HeldItem {
     pub sealed_to_owner: bool,
     /// Its package id: sent only to the owner whose key it is sealed to, never drawn.
     pub package: String,
+    /// Also sealed to the successor the owner named (2026-11-20, net/owner.rs).
+    pub sealed_to_successor: bool,
+    /// The post's author (key) and its time (Unix ms), as the list showed them: what an Export or a
+    /// Restore opens must be this very post (core `held_seal::manifest_is`, the fourth review's
+    /// finding 8: one report can hold several posts, each its own item).
+    pub author: String,
+    pub author_name: String,
+    pub stamp: i64,
 }
 
 /// One signed action in the log.
@@ -76,6 +84,10 @@ pub struct HeldCounts {
     pub legal_holds: i64,
     pub destroyed: i64,
     pub restored: i64,
+    /// Hides whose sealed copy waits for an owner change to end (the relay's words in Held copies).
+    pub waiting: i64,
+    /// Waiting folders a stop left with no note and no post the relay could name.
+    pub unidentified: i64,
 }
 
 /// The `held_items` frame, read.
@@ -87,6 +99,10 @@ pub struct HeldList {
     pub items: Vec<HeldItem>,
     pub actions: Vec<HeldLogLine>,
     pub counts: HeldCounts,
+    /// The successor the owner named, if any (every admin sees who), and the owner log: each
+    /// claim, handover and change of successor (net/owner.rs).
+    pub successor: Option<super::owner::Successor>,
+    pub owner_log: Vec<super::owner::OwnerLogLine>,
 }
 
 /// What the desktop app keeps for hide and keep (`GuiState::reports.held`).
@@ -186,6 +202,10 @@ pub fn parse_list(frame: &Value) -> Option<HeldList> {
             exported_count: int(i, "exported_count"),
             sealed_to_owner: i.get("sealed_to_owner").and_then(Value::as_bool).unwrap_or(false),
             package: text(i, "package"),
+            sealed_to_successor: i.get("sealed_to_successor").and_then(Value::as_bool).unwrap_or(false),
+            author: text(i, "author"),
+            author_name: text(i, "author_name"),
+            stamp: int(i, "stamp"),
         })
         .collect();
     let actions = list("actions")
@@ -206,7 +226,9 @@ pub fn parse_list(frame: &Value) -> Option<HeldList> {
         i_am_owner: frame.get("i_am_owner").and_then(Value::as_bool).unwrap_or(false),
         items,
         actions,
-        counts: HeldCounts { held: int(&c, "held"), exported: int(&c, "exported"), legal_holds: int(&c, "legal_holds"), destroyed: int(&c, "destroyed"), restored: int(&c, "restored") },
+        counts: HeldCounts { held: int(&c, "held"), exported: int(&c, "exported"), legal_holds: int(&c, "legal_holds"), destroyed: int(&c, "destroyed"), restored: int(&c, "restored"), waiting: int(&c, "waiting"), unidentified: int(&c, "unidentified") },
+        successor: super::owner::parse_successor(frame),
+        owner_log: super::owner::parse_log(frame),
     })
 }
 
@@ -222,7 +244,6 @@ pub struct Signed {
 /// as the person whose seed this is, for the server `server_did`, at `now_ms`. `until` is a legal
 /// hold's end (0 for none and for every other action).
 pub fn sign(seed: &[u8], server_did: &str, action: &str, target: i64, reason: &str, until: u64, now_ms: u64) -> Result<Signed, String> {
-    use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use humanity_protocol::moderation::{build_mod_action_v1, held_target_kind, ModAction};
     let kind = held_target_kind(action).ok_or_else(|| format!("{action} is not one of hide and keep's actions"))?;
     if server_did.is_empty() {
@@ -230,6 +251,13 @@ pub fn sign(seed: &[u8], server_did: &str, action: &str, target: i64, reason: &s
     }
     let a = ModAction { action, target: &target.to_string(), target_kind: kind, reason: reason.trim(), rule: "", expires_at: until, role: "" };
     let o = build_mod_action_v1(seed, server_did, &a, now_ms, &[]).map_err(|e| e.to_string())?;
+    signed_of(&o)
+}
+
+/// A signed object as the relay takes it: its object id and the submission JSON (the shape
+/// `POST /api/v2/objects` takes). The owner's actions (net/owner.rs) are carried the same way.
+pub fn signed_of(o: &humanity_protocol::object::Object) -> Result<Signed, String> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
     let object_id = o.object_id().map_err(|e| format!("{e:?}"))?.to_hex();
     let mut submission = serde_json::json!({
         "protocol_version": o.protocol_version,
@@ -430,8 +458,14 @@ pub struct Exported {
 /// grant). The file holds `held-item.json` (the list of files and who and when, never the restore
 /// key), `post.txt` (the words) and `files/<part>-<name>`; any failure removes the file, so a half
 /// export is never left behind. It is created new: an existing file is never written over.
-pub fn export_with(kyber: &KyberKeypair, package: &str, path: &std::path::Path, now_ms: i64, mut fetch: impl FnMut(usize) -> Result<Box<dyn Read>, String>) -> Result<Exported, String> {
+///
+/// The opened manifest must be the item the owner chose, its package, report, author and post time
+/// as the list showed them (core `held_seal::manifest_is`; the third review's W7, the fourth
+/// review's finding 8); otherwise nothing is written.
+pub fn export_with(kyber: &KyberKeypair, chosen: &held_seal::Chosen, path: &std::path::Path, now_ms: i64, mut fetch: impl FnMut(usize) -> Result<Box<dyn Read>, String>) -> Result<Exported, String> {
+    let package = chosen.package;
     let manifest = open_manifest(kyber, package, fetch(0)?)?;
+    held_seal::manifest_is(&manifest, chosen)?;
     let file = std::fs::OpenOptions::new().write(true).create_new(true).open(path).map_err(|e| format!("the file could not be made ({e})"))?;
     let result = (|| -> Result<usize, String> {
         let mut zip = ZipOut::new(std::io::BufWriter::new(file));
@@ -482,9 +516,59 @@ fn json_of(r: ureq::Response) -> Value {
     r.into_string().ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null)
 }
 
-/// A sealed part from the server, under `grant`: a reader over the answer's body.
-pub fn fetch_part(base: &str, id: i64, part: usize, grant: &str) -> Result<Box<dyn Read>, String> {
-    match ureq::get(&part_url(base, id, part, grant)).call() {
+/// Who asks the held part routes (the owner review's finding 1): this app's key, and the seed that
+/// signs each request (core `held_seal::caller_purpose`, the relay's signed-request pattern). A
+/// grant alone fetches nothing; the relay serves a part only to the key the grant belongs to.
+#[derive(Clone)]
+pub struct Caller {
+    pub key: String,
+    seed: Vec<u8>,
+}
+
+impl std::fmt::Debug for Caller {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Caller").field("key", &self.key).finish_non_exhaustive() // never the seed
+    }
+}
+
+impl Caller {
+    pub fn new(key: &str, seed: &[u8]) -> Self {
+        Caller { key: key.to_string(), seed: seed.to_vec() }
+    }
+
+    /// The three headers proving this caller for `purpose`, signed now (a time later than any
+    /// earlier request's, so a retried request is never taken for a replay).
+    pub fn headers(&self, purpose: &str) -> [(&'static str, String); 3] {
+        use humanity_protocol::held_seal::{CALLER_KEY, CALLER_SIG, CALLER_TIME};
+        let ts = next_ms();
+        [(CALLER_KEY, self.key.clone()), (CALLER_TIME, ts.to_string()), (CALLER_SIG, crate::net::identity::pq_sign_chat(&self.seed, purpose, ts))]
+    }
+
+    /// `req` signed for `purpose`.
+    pub fn sign(&self, req: ureq::Request, purpose: &str) -> ureq::Request {
+        self.headers(purpose).iter().fold(req, |r, (k, v)| r.set(k, v))
+    }
+}
+
+/// Unix ms, strictly later than the last call's.
+fn next_ms() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static LAST: AtomicU64 = AtomicU64::new(0);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let mut prev = LAST.load(Ordering::SeqCst);
+    loop {
+        let next = now.max(prev + 1);
+        match LAST.compare_exchange(prev, next, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => return next,
+            Err(p) => prev = p,
+        }
+    }
+}
+
+/// A sealed part from the server, under `grant`, asked by `caller`: a reader over the answer's body.
+pub fn fetch_part(base: &str, id: i64, part: usize, grant: &str, caller: &Caller) -> Result<Box<dyn Read>, String> {
+    let purpose = humanity_protocol::held_seal::caller_purpose("part", grant, id, part as i64, 0);
+    match caller.sign(ureq::get(&part_url(base, id, part, grant)), &purpose).call() {
         Ok(r) => Ok(Box::new(r.into_reader())),
         Err(ureq::Error::Status(_, _)) => Err("the server did not grant this (its answer is in the chat)".into()),
         Err(e) => Err(format!("the server could not be reached ({e})")),
@@ -496,9 +580,10 @@ pub fn fetch_part(base: &str, id: i64, part: usize, grant: &str) -> Result<Box<d
 pub const RESTORE_PIECE: usize = 768 * 1024;
 
 /// Upload a part the owner's device opened, a piece at a time as it is opened, on a restore.
-pub fn upload_part(base: &str, id: i64, part: usize, grant: &str, key: &str, src: &mut dyn Read) -> Result<(), String> {
+pub fn upload_part(base: &str, id: i64, part: usize, grant: &str, key: &str, caller: &Caller, src: &mut dyn Read) -> Result<(), String> {
     let url = part_url(base, id, part, grant);
-    send_in_pieces(src, RESTORE_PIECE, |offset, piece| match ureq::put(&format!("{url}&offset={offset}")).set(RESTORE_KEY_HEADER, key).send_bytes(piece) {
+    let purpose = |offset| humanity_protocol::held_seal::caller_purpose("restore", grant, id, part as i64, offset);
+    send_in_pieces(src, RESTORE_PIECE, |offset, piece| match caller.sign(ureq::put(&format!("{url}&offset={offset}")), &purpose(offset)).set(RESTORE_KEY_HEADER, key).send_bytes(piece) {
         Ok(_) => Ok(()),
         Err(ureq::Error::Status(_, r)) => Err(json_of(r).get("error").and_then(Value::as_str).unwrap_or_default().to_string()),
         Err(e) => Err(format!("the server could not be reached ({e})")),
@@ -506,9 +591,10 @@ pub fn upload_part(base: &str, id: i64, part: usize, grant: &str, key: &str, src
 }
 
 /// Finish a restore: the relay puts the post back; its words.
-pub fn finish_restore(base: &str, id: i64, grant: &str, key: &str) -> Result<String, String> {
+pub fn finish_restore(base: &str, id: i64, grant: &str, key: &str, caller: &Caller) -> Result<String, String> {
     let words = |v: Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or("").to_string();
-    match ureq::post(&restore_url(base, id, grant)).set(RESTORE_KEY_HEADER, key).call() {
+    let purpose = humanity_protocol::held_seal::caller_purpose("finish", grant, id, 0, 0);
+    match caller.sign(ureq::post(&restore_url(base, id, grant)), &purpose).set(RESTORE_KEY_HEADER, key).call() {
         Ok(r) => Ok(words(json_of(r), "words")),
         Err(ureq::Error::Status(_, r)) => Err(words(json_of(r), "error")),
         Err(e) => Err(format!("the server could not be reached ({e})")),

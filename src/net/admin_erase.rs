@@ -49,7 +49,7 @@ pub fn confirm_words(name: &str) -> String {
 /// An admin or the owner of this server: the only roles that may erase someone else. Read the way
 /// the web client reads a role (trimmed, any letter case).
 fn is_admin(role: &str) -> bool {
-    matches!(role.trim().to_ascii_lowercase().as_str(), "admin" | "owner")
+    super::roles::is_admin_role(role)
 }
 
 /// Whether the member list offers the action on a row. Only an admin or the owner may erase: a

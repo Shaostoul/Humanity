@@ -30,6 +30,9 @@
 (function (root) {
   'use strict';
 
+  // Whose role definition a role reads as: the owner's is the Admin row (BUG-332's sweep).
+  const ROLES = typeof module === 'object' && module && module.exports ? require('./roles.js') : root.HosRoles;
+
   const IDENTIFY_DOMAIN = 'hum/identify/v1';
   // The relay's per-connection throttle closes the socket; the close handler backs off.
   const THROTTLE_PREFIX = 'Too many connection attempts';
@@ -240,7 +243,7 @@
       /** Ask for the server's settings again (answered with server_settings_state). */
       requestSettings: () => send({ type: 'server_settings_request' }),
       /** The person's own role as the relay's role list describes it, or null until it has come. */
-      roleDef: () => (Array.isArray(state.roles) ? state.roles.find((r) => r.id === state.role) || null : null),
+      roleDef: () => (Array.isArray(state.roles) ? state.roles.find((r) => r.id === ROLES.roleDefId(state.role)) || null : null),
       /** This page's identity key (hex), or null before it is read. */
       me: () => (identity ? identity.dilithiumPublicHex : null),
       /**

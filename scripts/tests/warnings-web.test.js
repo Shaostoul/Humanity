@@ -377,6 +377,7 @@ async function loadChat(opts = {}) {
   // In index.html's order.
   run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
+  run("shared/roles.js"); // who counts as an admin, as web/chat/index.html loads it before app.js (BUG-332)
   run("chat/bip39-english.js");
   run("shared/friend-pass.js");
   run("shared/reach.js");
@@ -897,7 +898,9 @@ test("every other send path awaits the guard before it sends, and index.html loa
     ["chat/app.js", "async function sendMessage()", "ws.send("],
     ["chat/app.js", "async function connect(", "openSocket("],
     ["chat/app.js", "async function sendChatCommand(", "ws.send("],
-    ["chat/app.js", "async function handleSkillVerifyRequest(", "ws.send("],
+    // The endorsement's note, sent from the request's own chat line (the owner branch's seventh
+    // review, H1 (c): no browser prompt() any more).
+    ["chat/app.js", "endorse.addEventListener('click', async () => {", "ws.send("],
     ["chat/app.js", "async function sendGameBan(", "ws.send("],
     ["chat/chat-ui.js", "async function sendComposedContent(", "ws.send("],
     // A file's marker in a P2P group (10k) leaves sendComposedContent here.

@@ -454,6 +454,9 @@ async function loadChat(opts = {}) {
   };
   ctx.window = ctx;
   ctx.self = ctx;
+  // The words, by key (web/shared/i18n.js stands here as its key and values): app.js's server
+  // lines and chat-social.js's friend-code lines ask for theirs (the owner branch's seventh review).
+  if (!ctx.i18n) ctx.i18n = { t: (k, v) => k + (v ? ' ' + JSON.stringify(v) : ''), hint() {}, fill(el, k) { el.textContent = k; return el; } };
   const modules = fakeGroupModules();
   ctx.__testImport = async (spec) => {
     if (!modules[spec]) throw new Error("no module " + spec);
@@ -468,6 +471,7 @@ async function loadChat(opts = {}) {
   // In index.html's order.
   run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
+  run("shared/roles.js"); // who counts as an admin, as web/chat/index.html loads it before app.js (BUG-332)
   run("chat/bip39-english.js");
   run("shared/friend-pass.js");
   run("shared/reach.js");
@@ -1885,10 +1889,10 @@ test("starting a group, an invite ticket and the typed friend-code commands need
   assert.ok(!chat.pinOpen(), "no second PIN for the friend the code named");
   assert.ok(putsTo(chat, BEN).some((m) => opened(m).inner.text === CTL_FOLLOW), "following them goes out");
   assert.ok(chat.saved().approved.includes(BEN), "and they are a friend the PIN holder let be one");
-  // An answer nobody asked for makes no friend without the PIN.
+  // An answer nobody asked for is dropped (the owner branch's seventh review, H1 (c)): no friend,
+  // and not even a PIN prompt for one.
   await chat.handle({ type: "friend_code_result", success: true, name: "Cy", message: "", owner_key: CY });
-  assert.ok(chat.pinOpen(), "an answer nobody asked for asks for the PIN before following anyone");
-  await cancelPin(chat);
+  assert.ok(!chat.pinOpen(), "an answer nobody asked for is dropped, before any PIN");
   assert.deepEqual(putsTo(chat, CY), []);
   // The thread reply box would send them to the server as commands too.
   chat.sock.sent.length = 0;

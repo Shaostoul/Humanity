@@ -14,6 +14,9 @@ use crate::updater::{UpdateChannel, UpdateState};
 pub(crate) mod ai;
 /// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
 mod data_folder;
+/// Settings > Account > "Your key's fingerprint" (2026-11-21): the groups a person reads to an
+/// owner who names them, from their own screen.
+pub(crate) mod own_fingerprint;
 /// Settings > Audio > Instruments (2026-11-06, docs/design/music.md rung 6): the instrument packs
 /// that come with the app and the ones to download, the star catalog's way.
 pub(crate) mod instruments;
@@ -795,6 +798,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 ui.ctx().copy_text(state.profile_public_key.clone());
             }
         });
+        own_fingerprint::draw(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
 

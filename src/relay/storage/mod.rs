@@ -214,6 +214,10 @@ pub struct Storage {
     /// database's write-ahead log, and what the Backups panel shows. Empty until
     /// `backup_stream_install` (relay start) or the panel turns it on.
     pub(crate) stream: crate::relay::backup_stream::Slot,
+    /// The held folder's one lock (2026-11-20, the owner branch's second review, R4): an owner
+    /// change's swap, clearing its new parts, the stray sweep and destroying a copy each hold it, so
+    /// none runs inside another (storage/owner_handover.rs).
+    pub(crate) held_swap: Mutex<()>,
     /// Test builds only (BUG-159): the temporary database (or folder) this storage was opened
     /// on by `open_temp`, `open_temp_dir` or `open_sharing`, deleted when the last holder of it
     /// is dropped. Declared last so it is dropped after the writer and the read pool have
@@ -242,13 +246,13 @@ impl Storage {
     /// same connection that did the INSERT.
     ///
     /// Reads that are provably read-only can opt into [`with_read_conn`] for
-    /// concurrency; everything else stays here. Panics if the mutex is poisoned
-    /// (same as the original unwrap behavior).
+    /// concurrency; everything else stays here. A panic inside a closure no longer poisons the
+    /// connection for good (conn_lock.rs, the owner branch's sixth review, L3).
     pub(crate) fn with_conn<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&Connection) -> T,
     {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn();
         f(&conn)
     }
 
@@ -258,7 +262,7 @@ impl Storage {
     where
         F: FnOnce(&mut Connection) -> T,
     {
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.lock_conn();
         f(&mut conn)
     }
 
@@ -1698,6 +1702,35 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_held_items_report ON held_items(report_id);
             CREATE INDEX IF NOT EXISTS idx_held_items_due ON held_items(delete_after);"
         )?;
+
+        // The owner log (2026-11-20, storage/owner.rs): one row per claim of the owner role and per
+        // handover of it, with the signed handover as it arrived. Never deleted; shown to admins.
+        // A new table in a batch of its own (BUG-046 concerns ALTER-added columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS owner_log (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind      TEXT    NOT NULL,
+                old_key   TEXT    NOT NULL,
+                new_key   TEXT    NOT NULL,
+                object_id TEXT    UNIQUE,
+                reason    TEXT    NOT NULL,
+                at        INTEGER NOT NULL,
+                object    TEXT    NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS owner_successor (
+                id         INTEGER PRIMARY KEY CHECK (id = 1),
+                public_key TEXT    NOT NULL,
+                card_at    INTEGER NOT NULL,
+                named_at   INTEGER NOT NULL
+            );"
+        )?;
+        // Guarded ALTER (the named successor, 2026-11-20, storage/owner.rs): who a held item is also
+        // sealed to. AFTER held_items' CREATE above, per the BUG-046 ordering rule; empty for rows
+        // sealed to the owner alone.
+        if conn.prepare("SELECT also_sealed_to FROM held_items LIMIT 0").is_err() {
+            conn.execute_batch("ALTER TABLE held_items ADD COLUMN also_sealed_to TEXT NOT NULL DEFAULT '';")?;
+            info!("Migration: added also_sealed_to (held_items)");
+        }
 
         // Hide and keep's signed actions (2026-11-20, storage/moderation_held.rs): one row per
         // hide, export, legal hold, destroy and restore carried out, with the signed object as it
@@ -3166,6 +3199,7 @@ impl Storage {
             erase_secret,
             erase_secret_kept,
             stream: Default::default(),
+            held_swap: Mutex::new(()),
             #[cfg(test)]
             temp: None,
         })
@@ -3308,6 +3342,10 @@ mod reach;
 pub mod reports;
 // Hide and keep (2026-11-20, docs/design/hide-and-keep.md): a reported post out of view, kept sealed.
 pub mod held;
+// The server's owner (2026-11-20): the claim, the handover, the guard and their log.
+pub mod owner;
+// The writer connection's lock, which a panic inside a closure no longer poisons for good (2026-11-21).
+mod conn_lock;
 // Copyright reports about Media items and the public takedown log (2026-10-13).
 pub mod takedowns;
 // The Media page (2026-10-11, docs/design/files-showcase.md): items, categories, suggestions, picks.

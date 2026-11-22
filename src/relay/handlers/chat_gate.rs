@@ -58,7 +58,7 @@ pub async fn refused(state: &Arc<RelayState>, key: &str, role: &str, content: &s
 
     // Enforce max message length (admins: 10000, others: 2000). Quotes (lines starting with "> ")
     // are exempt.
-    let char_limit: usize = if role == "admin" { 10_000 } else { 2_000 };
+    let char_limit: usize = if super::msg_handlers::is_admin_role(role) { 10_000 } else { 2_000 };
     let user_text_len: usize = content.lines().filter(|l| !l.starts_with("> ")).map(|l| l.len() + 1).sum();
     if user_text_len > char_limit + 1 {
         let words = format!("Message too long ({} chars, max {}). Please shorten it.", user_text_len.saturating_sub(1), char_limit);

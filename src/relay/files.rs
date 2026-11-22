@@ -216,7 +216,7 @@ fn members_only_server(s: &ServerSettings) -> bool {
 }
 
 pub(crate) fn is_admin(db: &Storage, key: &str) -> bool {
-    matches!(db.get_role(key).unwrap_or_default().as_str(), "admin" | "owner")
+    crate::relay::handlers::msg_handlers::is_admin_role(&db.get_role(key).unwrap_or_default())
 }
 
 /// A member of this server who is not banned from it.

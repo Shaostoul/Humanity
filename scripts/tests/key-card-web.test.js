@@ -157,3 +157,119 @@ test("the sentences are the relay's, word for word", () => {
     assert.ok(!banned.some((b) => s.includes(b)), `the words rules: ${s}`);
   }
 });
+
+// THE FINGERPRINT IS THE RELAY'S (the owner branch's second review, W1): the website's
+// `fingerprint` gives the known answer pinned in key_card.rs's `the_fingerprint_is_pinned` (read
+// out of that file), six groups of four hex digits. Seen red 2026-11-20 with the domain written
+// "hum/key-fingerprint/v2": the known answer differed.
+test("the fingerprint matches the relay's known answer", async () => {
+  const m = await noble();
+  const derive = (ctx, b) => m.blake3.create({ context: enc(ctx), dkLen: 32 }).update(b).digest();
+  const kat = /assert_eq!\(fingerprint\(&key\), "([0-9a-f ]+)"\)/.exec(RUST);
+  assert.ok(kat, "key_card.rs pins the known answer");
+  assert.strictEqual(K.fingerprint("ab".repeat(1952), derive), kat[1]);
+  assert.strictEqual(K.fingerprint("ab".repeat(1952), derive).split(" ").length, 6);
+  assert.strictEqual(K.fingerprint("not hex", derive), "");
+});
+
+// FOUR GROUPS AT RANDOM POSITIONS CONFIRM IT (the third review's M2; four since the fourth review's
+// finding 5, 2026-11-21): what the owner types for every handover and naming is the four groups at
+// the positions the page drew for this ask (key_card.rs `groups_at`, its known answer read out of
+// that file), in order, any case and spacing. The draw covers every set of four of the six groups
+// (15) alike, and a key ground to match THREE groups (about 10^5 core-hours at 1 to 2 microseconds
+// a candidate) passes no ask at all; one ground on four (2^64) passes exactly one set in 15.
+// Seen red 2026-11-21 with groupsAt reading the last two groups whatever was asked: "the groups
+// key_card.rs pins" got "c757 ed6b". Round 5, seen red 2026-11-21 with groupsMatchAt
+// comparing only the first two positions asked (the round-4 two-group rule in effect): "a key ground
+// on three groups passes no ask" failed at the set 0,1,2,3.
+test("four groups at random positions confirm the fingerprint; a key ground on three groups passes no ask", async () => {
+  const m = await noble();
+  const derive = (ctx, b) => m.blake3.create({ context: enc(ctx), dkLen: 32 }).update(b).digest();
+  const kat = /assert_eq!\(groups_at\(&fingerprint\(&key\), \[1, 2, 4, 5\]\), "([0-9a-f ]+)"\)/.exec(RUST);
+  assert.ok(kat, "key_card.rs pins the groups at positions 1, 2, 4 and 5");
+  const key = "ab".repeat(1952);
+  const at = [1, 2, 4, 5];
+  assert.strictEqual(K.CONFIRM_GROUPS, 4);
+  assert.ok(/pub const CONFIRM_GROUPS: usize = 4;/.test(RUST), "the same count as key_card.rs");
+  assert.strictEqual(K.groupsAt(K.fingerprint(key, derive), at), kat[1], "the groups key_card.rs pins");
+  assert.ok(K.fingerprintConfirmedAt(key, at, "  " + kat[1].toUpperCase() + " ", derive), "in any case, spaces around");
+  assert.ok(K.fingerprintConfirmedAt(key, at, kat[1].replace(/ /g, ""), derive), "or none between");
+  assert.ok(!K.fingerprintConfirmedAt(key, at, kat[1].split(" ").slice(2).join(" "), derive), "two groups do not confirm four asked");
+  assert.ok(!K.fingerprintConfirmedAt(key, at, "d2cc 223c c757 ed6b", derive), "nor the last four when others were asked");
+  assert.ok(!K.fingerprintConfirmedAt(key, at, kat[1].split(" ").reverse().join(" "), derive), "nor out of order");
+  assert.ok(!K.fingerprintConfirmedAt("not hex", [0, 1, 2, 3], "", derive) && !K.fingerprintConfirmedAt(key, [1, 2, 4, 6], kat[1], derive));
+  assert.strictEqual(K.groupsAt(K.fingerprint(key, derive), [1, 1, 4, 5]), "", "a position named twice is no ask");
+
+  // The draw (the fifth review's H1): uniform over all 15 sets, every ask, whatever was asked before
+  // (key_card.rs `the_draw_is_uniform_over_all_fifteen_sets`). Each of the first 15 values lands on
+  // a different set, a value past the rejection zone is drawn again, a generator that repeats gives
+  // the same set again, and 30,000 draws land on each set 1,700 to 2,300 times (2,000 expected).
+  // Seen red 2026-11-21 with round 5's rule put back (the set drawn before left out of the next
+  // draw, remembered between calls; scratchpad ownfix8-red-web.log): "each of the first 15 values
+  // lands on a different set" got 14.
+  assert.strictEqual(K.confirmSets().length, 15);
+  const byValue = new Set();
+  for (let r = 0; r < 15; r++) byValue.add(K.confirmPositions(() => r).join(","));
+  assert.strictEqual(byValue.size, 15, "each of the first 15 values lands on a different set");
+  const zone = 0x100000000 - (0x100000000 % 15);
+  const values = [zone, 3];
+  assert.deepStrictEqual(K.confirmPositions(() => values.shift()), K.confirmSets()[3], "a value past the zone is drawn again");
+  assert.deepStrictEqual(K.confirmPositions(() => 7), K.confirmPositions(() => 7), "a generator that repeats draws the same set again");
+  const counts = new Map();
+  for (let i = 0; i < 30000; i++) {
+    const p = K.confirmPositions();
+    assert.ok(p.length === 4 && p.every((x, j) => j === 0 || p[j - 1] < x) && p[0] >= 0 && p[3] < 6, "four different groups, ascending: " + p);
+    counts.set(p.join(","), (counts.get(p.join(",")) || 0) + 1);
+  }
+  assert.strictEqual(counts.size, 15, "every set of four of the six groups is drawn");
+  for (const [set, n] of counts) assert.ok(n >= 1700 && n <= 2300, set + " drawn " + n + " times of 30,000");
+
+  // A wrong set is not an empty one (key_card.rs `a_wrong_set_is_not_an_empty_one`): only sixteen
+  // characters that differ are a mismatch.
+  // Seen red 2026-11-21 with judgeAt answering 'short' for any set that does not match (round 5's
+  // behaviour; scratchpad ownfix8-red-web.log): "a wrong set of four is a mismatch" got 'short'.
+  assert.strictEqual(K.judgeAt(key, at, "", derive), "empty");
+  assert.strictEqual(K.judgeAt(key, at, "  ", derive), "empty");
+  assert.strictEqual(K.judgeAt(key, at, "e5d0 d2cc", derive), "short", "two groups are not yet a judgement");
+  assert.strictEqual(K.judgeAt(key, at, kat[1].toUpperCase(), derive), "matched");
+  assert.strictEqual(K.judgeAt(key, at, "0000 0000 0000 0000", derive), "mismatched", "a wrong set of four is a mismatch");
+  assert.strictEqual(K.judgeAt(key, at, kat[1] + " 0", derive), "short", "seventeen characters are not four groups");
+
+  // Ground keys: R's fingerprint equals Bea's at three groups, nowhere else. The owner types Bea's
+  // real groups at the asked positions (what she reads out); no set of four fits R.
+  const bea = K.fingerprint(key, derive).split(" ");
+  const groundOn = (on) => bea.map((g, i) => (on.includes(i) ? g : "0000")).join(" ");
+  for (const three of [[0, 1, 2], [1, 3, 5], [3, 4, 5]]) {
+    for (const set of K.confirmSets()) {
+      assert.ok(!K.groupsMatchAt(groundOn(three), set, K.groupsAt(bea.join(" "), set)), "a key ground on three groups passes no ask: " + three + " passed the set " + set);
+    }
+  }
+  const passing = K.confirmSets().filter((set) => K.groupsMatchAt(groundOn([0, 2, 3, 5]), set, K.groupsAt(bea.join(" "), set)));
+  assert.deepStrictEqual(passing, [[0, 2, 3, 5]], "a key ground on four groups passes one set in 15");
+});
+
+// THE NAME RULE IS THE HONEST RELAY'S (the third review's M2; key_card.rs `honest_name`, relay.rs
+// identify): 1 to 24 of [A-Za-z0-9_-]. A name with a fingerprint written into it is refused.
+// Seen red 2026-11-21 with honestName allowing spaces and brackets: "Bea (3fa2 ...)" passed.
+test("only a name an honest relay could list passes", () => {
+  for (const ok of ["Bea", "a", "Cal_2", "x-y", "z".repeat(24)]) assert.ok(K.honestName(ok), ok);
+  for (const bad of ["", "Bea (3fa2 91c0 77de 0b4e 5a19 c2d0)", "Bea ", "B\u00e9", "z".repeat(25), "a\u202eb", "a.b", null, 7]) {
+    assert.ok(!K.honestName(bad), JSON.stringify(bad));
+  }
+  assert.strictEqual(K.NAME_MAX, 24);
+  assert.ok(/pub const NAME_MAX: usize = 24;/.test(RUST), "the same limit as key_card.rs");
+});
+
+// THE APP'S AND THE SERVER'S NAMES ARE NOBODY'S (the owner branch's seventh review, H1 (b)): the
+// same list as key_card.rs `RESERVED_NAMES`, folded the same way, so "System" and "Sy5tem" are
+// refused names on both, and a name merely containing one is not.
+// Seen red 2026-11-21 before reservedName existed: honestName("System") was true.
+test("the reserved names are key_card.rs's, folded the same way", () => {
+  const m = RUST.match(/pub const RESERVED_NAMES: &\[&str\] = &\[([^\]]*)\];/);
+  assert.ok(m, "key_card.rs lists RESERVED_NAMES");
+  assert.deepStrictEqual(K.RESERVED_NAMES, m[1].split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter(Boolean));
+  for (const bad of ["System", "SYSTEM", "Sys_tem", "Sy5tem", "5y5t3m", "humanity-os", "Hurnanity0S", "From_this_server", "Fr0mThi5Server", "4pp"]) {
+    assert.ok(K.reservedName(bad) && !K.honestName(bad), bad);
+  }
+  for (const ok of ["Systems", "Ada", "Serverly", "Apple", "Humanist", "SysAdmin"]) assert.ok(!K.reservedName(ok) && K.honestName(ok), ok);
+});

@@ -293,7 +293,7 @@ fn the_usage_route_gives_the_meter() {
     let s = db.get_server_settings().unwrap();
     let op = person(17);
     db.join_server(&op.key, "Op").unwrap();
-    db.set_role(&op.key, "owner").unwrap();
+    db.claim_owner(&op.key, 0).unwrap();
     db.record_upload(&op.key, "1_a.png", 100, 0i64, "a.png", 3 * MIB / 2).unwrap();
     db.publish_media(&op.key, &Publish { filename: "1_a.png", visibility: "public", ..Default::default() }, 1 << 40, 1 << 40, None).unwrap();
     let u = usage_core(db, &s, &op.key).unwrap().0;

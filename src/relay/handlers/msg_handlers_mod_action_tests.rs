@@ -192,7 +192,7 @@ fn a_member_verified_mid_session_is_told_their_new_line_limit() {
 #[test]
 fn the_owner_counts_as_an_admin_for_listings_reviews_and_projects() {
     let st = fresh_state();
-    st.db.set_role("owner_key", "owner").unwrap();
+    st.db.claim_owner("owner_key", 0).unwrap();
     let listing = |id: &str| {
         st.db.create_listing(id, "seller_key", "Sam", "Lamp", "a lamp", "home", "used", "5", "cash", "here").unwrap();
     };
@@ -242,7 +242,7 @@ fn the_owner_counts_as_an_admin_for_listings_reviews_and_projects() {
 #[test]
 fn the_owner_lists_for_sale_and_runs_voice_channels_as_an_admin_does() {
     let st = fresh_state();
-    st.db.set_role("owner_key", "owner").unwrap();
+    st.db.claim_owner("owner_key", 0).unwrap();
     let create = |who: &str, id: &str| {
         block(handle_listing_create(&st, who, id.into(), "Lamp".into(), "a lamp".into(), "home".into(), "used".into(), "5".into(), "cash".into(), "here".into()));
     };

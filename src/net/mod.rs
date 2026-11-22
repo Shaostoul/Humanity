@@ -107,6 +107,10 @@ pub mod report;
 /// signed actions, and the owner's Export and Restore opened on this device.
 #[cfg(feature = "native")]
 pub mod held;
+/// The server's owner (2026-11-20, docs/design/hide-and-keep.md, "How the owner role is set"):
+/// Claim ownership, Hand over ownership and the named Successor, each checked on this device.
+#[cfg(feature = "native")]
+pub mod owner;
 
 /// A report about a group reaches the group's creator (10j of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): the marker and its limits, the dialog's choices, and the creator's checks.
@@ -176,6 +180,11 @@ pub mod mailbox_fetch;
 /// 2026-10-10): who is offered it, the typed-name check, the `admin_erase` frame and the receipt.
 #[cfg(feature = "native")]
 pub mod admin_erase;
+
+/// Who counts as an admin or a moderator, the owner an admin (BUG-332's sweep, 2026-11-20): the
+/// one helper every role gate in the app asks.
+#[cfg(feature = "native")]
+pub mod roles;
 
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.

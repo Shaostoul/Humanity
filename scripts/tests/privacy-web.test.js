@@ -161,7 +161,7 @@ async function settingsPage(opts = {}) {
   ctx.window = ctx;
   vm.createContext(ctx);
   // In settings.html's order: the words (shell.js loads them first), then the section's scripts.
-  for (const rel of ["shared/safe-markup.js", "shared/i18n-en.js", "shared/i18n.js", "shared/profile-changes.js", "shared/relay-session.js", "shared/privacy-tiers.js", "pages/settings-privacy.js"]) {
+  for (const rel of ["shared/safe-markup.js", "shared/i18n-en.js", "shared/i18n.js", "shared/profile-changes.js", "shared/roles.js", "shared/relay-session.js", "shared/privacy-tiers.js", "pages/settings-privacy.js"]) {
     vm.runInContext(read(rel), ctx, { filename: rel });
   }
   await settle();

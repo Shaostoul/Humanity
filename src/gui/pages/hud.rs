@@ -953,6 +953,10 @@ pub fn draw(
                 for (i, m) in recent.iter().rev().enumerate() {
                     let y = top + line_h * (i as f32 + 1.0) + 2.0;
                     let name = if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() };
+                    // The app's own voice: no name, its words in the accent ink, which no frame can
+                    // choose (the owner branch's seventh review, H1 (a)); a frame named "System" is
+                    // drawn "System: ..." like anyone's.
+                    let app_voice = m.origin == crate::gui::LineOrigin::App;
                     // ONE line per message: the feed is a fixed 15 px grid, so
                     // a message with newlines (a list, a code block) painted
                     // its extra lines over the rows below and out past the
@@ -974,15 +978,17 @@ pub fn draw(
                             break_anywhere: true,
                             overflow_character: Some('\u{2026}'),
                         };
-                        job.append(
-                            &format!("{name}: "),
-                            0.0,
-                            egui::TextFormat {
-                                font_id: FontId::proportional(11.0),
-                                color: theme.text_secondary(),
-                                ..Default::default()
-                            },
-                        );
+                        if !app_voice {
+                            job.append(
+                                &format!("{name}: "),
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: FontId::proportional(11.0),
+                                    color: theme.text_secondary(),
+                                    ..Default::default()
+                                },
+                            );
+                        }
                         crate::gui::widgets::row::append_formatted(
                             &mut job,
                             theme,
@@ -990,7 +996,7 @@ pub fn draw(
                             &[],
                             &spans,
                             11.0,
-                            theme.text_secondary(),
+                            if app_voice { theme.accent() } else { theme.text_secondary() },
                         );
                         // The outline pass: every glyph, underline and strike
                         // in the outline ink, no code backgrounds.

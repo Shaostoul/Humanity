@@ -55,6 +55,9 @@ pub mod report;
 /// Hide and keep (2026-11-20, docs/design/hide-and-keep.md rung 5): the signed decision, the held
 /// items list, and the owner's Export and Restore on a thread of their own.
 pub mod held;
+/// The server's owner (2026-11-20): Claim ownership, the handover and the successor, the re-seal
+/// on a thread of its own (net/owner.rs holds the rules).
+pub mod owner;
 /// A report about a group reaches the group's creator (10j of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): the dialog's creator lookup and sending, the checks on arrival, and the creator's
 /// Remove, Block and Dismiss.

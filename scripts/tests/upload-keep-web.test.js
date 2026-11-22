@@ -85,6 +85,8 @@ function chatPage(answers, opts) {
     document, FormData, XMLHttpRequest: undefined,
     fetch: async () => ({ ok: false }), // the reactions list the file asks for as it loads
     addSystemMessage: (t) => said.push(String(t)),
+    // app.js's marked server line (the owner branch's seventh review, H1 (c)).
+    addServerMessage: (t) => said.push('From this server: ' + String(t)),
     myKey: 'me_key', myDilithiumSecret: new Uint8Array(4),
     // The signature stood in by the signed bytes themselves, so the test can read what was signed.
     pqSignMessage: async (_secret, bytes) => new Uint8Array(bytes),
@@ -208,5 +210,5 @@ test('under the protected setup the server\'s 422 is not asked about: its words,
   assert.strictEqual(page.document.body.children.length, 0, 'no question under the protected setup');
   assert.strictEqual(done, null, 'nothing is stored');
   assert.strictEqual(page.posts.length, 1, 'and nothing more is sent');
-  assert.ok(page.said.some((s) => s.includes(words)), 'the server\'s words are said: ' + JSON.stringify(page.said));
+  assert.ok(page.said.some((s) => s.startsWith('From this server: ') && s.includes(words)), 'the server\'s words are said, marked as its own: ' + JSON.stringify(page.said));
 });

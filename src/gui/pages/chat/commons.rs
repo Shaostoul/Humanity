@@ -188,7 +188,7 @@ pub(crate) fn commons_route(state: &GuiState, room: &str) -> (bool, Option<usize
 /// connected carrier at all. Field test 5: bridged read-only rooms must not
 /// accept posts through the side door of a different carrier.
 pub(crate) fn commons_room_read_only(state: &GuiState, room: &str) -> Option<bool> {
-    let is_mod = |role: &str| role == "admin" || role == "owner" || role == "moderator" || role == "mod";
+    let is_mod = |role: &str| crate::net::roles::is_staff_role(role);
     match commons_route(state, room) {
         (true, _) => {
             let ro = state.chat_channels.iter().find(|c| c.id == room).map(|c| c.post_level.staff_only()).unwrap_or(false);

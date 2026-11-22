@@ -14,14 +14,14 @@
 //!
 //! NOT PUBLIC. These records name reports and held items and carry the actor's reason, so they are
 //! kept apart from the public signed-object store: `put_signed_object` refuses a held action
-//! ([`is_held_action_object`]), so none can be stored there by `POST /api/v2/objects` or arrive
+//! ([`is_private_mod_action`], which refuses the owner's `owner_handover` too), so none can be stored there by `POST /api/v2/objects` or arrive
 //! from a linked server, and none is gossiped. The public sees only counts ([`Storage::held_counts`]).
 //!
 //! REPLAY. An action is good for [`HELD_ACTION_FRESH_MS`] either side of the relay's clock, only
 //! from the signed-in key that signed it, only for this server (its `space_id` is this server's own
 //! DID), and once (its object id is unique in `held_actions`).
 
-use humanity_protocol::moderation::{held_target_kind, HELD_ACTIONS};
+use humanity_protocol::moderation::{held_target_kind, HELD_ACTIONS, OWNER_ACCEPT, OWNER_ACTIONS};
 use humanity_protocol::object::Object;
 use rusqlite::params;
 
@@ -69,11 +69,17 @@ pub struct HeldCounts {
     pub legal_holds: i64,
     pub destroyed: i64,
     pub restored: i64,
+    /// Hides waiting for their sealed copy until an owner change ends (handlers/held.rs fills it).
+    pub waiting: i64,
+    /// Waiting folders with no note whose post could not be identified (handlers/held.rs fills it).
+    pub unidentified: i64,
 }
 
-/// Whether `object` is a `mod_action_v1` carrying a held action (refused by the public store).
-pub fn is_held_action_object(object: &Object) -> bool {
-    object.object_type == "mod_action_v1" && payload_text(object, "action").is_some_and(|a| HELD_ACTIONS.contains(&a.as_str()))
+/// Whether `object` is a `mod_action_v1` carrying a held action, one of the owner's actions or a
+/// recipient's acceptance of one (refused by the public store: each is carried only by its own path).
+pub fn is_private_mod_action(object: &Object) -> bool {
+    object.object_type == "mod_action_v1"
+        && payload_text(object, "action").is_some_and(|a| HELD_ACTIONS.contains(&a.as_str()) || OWNER_ACTIONS.contains(&a.as_str()) || a == OWNER_ACCEPT)
 }
 
 impl Storage {
@@ -125,7 +131,7 @@ impl Storage {
         }
         if action == "hide_and_keep" {
             let role = self.get_role(&signer).unwrap_or_default();
-            if !matches!(role.as_str(), "admin" | "owner" | "mod" | "moderator") {
+            if !crate::relay::handlers::msg_handlers::is_staff_role(&role) {
                 return Err("only admins and moderators hide and keep".into());
             }
         } else if self.owner_keys().unwrap_or_default() != [signer.clone()] {

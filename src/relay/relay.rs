@@ -16,6 +16,7 @@ use crate::relay::storage::Storage;
 use crate::relay::handlers::*;
 use crate::relay::handlers::game_state::GameWorld;
 use crate::relay::handlers::chat_rate::RateLimitState;
+use crate::relay::handlers::msg_handlers::{is_admin_role, is_staff_role};
 // Re-export start_federation_connections so main.rs can call relay::start_federation_connections.
 pub use crate::relay::handlers::start_federation_connections;
 // The Web Push send (`RelayState::send_push_notification`), a child so it reaches the state's fields.
@@ -94,8 +95,6 @@ fn registration_default_open() -> bool {
 /// Flat rate limit for new accounts (seconds).
 pub const NEW_ACCOUNT_DELAY_SECS: u64 = 5;
 
-/// What a socket that signs in to a server with no admin yet is told (v0.936), on that socket only.
-pub const UNCLAIMED_NOTICE: &str = "This server has no admin yet. If this is YOUR server, read the claim code from the server console (or data/owner-claim-code.txt on the host) and type: /claim <code>";
 
 /// A connected peer, identified by their public key hex.
 #[derive(Debug, Clone)]
@@ -293,12 +292,15 @@ pub struct RelayState {
     /// that verifies, and reject a second sighting. Map: short id -> first-seen
     /// Instant; pruned to the window on access + size-capped.
     pub seen_auth_nonces: std::sync::Mutex<HashMap<String, Instant>>,
-    /// One-time server-claim code (v0.936 first-admin setup). Some only while
-    /// the server has NO admins and no ADMIN_KEYS were provided: generated at
-    /// startup, printed to the server console and written beside the DB, so
-    /// only someone with host access can read it. `/claim <code>` promotes the
-    /// sender to admin and burns it. None on any server that has an owner.
+    /// The one-time owner claim code (2026-11-20, handlers/owner.rs): Some only while no key holds
+    /// the owner role; printed to the server's log and written beside the DB, never sent to a client.
     pub claim_code: RwLock<Option<String>>,
+    /// Where the claim code was written (handlers/owner.rs `CLAIM_CODE_FILE`; a test's own file in a test).
+    pub claim_code_file: std::sync::Mutex<std::path::PathBuf>,
+    /// Wrong claim codes: the server's current window and each key's count (handlers/owner.rs).
+    pub owner_claim_misses: std::sync::Mutex<crate::relay::handlers::owner::ClaimMisses>,
+    /// The owner's handover while it runs (handlers/owner.rs).
+    pub pending_handover: std::sync::Mutex<crate::relay::handlers::owner::ChangeSlot>,
     /// VAPID keypair for WebPush notifications (P-256/ES256, `relay::web_push`).
     pub vapid_key: Option<crate::relay::web_push::VapidKey>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
@@ -528,6 +530,9 @@ impl RelayState {
             announce_rate: std::sync::Mutex::new(Vec::new()),
             seen_auth_nonces: std::sync::Mutex::new(HashMap::new()),
             claim_code: RwLock::new(None),
+            claim_code_file: std::sync::Mutex::new(crate::relay::handlers::owner::CLAIM_CODE_FILE.into()),
+            owner_claim_misses: std::sync::Mutex::new(Default::default()),
+            pending_handover: std::sync::Mutex::new(Default::default()),
             vapid_key: None,
             server_config,
             features,
@@ -1465,7 +1470,28 @@ pub enum RelayMessage {
     /// Server -> an admin: the held items (hide and keep, handlers/held.rs `handle_list`), never
     /// what one holds; `to` routes it to that person's sockets alone, unsent.
     #[serde(rename = "held_items")]
-    HeldItems { #[serde(skip)] to: String, can_keep: bool, cannot_keep_why: String, i_am_owner: bool, items: Vec<serde_json::Value>, actions: Vec<serde_json::Value>, counts: serde_json::Value },
+    HeldItems { #[serde(skip)] to: String, can_keep: bool, cannot_keep_why: String, i_am_owner: bool, items: Vec<serde_json::Value>, actions: Vec<serde_json::Value>, counts: serde_json::Value, successor: serde_json::Value, owner_log: Vec<serde_json::Value> },
+
+    /// Server -> everyone: whether a key holds the owner role (handlers/owner.rs); "Claim ownership"
+    /// shows only while none does. Sent to each socket as it signs in, and to all on a claim.
+    #[serde(rename = "owner_state")]
+    OwnerState { has_owner: bool },
+
+    /// Server -> one person: how their claim or handover went (`kind` "claim" or "handover").
+    #[serde(rename = "owner_reply")]
+    OwnerReply { #[serde(skip)] to: String, kind: String, ok: bool, message: String },
+
+    /// Server -> the owner: a handover or a change of successor (`action`) checked out; every held
+    /// item (id, package, parts) whose part headers to re-wrap for `recipients` ([{key, card_at}],
+    /// each card checked by the owner's device too), fetched and sent back under `grant`.
+    #[serde(rename = "owner_change_ready")]
+    OwnerChangeReady { #[serde(skip)] to: String, grant: String, action: String, target: String, recipients: Vec<serde_json::Value>, items: Vec<serde_json::Value> },
+
+    /// Server -> a recipient of an owner change: check your own slot of every new header on your
+    /// device and accept (handlers/owner_accept.rs), by `until` (Unix ms). `object` is the owner's
+    /// signed action, which the device checks; `round` is bound into the acceptance.
+    #[serde(rename = "owner_change_check")]
+    OwnerChangeCheck { #[serde(skip)] to: String, grant: String, round: String, action: String, object: serde_json::Value, owner: String, owner_name: String, target: String, target_name: String, items: Vec<serde_json::Value>, until: i64 },
 
     /// Server -> the asker: credentials for the call forwarder, for one voice room or call
     /// (call_credentials.rs). `to` routes it to that person's sockets alone, unsent.
@@ -3035,6 +3061,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &public_key).await;
                             return;
                         }
+                        Ok(LinkRedeemed::OwnerKey) => {
+                            let err = RelayMessage::System { message: crate::relay::handlers::owner::OWNER_LINK_REFUSED.to_string() };
+                            let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                            continue;
+                        }
                         Ok(LinkRedeemed::NoSuchCode) => {
                             let err = RelayMessage::System {
                                 message: "Invalid or expired link code.".to_string(),
@@ -3055,6 +3086,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         let err = RelayMessage::NameTaken {
                             message: "Names can only contain letters (A-Z), numbers, underscores, and dashes. Max 24 characters.".to_string(),
                         };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        continue;
+                    }
+                    // The app's and the server's own names are nobody's (the owner branch's seventh review, H1 (b)).
+                    if humanity_protocol::key_card::reserved_name(name) {
+                        let err = RelayMessage::NameTaken { message: crate::relay::handlers::live_conns::RESERVED_NAME_REFUSED.to_string() };
                         let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
                         continue;
                     }
@@ -3198,10 +3235,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // the host's console/disk. Said on THIS socket only (W9, 2026-10-11): a Private
                 // reaches every socket of the key, so the Chat tab repeated it each time a
                 // standalone page signed in or a socket reconnected.
-                if !public_key.starts_with("bot_") && state.claim_code.read().await.is_some() {
-                    let notice = RelayMessage::System { message: UNCLAIMED_NOTICE.to_string() };
+                // Whether the server has an owner goes to every socket ("Claim ownership" shows while not).
+                let unclaimed = state.claim_code.read().await.is_some();
+                let owner_state = RelayMessage::OwnerState { has_owner: !unclaimed };
+                let _ = ws_tx.send(Message::Text(serde_json::to_string(&owner_state).unwrap().into())).await;
+                if !public_key.starts_with("bot_") && unclaimed {
+                    let notice = RelayMessage::System { message: crate::relay::handlers::owner::UNCLAIMED_NOTICE.to_string() };
                     let _ = ws_tx.send(Message::Text(serde_json::to_string(&notice).unwrap().into())).await;
                 }
+                crate::relay::handlers::owner::accept::on_connect(&state, &public_key); // an owner change waiting on this key's check
 
                 // Send current peer list to the new peer, with THIS socket's own upload token
                 // on its own entry (R3-2: handlers/live_conns.rs `peer_list_for`).
@@ -3358,7 +3400,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 broadcast_full_user_list(&state).await;
 
                 // Auto-unlock: if an admin/mod connects and lockdown was auto-set, lift it.
-                if peer_role == "admin" || peer_role == "mod" {
+                if is_staff_role(&peer_role) {
                     let is_auto = *state.auto_lockdown.read().await;
                     if is_auto {
                         let locked = *state.lockdown.read().await;
@@ -3444,7 +3486,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it;
             // call forwarder credentials (call_credentials.rs) to whoever asked for them; an admin's
             // erase receipt (handlers/account_erase.rs) to that admin.
-            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::HeldItems { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } | RelayMessage::AdminEraseDone { to: ref who, .. } | RelayMessage::KeyCards { to: ref who, .. } = msg {
+            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::HeldItems { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } | RelayMessage::AdminEraseDone { to: ref who, .. } | RelayMessage::KeyCards { to: ref who, .. }
+                | RelayMessage::OwnerReply { to: ref who, .. } | RelayMessage::OwnerChangeReady { to: ref who, .. } | RelayMessage::OwnerChangeCheck { to: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
 
@@ -3691,6 +3734,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     let my_key_for_recv = my_key.clone();
     let mut last_profile_update: Option<Instant> = None;
     let mut recv_task = tokio::spawn(async move {
+        // Wrong owner claim codes this connection tried (handlers/owner.rs).
+        let mut owner_claim_misses: u32 = 0;
         while let Some(Ok(msg)) = ws_rx.next().await {
             // Check if this user has been kicked — stop processing messages.
             if state_clone.kicked_keys.read().await.contains(&my_key_for_recv) {
@@ -3771,6 +3816,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             Some("call_credentials") => { crate::relay::call_credentials::handle(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some(kind @ ("report_v2" | "reports_list" | "report_decide")) => { crate::relay::handlers::reports::handle(&state_clone, &my_key_for_recv, kind, &raw, &text).await; continue; }
                             Some(kind @ ("held_list" | "held_act")) => { crate::relay::handlers::held::handle(&state_clone, &my_key_for_recv, kind, &raw).await; continue; }
+                            Some(kind @ ("owner_claim" | "owner_change_begin" | "owner_change_finish" | "owner_change_cancel" | "owner_change_accept" | "owner_change_decline")) => {
+                                crate::relay::handlers::owner::handle(&state_clone, &my_key_for_recv, kind, &raw, &mut owner_claim_misses).await;
+                                continue;
+                            }
                             // ── Trade messages ──
                             Some("trade_request") => {
                                 handle_trade_request(&state_clone, &my_key_for_recv, &raw).await;
@@ -3948,9 +3997,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 "  /friend-code — Generate a friend code to share outside the platform".to_string(),
                                                 "  /redeem <code> — Redeem a friend code (auto-mutual-follow)".to_string(),
                                                 "  /server-list — List federated servers".to_string(),
-                                                "  /claim <code> — Become the first admin of a fresh server (code on the server console)".to_string(),
+                                                "  /claim <code> - Become the owner of a server that has none (the code is in the server's log; Claim ownership in Server Settings does the same)".to_string(),
                                             ];
-                                            if role == "admin" || role == "mod" {
+                                            if is_staff_role(&role) {
                                                 help_text.push("".to_string());
                                                 help_text.push("🛡️ Moderator commands:".to_string());
                                                 help_text.push("  /kick <name> — Disconnect a user".to_string());
@@ -3960,10 +4009,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 help_text.push("  /unpin <N> — Unpin a message by its index".to_string());
                                                 help_text.push("  /reports - List the latest reports (the Reports page shows their evidence)".to_string());
                                             }
-                                            if role == "admin" || role == "mod" {
+                                            if is_staff_role(&role) {
                                                 help_text.push("  /invite — Generate a one-time invite code for lockdown bypass".to_string());
                                             }
-                                            if role == "admin" {
+                                            if is_admin_role(&role) {
                                                 help_text.push("".to_string());
                                                 help_text.push("👑 Admin commands:".to_string());
                                                 help_text.push("  /ban <name> — Ban a user".to_string());
@@ -4004,7 +4053,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/channel-create" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can create channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4037,7 +4086,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/channel-edit" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can edit channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4094,7 +4143,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/channel-delete" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" && role != "mod" {
+                                            if !is_staff_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can delete channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4120,7 +4169,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/channel-readonly" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can toggle read-only channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4151,7 +4200,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         "/channel-reorder" => {
                                             // Usage: /channel-reorder <name> <position>
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can reorder channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4178,46 +4227,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 }
                                             }
                                         }
-                                        // First-admin claim (v0.936): on a fresh server the startup
-                                        // code (console + data/owner-claim-code.txt, host access only)
-                                        // promotes its bearer to admin. No role gate - anyone may TRY,
-                                        // only the code holder succeeds; chat rate limiting applies.
+                                        // The owner claim (2026-11-20, handlers/owner.rs): the code from the server's
+                                        // own log makes its bearer the owner. Anyone may try; the misses are limited.
                                         "/claim" => {
-                                            let attempt = trimmed.split_whitespace().nth(1).unwrap_or("");
-                                            let reply = if my_key_for_recv.starts_with("bot_") {
-                                                "Bots cannot claim a server.".to_string()
-                                            } else if attempt.is_empty() {
-                                                "Usage: /claim <code>  (the code is printed on the server console at startup and saved to data/owner-claim-code.txt)".to_string()
-                                            } else {
-                                                let mut slot = state_clone.claim_code.write().await;
-                                                match slot.as_deref() {
-                                                    None => "This server already has an owner - the claim code only exists while a server has no admin.".to_string(),
-                                                    Some(code) if code.eq_ignore_ascii_case(attempt) => {
-                                                        match state_clone.db.set_role(&my_key_for_recv, "admin") {
-                                                            Ok(()) => {
-                                                                *slot = None; // burn the code
-                                                                let _ = std::fs::remove_file(crate::relay::CLAIM_CODE_FILE);
-                                                                tracing::info!("Server claimed: {my_key_for_recv} is now the first admin.");
-                                                                "You are now this server's first admin. The claim code is burned. Open Server Settings to manage the server; grant more admins/mods with /mod.".to_string()
-                                                            }
-                                                            Err(e) => {
-                                                                tracing::error!("Claim: set_role failed: {e}");
-                                                                "Claim failed while saving the admin role - check the server logs.".to_string()
-                                                            }
-                                                        }
-                                                    }
-                                                    Some(_) => {
-                                                        tracing::warn!("Failed /claim attempt from {my_key_for_recv}");
-                                                        "Wrong claim code.".to_string()
-                                                    }
-                                                }
-                                            };
+                                            let attempt = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                            let (_, reply) = crate::relay::handlers::owner::claim(&state_clone, &my_key_for_recv, &attempt, &mut owner_claim_misses).await;
                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: reply };
                                             let _ = state_clone.broadcast_tx.send(private);
                                         }
                                         "/invite" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" && role != "mod" {
+                                            if !is_staff_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can generate invite codes.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4258,35 +4278,14 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 }
                                             }
                                         }
+                                        // The owner review's finding 8: refused whole for the owner's name (handlers/role_commands.rs).
+                                        // Braced so tests/admin_action_coverage.rs reads it as a command the relay answers.
                                         "/name-release" => {
-                                            // Admin-only: release a name entirely so it can be re-registered.
-                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can release names.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                let target = trimmed.split_whitespace().nth(1).unwrap_or("");
-                                                if target.is_empty() {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /name-release <name>".to_string() };
-                                                    let _ = state_clone.broadcast_tx.send(private);
-                                                } else {
-                                                    match state_clone.db.release_name(target) {
-                                                        Ok(n) if n > 0 => {
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Released name '{}' ({} key bindings removed). It can now be claimed by anyone.", target, n) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                        }
-                                                        Ok(_) => {
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Name '{}' not found.", target) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                        }
-                                                        Err(e) => tracing::error!("Name release error: {e}"),
-                                                    }
-                                                }
-                                            }
+                                            crate::relay::handlers::role_commands::name_command(&state_clone, &my_key_for_recv, "/name-release", trimmed.split_whitespace().nth(1).unwrap_or("")).await
                                         }
                                         "/lockdown" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can toggle lockdown.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4305,104 +4304,14 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 state_clone.broadcast_and_store(sys).await;
                                             }
                                         }
-                                        "/verify" => {
-                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can verify users.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                let target_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
-                                                if target_name.is_empty() {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /verify <name>".to_string() };
-                                                    let _ = state_clone.broadcast_tx.send(private);
-                                                } else {
-                                                    match state_clone.db.keys_for_name(&target_name) {
-                                                        Ok(keys) if !keys.is_empty() => {
-                                                            for key in &keys {
-                                                                if let Err(e) = state_clone.db.set_role(key, "verified") {
-                                                                    tracing::error!("Failed to verify: {e}");
-                                                                }
-                                                            }
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("✦ {} is now verified.", target_name) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                            // Broadcast updated peer list so badges refresh.
-                                                            broadcast_peer_list(&state_clone).await;
-                                                            broadcast_full_user_list(&state_clone).await;
-                                                        }
-                                                        _ => {
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        "/donor" => {
-                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can set donor status.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                let target_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
-                                                if target_name.is_empty() {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /donor <name>".to_string() };
-                                                    let _ = state_clone.broadcast_tx.send(private);
-                                                } else {
-                                                    match state_clone.db.keys_for_name(&target_name) {
-                                                        Ok(keys) if !keys.is_empty() => {
-                                                            for key in &keys {
-                                                                if let Err(e) = state_clone.db.set_role(key, "donor") {
-                                                                    tracing::error!("Failed to set donor: {e}");
-                                                                }
-                                                            }
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("💎 {} is now a donor. Thank you!", target_name) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                            broadcast_peer_list(&state_clone).await;
-                                                            broadcast_full_user_list(&state_clone).await;
-                                                        }
-                                                        _ => {
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        "/unverify" => {
-                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can unverify users.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                let target_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
-                                                if target_name.is_empty() {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /unverify <name>".to_string() };
-                                                    let _ = state_clone.broadcast_tx.send(private);
-                                                } else {
-                                                    match state_clone.db.keys_for_name(&target_name) {
-                                                        Ok(keys) if !keys.is_empty() => {
-                                                            for key in &keys {
-                                                                if let Err(e) = state_clone.db.set_role(key, "user") {
-                                                                    tracing::error!("Failed to unverify: {e}");
-                                                                }
-                                                            }
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("{} is no longer verified.", target_name) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                            broadcast_peer_list(&state_clone).await;
-                                                            broadcast_full_user_list(&state_clone).await;
-                                                        }
-                                                        _ => {
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                        // Each refused whole for the owner's name or any key bound to it (handlers/role_commands.rs).
+                                        "/verify" | "/unverify" | "/donor" => {
+                                            crate::relay::handlers::role_commands::name_command(&state_clone, &my_key_for_recv, cmd.as_str(), trimmed.split_whitespace().nth(1).unwrap_or("")).await
                                         }
                                         "/wipe" => {
                                             // Wipes messages in the CURRENT channel only.
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can wipe messages.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4437,7 +4346,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         "/wipe-all" => {
                                             // Nuclear option: wipes ALL channels.
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can wipe messages.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4495,7 +4404,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/gc" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can run garbage collection.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4598,7 +4507,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/pin" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" && role != "mod" {
+                                            if !is_staff_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can pin messages.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4650,7 +4559,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/unpin" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" && role != "mod" {
+                                            if !is_staff_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can unpin messages.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4714,8 +4623,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             if new_content.is_empty() {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /edit <new message text>".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
-                                            } else if new_content.len() > if user_role == "admin" { 10_000 } else { 2_000 } {
-                                                let limit = if user_role == "admin" { 10_000 } else { 2_000 };
+                                            } else if new_content.len() > if is_admin_role(&user_role) { 10_000 } else { 2_000 } {
+                                                let limit = if is_admin_role(&user_role) { 10_000 } else { 2_000 };
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Message too long (max {} chars).", limit) };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4750,7 +4659,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         // ── Federation commands ──
                                         "/server-add" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can add federated servers.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4818,7 +4727,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         // dialer skips this row (it only dials http/https).
                                         "/server-add-key" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can add federated servers.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4858,7 +4767,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/server-remove" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can remove federated servers.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4916,7 +4825,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         // Re-read a peer's key from its server-info and pin it (2026-10-11).
                                         "/server-recheck" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            let message = if role != "admin" {
+                                            let message = if !is_admin_role(&role) {
                                                 "Only admins can re-check a server's key.".to_string()
                                             } else {
                                                 match trimmed.split_whitespace().nth(1) {
@@ -4930,7 +4839,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/server-trust" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can set trust tiers.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4966,7 +4875,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/server-federate" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can federate channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4998,7 +4907,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/server-connect" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can initiate federation connections.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -5014,7 +4923,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/category-create" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can create categories.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -5040,7 +4949,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/category-delete" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can delete categories.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -5060,7 +4969,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/category-rename" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can rename categories.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -5080,7 +4989,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         }
                                         "/channel-category" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
+                                            if !is_admin_role(&role) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can set channel categories.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -5345,7 +5254,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 };
                                 let is_own = target_from == my_key_for_recv;
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let is_admin_or_mod = role == "admin" || role == "mod" || role == "moderator";
+                                let is_admin_or_mod = is_staff_role(&role);
                                 if !is_own && !is_admin_or_mod {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
@@ -5379,7 +5288,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // Edit own message — validate and broadcast.
                             RelayMessage::Edit { timestamp, new_content, channel: edit_channel, .. } => {
                                 let edit_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let edit_char_limit: usize = if edit_role == "admin" { 10_000 } else { 2_000 };
+                                let edit_char_limit: usize = if is_admin_role(&edit_role) { 10_000 } else { 2_000 };
                                 // Only a room of this server: an edit in a DM or a P2P group would carry its private
                                 // text here in the clear (BUG-178); the clients do not offer it there.
                                 let edit_room = if edit_channel.is_empty() { humanity_protocol::chat_access::MAIN_CHANNEL } else { edit_channel.as_str() };
@@ -5424,7 +5333,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // live in the SQLite `channels` table.
                             RelayMessage::ChannelUpdate { channel_id, name, description, read_level, post_level, voice_enabled, federated } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" {
+                                if !is_admin_role(&role) {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can update channels.".to_string(),
@@ -5488,7 +5397,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // ── Roles (v0.239, admin-gated) ──
                             RelayMessage::RoleUpsert { role } => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if r != "admin" && r != "owner" {
+                                if !is_admin_role(&r) {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can edit roles.".to_string(),
@@ -5517,7 +5426,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             RelayMessage::RoleDelete { id } => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if r != "admin" && r != "owner" {
+                                if !is_admin_role(&r) {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can delete roles.".to_string(),
@@ -5546,43 +5455,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     }
                                 }
                             }
-                            RelayMessage::SetUserRole { target, role_id } => {
-                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if r != "admin" && r != "owner" {
-                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Only admins can assign roles.".to_string(),
-                                    });
-                                } else if target.is_empty() {
-                                    // no-op
-                                } else {
-                                    // Resolve the role label for the feedback
-                                    // message + validate it exists (unknown id
-                                    // would silently default-deny later).
-                                    let rd = state_clone.db.role_def(&role_id);
-                                    match state_clone.db.set_role(&target, &role_id) {
-                                        Ok(()) => {
-                                            let tname = state_clone.db.name_for_key(&target)
-                                                .ok().flatten()
-                                                .unwrap_or_else(|| humanity_core::text::prefix(&target, 8).to_string());
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: format!("✓ {tname} is now \"{}\".", rd.label),
-                                            });
-                                            // Refresh everyone's user list so
-                                            // the new role badge shows live.
-                                            crate::relay::handlers::broadcast::broadcast_full_user_list(&state_clone).await;
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("set_user_role failed: {e}");
-                                        }
-                                    }
-                                }
-                            }
+                            RelayMessage::SetUserRole { target, role_id } => crate::relay::handlers::role_commands::set_user_role(&state_clone, &my_key_for_recv, &target, &role_id).await,
                             // ── Ban management (v0.245, admin-gated) ──
                             RelayMessage::BackupListRequest {} => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if r != "admin" && r != "owner" {
+                                if !is_admin_role(&r) {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can view backups.".to_string(),
@@ -5596,7 +5473,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             RelayMessage::BackupRun {} => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if r != "admin" && r != "owner" {
+                                if !is_admin_role(&r) {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can run a backup.".to_string(),
@@ -5624,7 +5501,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             RelayMessage::BannedListRequest {} => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if r != "admin" && r != "owner" {
+                                if !is_admin_role(&r) {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can view the ban list.".to_string(),
@@ -5638,7 +5515,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             RelayMessage::Unban { target } => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if r != "admin" && r != "owner" {
+                                if !is_admin_role(&r) {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can unban users.".to_string(),
@@ -5685,7 +5562,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // (we tuned this relay for concurrency).
                             RelayMessage::ServiceControl { service, action } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" && role != "owner" {
+                                if !is_admin_role(&role) {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "Only admins can control services.".to_string(),
@@ -5726,7 +5603,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // ── Mute management (v0.246, mod-gated) ──
                             RelayMessage::MutedListRequest {} => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let is_mod = matches!(r.as_str(), "mod" | "moderator" | "admin" | "owner");
+                                let is_mod = is_staff_role(&r);
                                 if !is_mod {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
@@ -5741,7 +5618,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             RelayMessage::Unmute { target } => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let is_mod = matches!(r.as_str(), "mod" | "moderator" | "admin" | "owner");
+                                let is_mod = is_staff_role(&r);
                                 if !is_mod {
                                     let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
@@ -5786,7 +5663,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // Pin request — pin a specific message by key + timestamp.
                             RelayMessage::PinRequest { from_key, from_name, content, timestamp, channel: pin_ch } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" && role != "mod" {
+                                if !is_staff_role(&role) {
                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can pin messages.".to_string() };
                                     let _ = state_clone.broadcast_tx.send(private);
                                 } else {
@@ -5930,7 +5807,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // ── Delete by ID ──
                             RelayMessage::DeleteById { message_id } => {
                                 let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let is_admin = user_role == "admin" || user_role == "mod";
+                                let is_admin = is_staff_role(&user_role);
                                 match crate::relay::handlers::federation_log::delete_message_by_id(&state_clone, message_id, &my_key_for_recv, is_admin).await {
                                     Ok(Some((from_key, channel_id))) => {
                                         // Find the timestamp from the message (we need it for client-side removal).
@@ -6270,11 +6147,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     // Auto-lockdown with grace period: if no admins/mods remain, wait 30s
     // before locking down. Prevents false lockdowns during deploy restarts.
     // Disabled when REGISTRATION_DEFAULT_OPEN=true (default behavior).
-    if (disconnected_role == "admin" || disconnected_role == "mod") && !registration_default_open() {
+    if is_staff_role(&disconnected_role) && !registration_default_open() {
         let peers = state.peers.read().await;
         let has_staff = peers.values().any(|p| {
             let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
-            role == "admin" || role == "mod"
+            is_staff_role(&role)
         });
         drop(peers);
 
@@ -6288,7 +6165,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 let peers = state_for_lockdown.peers.read().await;
                 let has_staff_now = peers.values().any(|p| {
                     let role = state_for_lockdown.db.get_role(&p.public_key_hex).unwrap_or_default();
-                    role == "admin" || role == "mod"
+                    is_staff_role(&role)
                 });
                 drop(peers);
 

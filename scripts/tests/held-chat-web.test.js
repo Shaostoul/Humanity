@@ -111,6 +111,7 @@ async function loadPage(role, extra = {}) {
     i18n: { t: T, hint(el, key) { el.setAttribute('title', T(key)); }, tn: (key, n) => T(key + (n === 1 ? '.one' : '.other'), { n }) },
     addSystemMessage: (t) => said.push(t),
     reportsMyRole: () => role,
+    HosRoles: require(path.join(WEB, 'shared', 'roles.js')), // as web/chat/index.html loads it before chat-held.js (BUG-332)
     reportsView: { tab: 'open', notes: {} },
     requestReports: () => true,
     handleMessage: () => {},
@@ -163,7 +164,8 @@ test('on a report: why not with no owner, and a signed decision with one', async
   page.handle({ type: 'reports', state: 'open', items: [], can_keep: false, cannot_keep_why: NO_OWNER });
   page.ctx.heldDecorateReports(card, model);
   assert.ok(card.textContent.includes(NO_OWNER), "the relay's sentence is drawn");
-  assert.ok(card.textContent.includes(T('held.instead')) && card.textContent.includes(T('held.no_owner_today')), 'with what works instead and what to do today');
+  // What to do today (claim the server) is chat-owner.js's, drawn and tested in owner-chat-web.test.js.
+  assert.ok(card.textContent.includes(T('held.instead')), 'with what works instead');
   assert.ok(!button(card, T('held.decide_label')), 'no Hide and keep button');
   assert.ok(button(card, T('held.open')), 'an admin gets Held copies');
 
@@ -188,7 +190,7 @@ test('on a report: why not with no owner, and a signed decision with one', async
 });
 
 function heldList(owner) {
-  const item = { id: 1, report_id: 5, file_count: 1, parts: 2, sealed_bytes: 4096, held_at: 1763600000000, held_by_name: 'Ada', delete_after: 1795136000000, legal_hold_until: 0, deleted_at: 1795136000000, exported_count: 0, sealed_to_owner: true };
+  const item = { id: 1, report_id: 5, file_count: 1, parts: 2, sealed_bytes: 4096, held_at: 1763600000000, held_by_name: 'Ada', delete_after: 1795136000000, legal_hold_until: 0, deleted_at: 1795136000000, exported_count: 0, sealed_to_owner: true, author: 'aa', author_name: 'Tom', stamp: 42 };
   if (owner) item.package = 'pkg';
   return { type: 'held_items', can_keep: true, cannot_keep_why: '', i_am_owner: owner, items: [item], actions: [{ action: 'hide_and_keep', target: 5, signer_name: 'Ada', reason: 'the policy', until: 0, signed_at: 1763600000000 }], counts: { held: 1, exported: 0, legal_holds: 0, destroyed: 0, restored: 0 } };
 }
@@ -230,14 +232,33 @@ test('held copies: numbers and dates, no way to view, actions only for the owner
   page.handle(heldList(true)); // the relay's answer
 });
 
-/** A test-only twin of the Rust seal (as held-web.test.js uses), one piece. */
+/** A part sealed to one person by the website's own seal (format v3 since 2026-11-20, a part key
+ * wrapped per recipient, the recipients authenticated; held-web.test.js holds it to the Rust
+ * seal). The one-piece v1 twin that
+ * stood here stopped opening when the format moved to v2. */
 async function sealPart(m, H, publicKey, context, plain) {
-  const { cipherText, sharedSecret } = m.ml_kem768.encapsulate(publicKey);
-  const keyBytes = m.blake3.create({ context: enc.encode(H.DOMAIN), dkLen: 32 }).update(sharedSecret).digest();
-  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
-  const aad = enc.encode(H.pieceAad(context, 0, true));
-  const body = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: new Uint8Array(12), additionalData: aad }, key, plain));
-  return Buffer.concat([Buffer.from(enc.encode(H.MAGIC)), Buffer.from(cipherText), Buffer.from(body)]);
+  return Buffer.from(await H.sealPart(m, [publicKey], context, plain));
+}
+
+/**
+ * The relay's `signed_caller` (src/relay/handlers/held.rs, the owner review's finding 1): a held
+ * part route answers only a request carrying the caller's key, the time and a Dilithium3 signature
+ * over `purpose\ntime`, `purpose` being core held_seal::caller_purpose's
+ * `held_<route>:<grant>:<id>:<part>:<offset>` (written out here, not taken from the page, so the
+ * test holds the page to the protocol's format). A signature seen before is a replay, refused.
+ */
+function callerCheck(m, who) {
+  const seen = new Set();
+  return (opts, purpose) => {
+    const h = (opts && opts.headers) || {};
+    const key = h['x-hos-held-key'];
+    const ts = String(h['x-hos-held-time'] || '');
+    const sig = String(h['x-hos-held-sig'] || '');
+    if (key !== who.key || !/^\d+$/.test(ts) || !/^[0-9a-f]+$/.test(sig) || seen.has(purpose + '\n' + ts)) return false;
+    if (!m.ml_dsa65.verify(Buffer.from(sig, 'hex'), enc.encode(purpose + '\n' + ts), who.dil.publicKey)) return false;
+    seen.add(purpose + '\n' + ts);
+    return true;
+  };
 }
 
 const WORDS = 'HELD-WORDS-91c2 the post words';
@@ -252,11 +273,13 @@ test('export opens the parts straight into the saved file, never onto the page',
   const parts = [await sealPart(m, H, me.kyb.publicKey, H.partContext('pkg', 0), enc.encode(JSON.stringify(manifest))), await sealPart(m, H, me.kyb.publicKey, H.partContext('pkg', 1), enc.encode(PIC))];
   let written = null;
   const fetched = [];
+  const signed = callerCheck(m, me);
   const page = await loadPage('owner', {
-    fetch: async (url) => {
+    fetch: async (url, opts) => {
       fetched.push(url);
       const mm = /^\/api\/held\/1\/(\d+)\?grant=([0-9a-f]{64})$/.exec(url);
-      if (!mm) return { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
+      // A grant alone fetches nothing (finding 1): the request must be signed by the owner.
+      if (!mm || !signed(opts, 'hum/held-caller/v1\nheld_part:' + mm[2] + ':1:' + mm[1] + ':0')) return { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
       const b = parts[Number(mm[1])];
       return { ok: true, status: 200, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.length) };
     },
@@ -281,4 +304,129 @@ test('export opens the parts straight into the saved file, never onto the page',
   assert.ok(!zip.includes('cd'.repeat(32)), 'never the restore key');
   await until(() => body.textContent.includes('held-item-1.zip'), 'the page says where it went');
   for (const secret of [WORDS, PIC, 'HELD-']) assert.ok(!body.textContent.includes(secret), 'none of it is drawn: ' + secret);
+});
+
+// W7 (the owner branch's third review): the copy that opens must be the item the owner chose. The
+// list shows item 1 as report #6 while the relay serves report #5's sealed copy under it: Export
+// writes nothing and Restore sends nothing back, each saying why in words.
+// Seen red 2026-11-21 against the branch's chat-held.js (no manifest check): "nothing is written"
+// got report #5's zip.
+// The fourth review's finding 8: a SIBLING post (the same report and package as listed, another post
+// time) is refused the same way, in its own words. Seen red 2026-11-21 with manifestIs comparing the
+// package and report alone (the round-4 rule; scratchpad ownfix6-web-mutants2.json): the sibling's
+// export "says the copy is not the item chosen" never happened (the export went ahead).
+for (const [label, change, whyOf] of [
+  ['another report', (it) => { it.report_id = 6; }, () => T('held.not_the_item', { id: 1, report: 6, got: 5 })],
+  ['a sibling post of the same report', (it) => { it.stamp = 43; }, () => T('held.not_the_post', { id: 1, report: 5 })],
+]) test('W7. export and restore refuse a copy that is not the item chosen: ' + label, async () => {
+  const m = await noble();
+  const H = await import(pathToFileURL(path.join(REPO, 'web', 'shared', 'held-seal.js')).href);
+  const me = keysOf(m, 9);
+  const manifest = { v: 1, package: 'pkg', report_id: 5, author: 'aa', stamp: 42, channel: 'global', words: WORDS, held_by: 'bb', held_at: 1, restore_key: 'cd'.repeat(32),
+    files: [{ part: 1, name: '1_x_pic.png', folder: 'public', uploader: 'aa', shelf: 0, original_name: 'pic.png', bytes: PIC.length, hash: '', poster_part: null, poster_bytes: 0, poster_hash: '' }] };
+  const parts = [await sealPart(m, H, me.kyb.publicKey, H.partContext('pkg', 0), enc.encode(JSON.stringify(manifest))), await sealPart(m, H, me.kyb.publicKey, H.partContext('pkg', 1), enc.encode(PIC))];
+  let written = null;
+  const sentBack = [];
+  const page = await loadPage('owner', {
+    fetch: async (url, opts) => {
+      const method = (opts && opts.method) || 'GET';
+      if (method !== 'GET') { sentBack.push(method + ' ' + url); return { ok: true, status: 200, json: async () => ({ done: true }), text: async () => '' }; }
+      const mm = /^\/api\/held\/1\/(\d+)\?grant=([0-9a-f]{64})$/.exec(url);
+      if (!mm) return { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
+      const b = parts[Number(mm[1])];
+      return { ok: true, status: 200, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.length) };
+    },
+    globals: { showSaveFilePicker: async (opts) => ({ name: opts.suggestedName, createWritable: async () => ({ write: async (b) => { written = Buffer.from(b); }, close: async () => {} }) }) },
+  });
+  const listed = heldList(true);
+  change(listed.items[0]);
+  page.ctx.openHeldView();
+  page.handle(listed);
+  const body = page.document.body;
+  const reason = body.querySelector('.held-reason');
+  reason.value = 'a CyberTipline report';
+  reason.fire('input');
+  const why = whyOf();
+  button(body, T('held.export')).click();
+  await until(() => page.sock.sent.filter((f) => f.type === 'held_act').length === 1, 'the signed export is sent');
+  page.handle(listed);
+  await until(() => body.textContent.includes(T('held.export_failed', { why })), 'the export says the copy is not the item chosen: ' + body.textContent.slice(0, 300));
+  assert.strictEqual(written, null, 'nothing is written');
+  button(body, T('held.restore')).click();
+  button(body, T('held.restore_yes')).click();
+  await until(() => page.sock.sent.filter((f) => f.type === 'held_act').length === 2, 'the signed restore is sent');
+  page.handle(listed);
+  await until(() => body.textContent.includes(T('held.restore_failed', { why })), 'the restore says so too');
+  assert.deepStrictEqual(sentBack, [], 'nothing is sent back');
+});
+
+// The owner review's finding 1 (2026-11-20): every held part route answers only its signed caller.
+// The Restore here: each part fetched signed (`held_part`), each file sent back in pieces of at
+// most 768 KiB (the relay's RESTORE_PIECE_MAX, under nginx's 1 MB limit), each piece signed for
+// its own offset (`held_restore`), and the finish signed (`held_finish`, part and offset 0). The
+// fake relay refuses (404) anything unsigned, signed by another key, for another purpose, or
+// replayed, as src/relay/handlers/held_restore.rs does.
+// Seen red 2026-11-20 against the page before `callerHeaders` (the tests written first): the export
+// test failed "the zip was written" (actual null: every part was refused unsigned) and this one
+// "nothing was refused" (actual ['GET /api/held/1/0?grant=...']).
+test('restore: every part fetched, every piece and the finish signed by the owner', async () => {
+  const m = await noble();
+  const H = await import(pathToFileURL(path.join(REPO, 'web', 'shared', 'held-seal.js')).href);
+  const me = keysOf(m, 9);
+  const BIG = Buffer.alloc(1200 * 1024);
+  for (let i = 0; i < BIG.length; i++) BIG[i] = (i * 13 + 5) & 0xff;
+  const KEY = 'cd'.repeat(32);
+  const manifest = { v: 1, package: 'pkg', report_id: 5, author: 'aa', stamp: 42, channel: 'global', words: WORDS, held_by: 'bb', held_at: 1, restore_key: KEY,
+    files: [{ part: 1, name: '1_x_big.bin', folder: 'public', uploader: 'aa', shelf: 0, original_name: 'big.bin', bytes: BIG.length, hash: '', poster_part: null, poster_bytes: 0, poster_hash: '' }] };
+  const parts = [await sealPart(m, H, me.kyb.publicKey, H.partContext('pkg', 0), enc.encode(JSON.stringify(manifest))), await sealPart(m, H, me.kyb.publicKey, H.partContext('pkg', 1), BIG)];
+  const signed = callerCheck(m, me);
+  const got = { have: Buffer.alloc(0), pieces: [], finished: false, refused: [] };
+  const no = (why) => { got.refused.push(why); return { ok: false, status: 404, json: async () => ({}), text: async () => '', arrayBuffer: async () => new ArrayBuffer(0) }; };
+  const page = await loadPage('owner', {
+    fetch: async (url, opts) => {
+      const method = (opts && opts.method) || 'GET';
+      let mm = /^\/api\/held\/1\/(\d+)\?grant=([0-9a-f]{64})$/.exec(url);
+      if (mm && method === 'GET') {
+        if (!signed(opts, 'hum/held-caller/v1\nheld_part:' + mm[2] + ':1:' + mm[1] + ':0')) return no('GET ' + url);
+        const b = parts[Number(mm[1])];
+        return { ok: true, status: 200, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.length) };
+      }
+      mm = /^\/api\/held\/1\/1\?grant=([0-9a-f]{64})&offset=(\d+)$/.exec(url);
+      if (mm && method === 'PUT') {
+        if (!signed(opts, 'hum/held-caller/v1\nheld_restore:' + mm[1] + ':1:1:' + mm[2]) || opts.headers['x-held-restore-key'] !== KEY) return no('PUT ' + url);
+        const body = Buffer.from(opts.body);
+        if (body.length > 768 * 1024) return { ok: false, status: 413, json: async () => ({ error: 'too large' }), text: async () => 'too large' };
+        if (Number(mm[2]) !== got.have.length) return { ok: false, status: 409, json: async () => ({ error: 'Send from there.', offset: got.have.length }), text: async () => '' };
+        got.pieces.push(body.length);
+        got.have = Buffer.concat([got.have, body]);
+        const done = got.have.length >= BIG.length;
+        return { ok: true, status: 200, json: async () => (done ? { done: true, size: BIG.length } : { offset: got.have.length, size: BIG.length }), text: async () => '' };
+      }
+      mm = /^\/api\/held\/1\/restore\?grant=([0-9a-f]{64})$/.exec(url);
+      if (mm && method === 'POST') {
+        if (!signed(opts, 'hum/held-caller/v1\nheld_finish:' + mm[1] + ':1:0:0') || opts.headers['x-held-restore-key'] !== KEY) return no('POST ' + url);
+        got.finished = true;
+        return { ok: true, status: 200, json: async () => ({ ok: true, words: 'Held item #1 is restored.' }), text: async () => '' };
+      }
+      return no(method + ' ' + url);
+    },
+  });
+  page.ctx.openHeldView();
+  page.handle(heldList(true));
+  const body = page.document.body;
+  const reason = body.querySelector('.held-reason');
+  reason.value = 'the report was mistaken';
+  reason.fire('input');
+  button(body, T('held.restore')).click();
+  button(body, T('held.restore_yes')).click();
+  await until(() => page.sock.sent.some((f) => f.type === 'held_act'), 'the signed restore is sent first');
+  assert.ok(payloadText(page.sock.sent.find((f) => f.type === 'held_act').action).includes('held_restore'));
+  page.handle(heldList(true)); // granted
+  await until(() => got.finished || got.refused.length || body.textContent.includes(T('held.restore_failed', { why: '' }).slice(0, 20)), 'the restore finishes or fails');
+  assert.deepStrictEqual(got.refused, [], 'nothing was refused: ' + body.textContent.slice(0, 300));
+  assert.ok(got.have.equals(BIG), 'the file came back whole');
+  assert.ok(got.pieces.length === 2 && got.pieces.every((n) => n <= 768 * 1024), 'in pieces of at most 768 KiB: ' + got.pieces.join(', '));
+  assert.ok(got.finished, 'the finish was sent, signed');
+  await until(() => body.textContent.includes('Held item #1 is restored.'), "the relay's words are shown");
+  for (const secret of [WORDS, 'HELD-']) assert.ok(!body.textContent.includes(secret), 'none of it is drawn: ' + secret);
 });

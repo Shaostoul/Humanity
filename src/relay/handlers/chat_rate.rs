@@ -60,13 +60,13 @@ impl RateLimitState {
 }
 
 /// May `sender` (whose role is `role`) post to channel chat now? If not they are told how long
-/// to wait. Bots and admins are not limited; verified, donor, moderator and admin accounts skip
-/// the new-account slow mode.
+/// to wait. Bots and admins (the owner too) are not limited; verified, donor, moderator and admin
+/// accounts skip the new-account slow mode.
 pub async fn allow(state: &Arc<RelayState>, sender: &str, role: &str) -> bool {
-    if sender.starts_with("bot_") || role == "admin" {
+    if sender.starts_with("bot_") || super::msg_handlers::is_admin_role(role) {
         return true;
     }
-    let trusted = matches!(role, "verified" | "donor" | "mod" | "admin");
+    let trusted = super::msg_handlers::is_staff_role(role) || matches!(role, "verified" | "donor");
     let now = Instant::now();
     let mut rate_limits = state.rate_limits.write().await;
     // The account's age comes from the database (dm_rate's `account_age`, registered_at in

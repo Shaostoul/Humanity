@@ -91,12 +91,13 @@ impl Storage {
                 "an organisation's log is kept on its members' devices, never on a server".into(),
             ))));
         }
-        // Hide and keep's signed actions name reports and held items and carry the actor's reason:
-        // they are checked and recorded only by the held items path (storage/moderation_held.rs),
+        // Hide and keep's signed actions name reports and held items and carry the actor's reason,
+        // and the owner's handover moves the role every held copy is sealed to: each is checked and
+        // recorded only by its own path (storage/moderation_held.rs, storage/owner_handover.rs),
         // never kept in this public store, from a submission or from a linked server.
-        if super::moderation::held::is_held_action_object(object) {
+        if super::moderation::held::is_private_mod_action(object) {
             return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(
-                "a held item's action is carried only by the held items path, never kept in the public store".into(),
+                "a held item's action or the owner's handover is carried only by its own path, never kept in the public store".into(),
             ))));
         }
         // Validate signature first — never store an unverifiable object.

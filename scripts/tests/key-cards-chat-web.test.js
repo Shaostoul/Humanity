@@ -236,6 +236,11 @@ test("a changed key raises the change notice, and nothing is sealed until it is 
   const newer = await K.signCard(SIGNER, FX.other_card.kyber, FX.card.at + 10, (bytes) => page.m.ml_dsa65.sign(bytes, signer.dil.secretKey));
   vm.runInContext("(k) => { activeDmPartner = k; }", page.ctx)(SIGNER);
   page.appended.length = 0;
+  // A list shows a newer card, so the page asks for it (only a card asked for is taken: the owner
+  // branch's third review, W1); the newer card is the answer.
+  const kcAsk = page.fn("hosKeyCards");
+  kcAsk.want(SIGNER, true);
+  kcAsk._flush();
   await page.handle({ type: "key_cards", to: page.me.key, cards: [newer], missing: [] });
   await settle();
   const kc = page.fn("hosKeyCards");

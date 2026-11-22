@@ -47,6 +47,9 @@ pub fn validate_path(requested_path: &str) -> Result<PathBuf, String> {
         if !canonical.starts_with(&data_dir) {
             return Err("Path resolves outside data/ directory".into());
         }
+        if in_server_only_dir(&canonical, &data_dir) {
+            return Err(SERVER_ONLY_WORDS.into());
+        }
         Ok(canonical)
     } else {
         // For new files, ensure the parent exists and is inside data/.
@@ -59,7 +62,11 @@ pub fn validate_path(requested_path: &str) -> Result<PathBuf, String> {
                 }
                 // Return the parent canonical + filename.
                 let filename = path.file_name().ok_or("Invalid filename")?;
-                Ok(canonical_parent.join(filename))
+                let joined = canonical_parent.join(filename);
+                if in_server_only_dir(&joined, &data_dir) {
+                    return Err(SERVER_ONLY_WORDS.into());
+                }
+                Ok(joined)
             } else {
                 Err("Parent directory does not exist".into())
             }
@@ -68,6 +75,30 @@ pub fn validate_path(requested_path: &str) -> Result<PathBuf, String> {
         }
     }
 }
+
+/// The files these routes never list, read or write, for anyone, admins included: the owner
+/// claim code (handlers/owner.rs), whose reader could make themselves the server's owner. It is for
+/// the server machine's eyes alone (BUG-346: an admin could read it here and claim the owner role).
+pub const SERVER_ONLY: &[&str] = &["owner-claim-code.txt"];
+
+/// The folders under data/ these routes never list, read or write into, for anyone: the held
+/// copies (storage/held.rs), whose folder names are the package ids each part is bound to and
+/// whose sealed parts are for the owner's device alone (the owner review's finding 1, 2026-11-20:
+/// the data-file route listed the package folders).
+pub const SERVER_ONLY_DIRS: &[&str] = &["held"];
+
+/// Whether `path` (resolved) lies in one of the [`SERVER_ONLY_DIRS`] under `data_dir`, or is one.
+pub fn in_server_only_dir(path: &Path, data_dir: &Path) -> bool {
+    let Ok(rest) = path.strip_prefix(data_dir) else { return false };
+    rest.components().next().is_some_and(|c| SERVER_ONLY_DIRS.iter().any(|d| c.as_os_str().to_string_lossy().eq_ignore_ascii_case(d)))
+}
+
+/// Whether `path` names a [`SERVER_ONLY`] file.
+pub fn is_server_only(path: &Path) -> bool {
+    path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).is_some_and(|n| SERVER_ONLY.contains(&n.as_str()))
+}
+
+const SERVER_ONLY_WORDS: &str = "This file is for the server machine's eyes alone: it is never opened or changed through the app.";
 
 /// Check if a file extension is in the allowed text extensions list.
 pub fn is_text_extension(ext: &str) -> bool {
@@ -114,8 +145,8 @@ pub fn list_directory(dir_path: &str) -> Result<Vec<FileEntry>, String> {
 
         let name = entry.file_name().to_string_lossy().to_string();
 
-        // Skip hidden files.
-        if name.starts_with('.') {
+        // Skip hidden files, and the files and folders for the server machine alone.
+        if name.starts_with('.') || is_server_only(Path::new(&name)) || SERVER_ONLY_DIRS.iter().any(|d| name.eq_ignore_ascii_case(d)) {
             continue;
         }
 
@@ -169,6 +200,9 @@ pub fn read_file(file_path: &str) -> Result<String, String> {
     if abs_path.is_dir() {
         return Err("Cannot read a directory".into());
     }
+    if is_server_only(&abs_path) {
+        return Err(SERVER_ONLY_WORDS.into());
+    }
 
     // Check extension.
     let ext = abs_path.extension()
@@ -196,6 +230,9 @@ pub fn write_file(file_path: &str, content: &str) -> Result<(), String> {
     if abs_path.is_dir() {
         return Err("Cannot write to a directory".into());
     }
+    if is_server_only(&abs_path) {
+        return Err(SERVER_ONLY_WORDS.into());
+    }
 
     // Check extension.
     let ext = abs_path.extension()
@@ -212,4 +249,28 @@ pub fn write_file(file_path: &str, content: &str) -> Result<(), String> {
 
     std::fs::write(&abs_path, content)
         .map_err(|e| format!("Cannot write file: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// THE HELD FOLDER AND THE CLAIM CODE ARE NEVER REACHED THROUGH THESE ROUTES (the owner review's
+    /// finding 1, 2026-11-20; BUG-346): data/held itself and everything in it is refused, in any
+    /// letter case, while a name that merely starts with the same letters is not; the claim code
+    /// file is refused by name.
+    ///
+    /// Seen red 2026-11-20 with SERVER_ONLY_DIRS emptied (the branch as reviewed): "the held folder"
+    /// was allowed.
+    #[test]
+    fn the_held_folder_and_the_claim_code_are_for_the_server_alone() {
+        let data = Path::new("/srv/hos/data");
+        assert!(in_server_only_dir(&data.join("held"), data), "the held folder");
+        assert!(in_server_only_dir(&data.join("held").join("0123abcd").join("0.sealed"), data), "a sealed part");
+        assert!(in_server_only_dir(&data.join("Held").join(".handover-0123abcd"), data), "any letter case");
+        assert!(!in_server_only_dir(&data.join("heldover.txt"), data), "a name that only starts the same");
+        assert!(!in_server_only_dir(&data.join("plants.csv"), data));
+        assert!(is_server_only(Path::new("data/owner-claim-code.txt")) && is_server_only(Path::new("data/OWNER-CLAIM-CODE.TXT")));
+        assert!(!is_server_only(Path::new("data/plants.csv")));
+    }
 }

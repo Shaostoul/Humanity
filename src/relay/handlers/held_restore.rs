@@ -8,8 +8,9 @@
 //! carried in the `x-held-restore-key` header. Finally `POST /api/held/{id}/restore?grant=` (the
 //! same header) puts the post back. The key opens the restore plan the relay sealed when it held
 //! the post; every byte is checked against it, and the words, the names and the folders come from
-//! it, never from the device. The grant alone does nothing (it is in the log every admin sees):
-//! without the key nothing is taken. The answer to anything else is the same 404 the export uses.
+//! it, never from the device. The grant alone does nothing: every request is signed by the owner's
+//! own key (held.rs `signed_caller`, the owner review's finding 1), and without the restore key
+//! nothing is taken. The answer to anything else is the same 404 the export uses.
 
 use std::sync::Arc;
 
@@ -20,7 +21,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
-use super::{granted_item, handle_list, now_ms, room, tell, GrantQuery};
+use super::{caller_purpose, granted_item, handle_list, now_ms, room, signed_caller, tell, GrantQuery};
 use crate::relay::relay::{RelayMessage, RelayState};
 use crate::relay::storage::files::{Folders, OwnedFolders};
 use crate::relay::storage::held::restore::{expected, open_plan, take_piece, Piece, PieceRefused};
@@ -41,9 +42,10 @@ fn refuse(code: StatusCode, words: impl Into<String>) -> Response {
     (code, Json(json!({ "error": words.into() }))).into_response()
 }
 
-/// Held item `id` under a RESTORE grant, or the same 404 as every other refusal.
-fn restore_item(state: &RelayState, id: i64, grant: &str, now: i64) -> Result<HeldRow, Response> {
-    match granted_item(state, id, grant, now) {
+/// Held item `id` under a RESTORE grant for `caller` (the key the request's signature proved), or
+/// the same 404 as every other refusal.
+fn restore_item(state: &RelayState, id: i64, grant: &str, caller: &str, now: i64) -> Result<HeldRow, Response> {
+    match granted_item(state, id, grant, caller, now) {
         Some((row, action)) if action == "held_restore" => Ok(row),
         _ => Err(StatusCode::NOT_FOUND.into_response()),
     }
@@ -54,8 +56,8 @@ fn key_of(headers: &HeaderMap) -> String {
 }
 
 /// One piece of part `part` of held item `id` (the module's header).
-pub fn piece_in(state: &RelayState, id: i64, part: i64, q: &PieceQuery, key: &str, body: &[u8], folders: Folders, now: i64) -> Response {
-    let row = match restore_item(state, id, &q.grant, now) {
+pub fn piece_in(state: &RelayState, id: i64, part: i64, q: &PieceQuery, caller: &str, key: &str, body: &[u8], folders: Folders, now: i64) -> Response {
+    let row = match restore_item(state, id, &q.grant, caller, now) {
         Ok(r) => r,
         Err(r) => return r,
     };
@@ -83,7 +85,8 @@ pub fn piece_in(state: &RelayState, id: i64, part: i64, q: &PieceQuery, key: &st
     }
 }
 
-/// `PUT /api/held/{id}/{part}?grant=&offset=`: one piece of a file the owner's device opened.
+/// `PUT /api/held/{id}/{part}?grant=&offset=`, signed by the owner (held.rs `signed_caller`): one
+/// piece of a file the owner's device opened.
 pub async fn api_restore_piece(
     State(state): State<Arc<RelayState>>,
     Path((id, part)): Path<(i64, i64)>,
@@ -91,16 +94,19 @@ pub async fn api_restore_piece(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    let Some(caller) = signed_caller(&state, &headers, &caller_purpose("restore", &q.grant, id, part, q.offset)).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let key = key_of(&headers);
     let owned = OwnedFolders::of(Folders::live());
-    tokio::task::spawn_blocking(move || piece_in(&state, id, part, &q, &key, &body, owned.get(), now_ms()))
+    tokio::task::spawn_blocking(move || piece_in(&state, id, part, &q, &caller, &key, &body, owned.get(), now_ms()))
         .await
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
 /// Put held item `id` back (the module's header): the words for the owner, or the refusal.
-pub fn finish_in(state: &RelayState, id: i64, grant: &str, key: &str, folders: Folders, now: i64) -> Response {
-    let row = match restore_item(state, id, grant, now) {
+pub fn finish_in(state: &RelayState, id: i64, grant: &str, caller: &str, key: &str, folders: Folders, now: i64) -> Response {
+    let row = match restore_item(state, id, grant, caller, now) {
         Ok(r) => r,
         Err(r) => return r,
     };
@@ -134,11 +140,15 @@ pub fn finish_in(state: &RelayState, id: i64, grant: &str, key: &str, folders: F
     Json(json!({ "ok": true, "words": words })).into_response()
 }
 
-/// `POST /api/held/{id}/restore?grant=`: put the post back once every file arrived.
+/// `POST /api/held/{id}/restore?grant=`, signed by the owner: put the post back once every file
+/// arrived.
 pub async fn api_restore_finish(State(state): State<Arc<RelayState>>, Path(id): Path<i64>, Query(q): Query<GrantQuery>, headers: HeaderMap) -> Response {
+    let Some(caller) = signed_caller(&state, &headers, &caller_purpose("finish", &q.grant, id, 0, 0)).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let key = key_of(&headers);
     let owned = OwnedFolders::of(Folders::live());
-    tokio::task::spawn_blocking(move || finish_in(&state, id, &q.grant, &key, owned.get(), now_ms()))
+    tokio::task::spawn_blocking(move || finish_in(&state, id, &q.grant, &caller, &key, owned.get(), now_ms()))
         .await
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }

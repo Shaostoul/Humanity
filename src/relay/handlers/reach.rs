@@ -446,7 +446,7 @@ pub fn dm_gate(
         && audience(state, to, Kind::Message) != Audience::Nobody
         && file_pass_of(state, to, sender, file_pass).is_some();
     let let_in = allowed(state, to, sender, Kind::Message, pass.as_ref()) || by_file_pass;
-    let free = pass.is_some() || role == "admin" || role == "mod";
+    let free = pass.is_some() || super::msg_handlers::is_staff_role(role);
     if let_in && free {
         return Some(Cost::Free);
     }

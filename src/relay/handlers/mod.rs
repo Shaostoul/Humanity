@@ -25,6 +25,10 @@ pub mod game_state;
 pub mod gameplay_rules;
 pub mod held;
 pub mod home_plots;
+/// The server's owner (2026-11-20): the claim code, the handover, and the owner's protection.
+pub mod owner;
+/// An admin's role and name commands and the role picker, each refused for the owner (2026-11-20).
+pub mod role_commands;
 /// Key cards (2026-10-22): kept at sign-in, served on request, passed on to linked servers.
 pub mod key_cards;
 pub mod live_conns;

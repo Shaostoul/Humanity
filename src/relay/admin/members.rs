@@ -14,7 +14,8 @@ use crate::relay::relay::RelayState;
 
 /// Whether `handle_mod_command`'s answer is a refusal rather than the thing done.
 pub fn is_refusal(answer: &str) -> bool {
-    answer.starts_with("User '") || answer.starts_with("You ") || answer.starts_with("Only ")
+    // "Nobody can ... this server's owner" (handlers/owner.rs `refuse_if_owner`).
+    answer.starts_with("User '") || answer.starts_with("You ") || answer.starts_with("Only ") || answer.starts_with("Nobody ")
 }
 
 /// The log line for `cmd` done: what, never whom.

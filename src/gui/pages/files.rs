@@ -455,12 +455,12 @@ fn my_role(state: &GuiState) -> &str {
 
 /// Whether this person is an admin of this server (its member list says).
 pub(crate) fn is_admin(state: &GuiState) -> bool {
-    matches!(my_role(state), "admin" | "owner")
+    crate::net::roles::is_admin_role(my_role(state))
 }
 
 /// Whether this person may keep items on the server: an admin or a moderator (the relay's A7).
 pub(crate) fn may_keep(state: &GuiState) -> bool {
-    matches!(my_role(state), "admin" | "owner" | "mod" | "moderator")
+    crate::net::roles::is_staff_role(my_role(state))
 }
 
 /// Forget everything when the server or the person changed; returns true when either did. An

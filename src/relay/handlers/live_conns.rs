@@ -264,6 +264,11 @@ async fn depart_voice_seat(state: &Arc<RelayState>, key: &str, conn_id: u64) -> 
     true
 }
 
+/// The words for a name that belongs to the app's own voice or the server's (core
+/// `key_card::reserved_name`, the owner branch's seventh review, H1 (b), 2026-11-21): refused at
+/// identify (relay.rs) and on the bot route (api.rs).
+pub const RESERVED_NAME_REFUSED: &str = "That name is kept for the app's own words and this server's (System, HumanityOS, From this server, and names that look like them), so nobody's messages can be mistaken for theirs. Choose another name.";
+
 /// Placeholder / throwaway names (empty, "Anonymous", "Player",
 /// "DesktopUser_NNNN"). The relay never registers them or joins them as
 /// members, and a socket offering one is registered under the identity's
@@ -324,6 +329,10 @@ pub fn for_socket(msg: crate::relay::relay::RelayMessage, me: &str) -> crate::re
 #[cfg(test)]
 #[path = "presence_hidden_tests.rs"]
 mod presence_hidden_tests;
+
+#[cfg(test)]
+#[path = "reserved_names_tests.rs"]
+mod reserved_names_tests;
 
 #[cfg(test)]
 mod tests {

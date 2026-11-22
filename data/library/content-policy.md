@@ -146,7 +146,8 @@ and what each of those does.
 
 **Hide and keep** (both apps, on a report about a post, for admins and moderators) takes the post
 and every picture or file it linked out of every view at once, and keeps one copy sealed so that
-only the server's owner can open it. Nobody can view the copy in the app, the owner included. Under
+only the server's owner can open it (and the one successor the owner may name, who can open it only
+once they hold the owner role themselves). Nobody can view the copy in the app, the owner included. Under
 Server Settings, **Held copies** shows the admins how many copies are kept and when each one is
 deleted (a year after it was held), never what they hold. Only the owner can place a **legal hold**
 (when a preservation request arrives), **destroy** a copy now (when law enforcement asks),
@@ -158,22 +159,23 @@ signed by the person who took it and logged for every admin to see.
 
 We would rather say it than have an operator find out at the wrong moment:
 
-- **Choosing the server's owner is not in the app yet.** Hide and keep seals its copy to the owner's
-  key card, so it is refused, with nothing kept, until the server has exactly one owner whose key
-  card it holds. Today whoever runs the server sets the owner on the server itself
-  (`docs/design/in-app-ops.md`, "Setting the server's owner"), and the owner then signs in with the
-  app once so their key card arrives. Until then the app says so where the button would be.
+- **A server needs an owner before it can keep a copy.** Hide and keep seals its copy to the
+  owner's key card, so it is refused, with nothing kept, until the server has an owner whose key
+  card it holds. Whoever runs the server claims it: the server prints a one-time claim code to its
+  own log (and to `data/owner-claim-code.txt` on the server machine), and they paste it into Server
+  Settings, Claim ownership, after signing in once so their key card arrives. The owner can later
+  hand the role to another member, and name one successor; both re-seal every kept copy first.
 - **Reports are deleted 90 days after a decision**, unless they hold a kept copy. A report left
   open is kept.
-- So, on a server with no owner set yet: first move any uploaded file, without opening it, out of
+- So, on a server whose owner has not claimed it yet: first move any uploaded file, without opening it, out of
   the server's uploads folder (`data/uploads/`) into a folder only the operator can reach. Then use
   "Delete the post" on the report, not the ordinary Delete on the message, which also deletes the
   files only that post linked. If you reported it to the CyberTipline, copy the post's words from
   the report beside the file and keep both for the year. When in doubt, ask a lawyer or the
   CyberTipline's provider team.
 - **The app does not tell the person whose post was hidden** that it was kept, nor that anything was
-  reported; a ban says only what a ban says. Whether to tell them is still an open question
-  (`docs/design/hide-and-keep.md`).
+  reported; a ban says only what a ban says. This is decided (2026-11-20): the person is told nothing
+  beyond the ban message (`docs/design/hide-and-keep.md`).
 - **Restore puts a post back on this server only.** Linked servers that dropped their copy do not
   get it back.
 

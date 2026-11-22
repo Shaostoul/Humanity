@@ -250,6 +250,8 @@ pub(crate) fn on_frame(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
         }
         // Held copies (hide and keep, rung 5): engine/held.rs.
         Some("held_items") => crate::engine::held::on_frame(gs, frame),
+        // The server's owner: Claim ownership, the handover and the successor (engine/owner.rs).
+        Some("owner_state" | "owner_reply" | "owner_change_ready") => crate::engine::owner::on_frame(gs, frame),
         _ => false,
     }
 }

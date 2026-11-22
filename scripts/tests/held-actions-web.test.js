@@ -40,3 +40,16 @@ test('a held action naming the wrong target, or carrying an end it may not, is r
   assert.throws(() => obj.modActionV1Payload({ ...base, action: 'ban', targetKind: 'report' }), /nothing else names either/);
   assert.throws(() => obj.modActionV1Payload({ ...base, action: 'held_destroy', targetKind: 'held', expiresAt: 5 }), /only held_legal_hold/);
 });
+
+// A recipient's acceptance of an owner change (the owner review's finding 5, 2026-11-20): it names
+// the change by its object id and carries no end, as moderation.rs's OWNER_ACCEPT rule says.
+// Seen red 2026-11-20: before 'owner_change_accept' joined pq-object.js, the first test failed ("the
+// website's actions are the protocol's": the protocol had it, the website did not); with the
+// target-kind rule taken out of a copy, "an acceptance naming a person is refused" failed.
+test("an owner change's acceptance names the change, an object, and carries no end", () => {
+  const base = { target: 'ab'.repeat(32), reason: 'checked ' + 'cd'.repeat(32), rule: '', expiresAt: 0, role: '' };
+  assert.equal(obj.OWNER_ACCEPT, 'owner_change_accept');
+  assert.ok(obj.modActionV1Payload({ ...base, action: 'owner_change_accept', targetKind: 'object' }));
+  assert.throws(() => obj.modActionV1Payload({ ...base, action: 'owner_change_accept', targetKind: 'identity' }), /names the change/, 'an acceptance naming a person is refused');
+  assert.throws(() => obj.modActionV1Payload({ ...base, action: 'owner_change_accept', targetKind: 'object', expiresAt: 5 }), /only held_legal_hold/);
+});

@@ -77,7 +77,7 @@ use serde_json::Value;
 use humanity_protocol::pq_crypto::{report_evidence_hash, verify_dm_inner, verify_report_sig};
 use crate::relay::handlers::msg_handlers::{handle_mod_action, mod_action_refusal};
 use crate::relay::relay::{RelayMessage, RelayState};
-use crate::relay::storage::files::Folders;
+use crate::relay::storage::files::{Folders, OwnedFolders};
 use crate::relay::storage::reports::{NewReport, ReportRow};
 
 /// The longest note a report or a decision may carry, characters.
@@ -218,12 +218,12 @@ fn role_of(state: &RelayState, key: &str) -> String {
 /// relay (server settings, the account erase, the admin commands), so leaving the role out here
 /// kept the server's own owner from reviewing reports.
 fn is_staff(role: &str) -> bool {
-    matches!(role, "admin" | "owner" | "mod" | "moderator")
+    crate::relay::handlers::msg_handlers::is_staff_role(role)
 }
 
 /// An admin or the owner: who is shown the reporter.
 fn is_admin(role: &str) -> bool {
-    matches!(role, "admin" | "owner")
+    crate::relay::handlers::msg_handlers::is_admin_role(role)
 }
 
 fn now_ms() -> i64 {
@@ -731,7 +731,6 @@ pub async fn handle_decide_in(state: &Arc<RelayState>, me: &str, raw: &Value, fo
         return tell(state, me, format!("Report #{id} was already decided ({}).", report.decision.as_deref().unwrap_or("")));
     }
     let target = report.target_key.clone();
-    let mut done: Option<String> = None;
     match decision {
         "warn" | "mute" | "kick" | "ban" => {
             let name = name_of(state, &target);
@@ -764,12 +763,40 @@ pub async fn handle_decide_in(state: &Arc<RelayState>, me: &str, raw: &Value, fo
                 }
             }
         }
-        "hide_and_keep" => match crate::relay::handlers::held::hide_and_keep_in(state, me, &report, posts_of(&report), raw, folders).await {
-            Ok(words) => done = Some(words),
-            Err(why) => return tell(state, me, format!("Report #{id} was not decided: {why}")),
-        },
+        "hide_and_keep" => {
+            // ONE TASK OF ITS OWN (the sixth review's M1, 2026-11-21): the whole hide (the move, the
+            // seal, the record, the broadcast, the federation) and the report's decision run as a
+            // task that owns the sealing count and finishes whatever happens to the moderator's
+            // connection. Awaited inline, a dropped socket cancelled this future mid-hide: the seal
+            // already running on its blocking thread finished, but the Delete broadcast, the linked
+            // servers' delete, the signed record and the decision were lost, and the hide stopped
+            // being counted as sealing while it still sealed. Awaiting the task's handle here cancels
+            // nothing when this future is dropped.
+            let (st, by, raw, note, owned) = (state.clone(), me.to_string(), raw.clone(), note.to_string(), OwnedFolders::of(folders));
+            // Counted until the decision is recorded, so a graceful shutdown waits for it (the
+            // seventh review, L2; relay mod.rs `shutdown_signal`).
+            let hiding = crate::relay::handlers::owner::HidingNow::start(state);
+            let task = tokio::spawn(async move {
+                let _hiding = hiding;
+                let folders = owned.get();
+                match crate::relay::handlers::held::hide_and_keep_in(&st, &by, &report, posts_of(&report), &raw, folders).await {
+                    Ok(words) => record_decision(&st, &by, id, "hide_and_keep", &note, Some(words)),
+                    Err(why) => tell(&st, &by, format!("Report #{id} was not decided: {why}")),
+                }
+            });
+            if let Err(e) = task.await {
+                tracing::error!("Reports: report #{id}: the hide and keep stopped ({e})");
+            }
+            return;
+        }
         _ => {} // dismiss: nothing to carry out
     }
+    record_decision(state, me, id, decision, note, None);
+}
+
+/// Record `decision` on report `id` by `me` with its note, once carried out, and tell `me`, with
+/// `done`'s words when the decision said what it did.
+fn record_decision(state: &RelayState, me: &str, id: i64, decision: &str, note: &str, done: Option<String>) {
     match state.db.report_record_decision(id, me, decision, note, now_ms()) {
         Ok(true) => tell(state, me, format!("Report #{id} decided: {decision}.{}", done.map(|w| format!(" {w}")).unwrap_or_default())),
         Ok(false) => tell(state, me, format!("Report #{id} was already decided.")),
@@ -852,7 +879,9 @@ pub async fn handle_slash(state: &Arc<RelayState>, me: &str, cmd: &str) {
             if !is_admin(&role) {
                 return tell(state, me, "Only admins can clear reports.".to_string());
             }
-            match state.db.reports_clear_decided() {
+            // A report whose hide waits for its sealed copy stays (the fourth review's finding 5c).
+            let waiting = state.db.held_waiting_reports_in(crate::relay::storage::files::Folders::live());
+            match state.db.reports_clear_decided(&waiting) {
                 Ok(n) => tell(state, me, format!("Cleared {n} decided report(s). Open reports stay until someone decides them.")),
                 Err(e) => {
                     tracing::error!("Reports: could not clear the decided reports: {e}");

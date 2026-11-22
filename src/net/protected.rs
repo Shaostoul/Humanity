@@ -748,6 +748,11 @@ pub struct ProtectedUi {
     /// PIN given for the code covers the friend it names, so its answer (engine/friend_code.rs)
     /// follows them without asking again; used up by that answer.
     pub code_redeemed: bool,
+    /// When this device last asked the server for a friend code, and last redeemed one: the one
+    /// answer each asks for is taken, and an answer nobody asked for is dropped and logged
+    /// (engine/friend_code.rs, the owner branch's seventh review, H1 (c)).
+    pub code_asked_at: Option<std::time::Instant>,
+    pub redeem_asked_at: Option<std::time::Instant>,
     /// Text a locked action made after its PIN that belongs on the clipboard (a group's invite
     /// ticket). The PIN's answer runs without the egui context that copies, so it waits here and
     /// the PIN prompt's drawing, which has the context, copies it on the next frame.

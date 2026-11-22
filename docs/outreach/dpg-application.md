@@ -295,7 +295,7 @@ architecture, user guides).
 
 - To run it: the [README](../../README.md), "Get started" (try it in a browser, the desktop
   download, a server); [docs/admin/SELF-HOSTING.md](../admin/SELF-HOSTING.md) (a server from the
-  release binary or from source, configuration, backups, becoming the first admin).
+  release binary or from source, configuration, backups, becoming the server's owner).
 - To build and change it: [CONTRIBUTING.md](../../CONTRIBUTING.md), "Quick Start" (clone, build and
   run the server, open the chat, build the desktop app);
   [docs/contributor/00-START-HERE.md](../contributor/00-START-HERE.md) and the architecture and

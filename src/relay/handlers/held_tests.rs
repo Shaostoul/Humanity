@@ -12,17 +12,17 @@ use humanity_protocol::key_card;
 use humanity_protocol::pq_crypto::{build_report_sig, derive_dilithium_seed, DilithiumKeypair};
 use serde_json::json;
 
-pub(super) fn block<F: std::future::Future>(f: F) -> F::Output {
+pub(crate) fn block<F: std::future::Future>(f: F) -> F::Output {
     tokio::runtime::Runtime::new().expect("tokio rt").block_on(f)
 }
 
 /// A real identity: its seed and its Dilithium3 public key, hex.
-pub(super) struct Person {
+pub(crate) struct Person {
     pub seed: Vec<u8>,
     pub key: String,
 }
 
-pub(super) fn person(seed_byte: u8) -> Person {
+pub(crate) fn person(seed_byte: u8) -> Person {
     let seed = vec![seed_byte; 32];
     let key = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key());
     Person { seed, key }
@@ -30,7 +30,7 @@ pub(super) fn person(seed_byte: u8) -> Person {
 
 /// One folder of a test's own, with the relay's four upload folders inside it, so the held folder
 /// beside the uploads folder is the test's own too.
-pub(super) struct Dirs {
+pub(crate) struct Dirs {
     _root: humanity_core::test_temp::TempPath,
     pub uploads: std::path::PathBuf,
     pub members: std::path::PathBuf,
@@ -38,7 +38,7 @@ pub(super) struct Dirs {
     pub waiting: std::path::PathBuf,
 }
 
-pub(super) fn dirs(tag: &str) -> Dirs {
+pub(crate) fn dirs(tag: &str) -> Dirs {
     let root = humanity_core::test_temp::dir(&format!("hidekeep_{tag}"));
     let sub = |w: &str| {
         let p = root.path().join(w);
@@ -55,15 +55,15 @@ impl Dirs {
     }
 }
 
-pub(super) const TS: u64 = 1_760_000_000_000;
+pub(crate) const TS: u64 = 1_760_000_000_000;
 /// A marker in the post's words and each file, searched for on disk after the hide.
-pub(super) const MARKER: &str = "PLAINTEXT-MARKER-7f3a";
+pub(crate) const MARKER: &str = "PLAINTEXT-MARKER-7f3a";
 
 /// A server with Tom's reported post in #global, shared with linked servers. The post links a
 /// picture and a video with its poster picture in the public folder and a members-only file, each
 /// with its upload row; the post is pinned. Rae reported it. Ada is an admin. Returns the state,
 /// the report's id, and the people (Rae, Tom, Ada).
-pub(super) fn reported_post(tag: &str, d: &Dirs) -> (Arc<RelayState>, i64, Person, Person, Person) {
+pub(crate) fn reported_post(tag: &str, d: &Dirs) -> (Arc<RelayState>, i64, Person, Person, Person) {
     let st = Arc::new(RelayState::new(Storage::open_temp(&format!("hidekeep_{tag}"))));
     let (rae, tom, ada) = (person(1), person(2), person(3));
     st.db.register_name("Rae", &rae.key).unwrap();
@@ -113,15 +113,15 @@ pub(super) fn reported_post(tag: &str, d: &Dirs) -> (Arc<RelayState>, i64, Perso
 }
 
 /// Make `who` the server's owner, with a key card kept here when `card`.
-pub(super) fn make_owner(st: &RelayState, who: &Person, card: bool) {
-    st.db.set_role(&who.key, "owner").unwrap();
+pub(crate) fn make_owner(st: &RelayState, who: &Person, card: bool) {
+    st.db.claim_owner(&who.key, 0).unwrap();
     if card {
         let c = key_card::sign_card(&who.seed, TS).unwrap();
         assert!(st.db.store_key_card(&c).unwrap().stored());
     }
 }
 
-pub(super) fn drain(rx: &mut tokio::sync::broadcast::Receiver<RelayMessage>) -> Vec<RelayMessage> {
+pub(crate) fn drain(rx: &mut tokio::sync::broadcast::Receiver<RelayMessage>) -> Vec<RelayMessage> {
     let mut all = Vec::new();
     while let Ok(m) = rx.try_recv() {
         all.push(m);
@@ -131,7 +131,7 @@ pub(super) fn drain(rx: &mut tokio::sync::broadcast::Receiver<RelayMessage>) -> 
 
 /// `who` decides report `id` with `decision` (a hide and keep with `who`'s own signed action, as
 /// the app sends it): everything the bus carried.
-pub(super) fn decide(st: &Arc<RelayState>, d: &Dirs, who: &Person, id: i64, decision: &str) -> Vec<RelayMessage> {
+pub(crate) fn decide(st: &Arc<RelayState>, d: &Dirs, who: &Person, id: i64, decision: &str) -> Vec<RelayMessage> {
     let mut rx = st.broadcast_tx.subscribe();
     let mut raw = json!({ "type": "report_decide", "id": id, "decision": decision, "note": "" });
     if decision == "hide_and_keep" {
@@ -142,7 +142,7 @@ pub(super) fn decide(st: &Arc<RelayState>, d: &Dirs, who: &Person, id: i64, deci
 }
 
 /// What `who` was told, as text.
-pub(super) fn told(all: &[RelayMessage], who: &str) -> String {
+pub(crate) fn told(all: &[RelayMessage], who: &str) -> String {
     all.iter()
         .filter_map(|m| match m {
             RelayMessage::Private { to, message } if to == who => Some(message.clone()),
@@ -153,12 +153,12 @@ pub(super) fn told(all: &[RelayMessage], who: &str) -> String {
 }
 
 /// What `GET /uploads/<name>` answers: the public folder served as relay/mod.rs serves it.
-pub(super) fn public_status(d: &Dirs, name: &str) -> u16 {
+pub(crate) fn public_status(d: &Dirs, name: &str) -> u16 {
     let req = axum::http::Request::builder().uri(format!("/{name}")).body(axum::body::Body::empty()).unwrap();
     block(async { tower_http::services::ServeDir::new(&d.uploads).try_call(req).await.unwrap().status().as_u16() })
 }
 
-pub(super) fn upload_rows(st: &RelayState) -> i64 {
+pub(crate) fn upload_rows(st: &RelayState) -> i64 {
     st.db.with_conn(|c| c.query_row("SELECT COUNT(*) FROM user_uploads", [], |r| r.get(0))).unwrap()
 }
 
@@ -359,7 +359,7 @@ fn a_failed_seal_changes_nothing_and_a_file_left_behind_is_swept() {
 
 /// A server with one held item (Tom's post): the state, the report's id, Ada, the owner and the
 /// item's row.
-pub(super) fn one_held(tag: &str, d: &Dirs) -> (Arc<RelayState>, i64, Person, Person, crate::relay::storage::held::HeldRow) {
+pub(crate) fn one_held(tag: &str, d: &Dirs) -> (Arc<RelayState>, i64, Person, Person, crate::relay::storage::held::HeldRow) {
     let (st, id, _rae, _tom, ada) = reported_post(tag, d);
     let own = person(9);
     make_owner(&st, &own, true);
@@ -388,7 +388,7 @@ fn a_held_item_goes_after_a_year_unless_a_legal_hold_keeps_it() {
     assert!(pkg.is_dir());
     // The report outlives the 90 days after its decision, and a clear, while its item is held.
     assert_eq!(st.db.reports_expire(day(200)).unwrap(), 0);
-    assert_eq!(st.db.reports_clear_decided().unwrap(), 0);
+    assert_eq!(st.db.reports_clear_decided(&[]).unwrap(), 0);
     assert!(st.db.report_by_id(id).unwrap().is_some(), "the report is kept while its item is");
 
     assert!(st.db.held_set_legal_hold(row.id, day(400)).unwrap());
@@ -397,7 +397,7 @@ fn a_held_item_goes_after_a_year_unless_a_legal_hold_keeps_it() {
     assert_eq!(st.db.held_expire_in(day(401), d.folders()).unwrap(), 1, "gone once the hold ends");
     assert!(!pkg.exists(), "its sealed parts are deleted from the disk");
     assert!(st.db.held_items().unwrap().is_empty(), "and its row");
-    assert_eq!(st.db.reports_clear_decided().unwrap(), 1, "then the report goes by the ordinary rule");
+    assert_eq!(st.db.reports_clear_decided(&[]).unwrap(), 1, "then the report goes by the ordinary rule");
 
     // Without a hold: day 366 deletes.
     let d2 = dirs("expiry_plain");
@@ -410,7 +410,8 @@ fn a_held_item_goes_after_a_year_unless_a_legal_hold_keeps_it() {
 /// not after today or more than a year ahead, and 0 lifts it.
 ///
 /// Seen red 2026-11-20 with `held_destroy_in` deleting the row and not the folder: "destroy now
-/// deletes its sealed parts".
+/// deletes its sealed parts"; and again with only the package's own folder removed (the branch as
+/// reviewed): "and an owner change's re-wrapped copy".
 #[test]
 fn destroy_now_deletes_at_once_and_a_hold_has_bounds() {
     use crate::relay::storage::held::{legal_hold_refusal, DAY_MS};
@@ -419,8 +420,17 @@ fn destroy_now_deletes_at_once_and_a_hold_has_bounds() {
     let now = row.held_at;
     assert!(legal_hold_refusal(now, now).is_some() && legal_hold_refusal(now + 367 * DAY_MS, now).is_some());
     assert!(legal_hold_refusal(now + 90 * DAY_MS, now).is_none() && legal_hold_refusal(0, now).is_none());
+    // An owner change's re-wrapped copy and an original a swap set aside (the owner review's finding
+    // 7): destroy now takes every copy of the package, not just its own folder.
+    let held = held_dir_beside(d.folders());
+    for extra in [format!(".handover-{}", row.package), format!(".pre-handover-{}", row.package)] {
+        std::fs::create_dir_all(held.join(&extra)).unwrap();
+        std::fs::write(held.join(&extra).join("0.sealed"), b"a copy").unwrap();
+    }
     assert!(st.db.held_destroy_in(row.id, d.folders()).unwrap());
     assert!(!held_dir_beside(d.folders()).join(&row.package).exists(), "destroy now deletes its sealed parts");
+    assert!(!held.join(format!(".handover-{}", row.package)).exists(), "and an owner change's re-wrapped copy");
+    assert!(!held.join(format!(".pre-handover-{}", row.package)).exists(), "and an original a swap set aside");
     assert!(st.db.held_item(row.id).unwrap().is_none(), "and its row");
     assert!(!st.db.held_destroy_in(row.id, d.folders()).unwrap(), "a second destroy finds nothing");
 }
@@ -428,7 +438,7 @@ fn destroy_now_deletes_at_once_and_a_hold_has_bounds() {
 // ── Rung 4: every action signed, recorded, checkable ──
 
 /// `who`'s own signed `mod_action_v1` for this server, as the JSON a client sends under `action`.
-pub(super) fn signed(st: &RelayState, who: &Person, action: &str, kind: &str, target: i64, until: u64) -> serde_json::Value {
+pub(crate) fn signed(st: &RelayState, who: &Person, action: &str, kind: &str, target: i64, until: u64) -> serde_json::Value {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use humanity_protocol::moderation::{build_mod_action_v1, ModAction};
     let a = ModAction { action, target: &target.to_string(), target_kind: kind, reason: "the content policy", rule: "", expires_at: until, role: "" };
@@ -443,7 +453,7 @@ pub(super) fn signed(st: &RelayState, who: &Person, action: &str, kind: &str, ta
 }
 
 /// `who` sends `held_act` carrying `action`: everything the bus carried.
-pub(super) fn act(st: &Arc<RelayState>, d: &Dirs, who: &Person, action: serde_json::Value) -> Vec<RelayMessage> {
+pub(crate) fn act(st: &Arc<RelayState>, d: &Dirs, who: &Person, action: serde_json::Value) -> Vec<RelayMessage> {
     let mut rx = st.broadcast_tx.subscribe();
     block(handle_act_in(st, &who.key, &json!({ "type": "held_act", "action": action }), d.folders()));
     drain(&mut rx)
@@ -458,7 +468,10 @@ pub(super) fn act(st: &Arc<RelayState>, d: &Dirs, who: &Person, action: serde_js
 ///
 /// Seen red 2026-11-20 with `check_held_action`'s signer check taken out: "an action signed by
 /// another key is refused" (another admin's object, sent from Ada's socket, hid the post). (A
-/// member's object is refused by the role check as well, so the test uses an admin's.)
+/// member's object is refused by the role check as well, so the test uses an admin's.) For the
+/// owner review's finding 1: seen red with the export's object sent to every admin ("an admin's log
+/// carries no export object"), and with `granted_item`'s caller check taken out ("an admin with the
+/// grant gets nothing").
 #[test]
 fn every_held_action_is_signed_recorded_and_checkable() {
     use crate::relay::storage::held::DAY_MS;
@@ -515,11 +528,23 @@ fn every_held_action_is_signed_recorded_and_checkable() {
         sub.to_object().unwrap().object_id().unwrap().to_hex()
     };
     let now = crate::relay::storage::now_millis() as i64;
-    let path = export_part_path(&st, item.id, 0, &grant, d.folders(), now).expect("the owner's grant reaches part 0");
+    let path = export_part_path(&st, item.id, 0, &grant, &own.key, d.folders(), now).expect("the owner's grant reaches part 0");
     assert!(path.is_file());
-    assert!(export_part_path(&st, item.id, item.parts, &grant, d.folders(), now).is_none(), "no part past the last");
-    assert!(export_part_path(&st, item.id, 0, &"0".repeat(64), d.folders(), now).is_none(), "nothing to another grant");
-    assert!(export_part_path(&st, item.id, 0, &grant, d.folders(), now + EXPORT_GRANT_MS + 1).is_none(), "nothing after ten minutes");
+    assert!(export_part_path(&st, item.id, item.parts, &grant, &own.key, d.folders(), now).is_none(), "no part past the last");
+    assert!(export_part_path(&st, item.id, 0, &"0".repeat(64), &own.key, d.folders(), now).is_none(), "nothing to another grant");
+    assert!(export_part_path(&st, item.id, 0, &grant, &own.key, d.folders(), now + EXPORT_GRANT_MS + 1).is_none(), "nothing after ten minutes");
+    // The owner review's finding 1: the grant is no bearer token. An admin holding it (from the
+    // log, or handed it) gets nothing, nor does anyone with no signature at all; and the log sends
+    // an admin who is not the owner no signed object to read the grant from.
+    assert!(export_part_path(&st, item.id, 0, &grant, &ada.key, d.folders(), now).is_none(), "an admin with the grant gets nothing");
+    assert!(export_part_path(&st, item.id, 0, &grant, "", d.folders(), now).is_none(), "no caller, nothing");
+    let mut rx = st.broadcast_tx.subscribe();
+    handle_list(&st, &ada.key);
+    handle_list(&st, &own.key);
+    let lists: Vec<Value> = drain(&mut rx).into_iter().filter(|m| matches!(m, RelayMessage::HeldItems { .. })).map(|m| { let to = match &m { RelayMessage::HeldItems { to, .. } => to.clone(), _ => unreachable!() }; let mut v = serde_json::to_value(&m).unwrap(); v["to"] = Value::String(to); v }).collect();
+    let export_object = |who: &str| lists.iter().find(|l| l["to"] == who).and_then(|l| l["actions"].as_array().unwrap().iter().find(|a| a["action"] == "held_export").map(|a| a["object"].clone())).expect("the export in the log");
+    assert!(export_object(&ada.key).is_null(), "an admin's log carries no export object (no grant)");
+    assert!(export_object(&own.key).is_string(), "the owner's own log does");
     assert_eq!(st.db.held_item(item.id).unwrap().unwrap().exported_count, 1);
 
     let all = act(&st, &d, &own, signed(&st, &own, "held_destroy", "held", item.id, 0));
@@ -530,6 +555,52 @@ fn every_held_action_is_signed_recorded_and_checkable() {
     assert_eq!((counts.held, counts.legal_holds, counts.exported, counts.destroyed, counts.restored), (1, 1, 1, 1, 0));
     let public = serde_json::to_string(&counts).unwrap();
     assert!(!public.contains(&tom.key) && !public.contains(&ada.key), "the counts carry no details: {public}");
+}
+
+/// The headers that prove a part route's caller (the owner review's finding 1): a Dilithium3
+/// signature over this request's own purpose and time names its key; no signature, a signature
+/// for another request (another grant, item, part or offset), a stale one, one by another key than
+/// the one named, or the same request sent twice is refused.
+///
+/// Seen red 2026-11-20 with `signed_caller` returning the named key unchecked: "the same request
+/// twice" was accepted.
+#[test]
+fn a_part_route_knows_its_caller_only_by_their_signature() {
+    use axum::http::{HeaderMap, HeaderValue};
+    let st = RelayState::new(Storage::open_temp_dir("held_caller"));
+    let (own, other) = (person(61), person(62));
+    let sign = |who: &Person, purpose: &str, ts: u64| {
+        let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&who.seed));
+        hex::encode(kp.sign(format!("{purpose}\n{ts}").as_bytes()))
+    };
+    let headers = |key: &str, ts: u64, sig: &str| {
+        let mut h = HeaderMap::new();
+        h.insert(CALLER_KEY, HeaderValue::from_str(key).unwrap());
+        h.insert(CALLER_TIME, HeaderValue::from_str(&ts.to_string()).unwrap());
+        h.insert(CALLER_SIG, HeaderValue::from_str(sig).unwrap());
+        h
+    };
+    let purpose = caller_purpose("part", "g1", 7, 0, 0);
+    let now = crate::relay::storage::now_millis() as u64;
+    assert_eq!(block(signed_caller(&st, &headers(&own.key, now, &sign(&own, &purpose, now)), &purpose)).as_deref(), Some(own.key.as_str()), "a signed request names its key");
+    assert!(block(signed_caller(&st, &headers(&own.key, now, &sign(&own, &purpose, now)), &purpose)).is_none(), "the same request twice");
+    assert!(block(signed_caller(&st, &HeaderMap::new(), &purpose)).is_none(), "no signature");
+    let t = now + 1;
+    assert!(block(signed_caller(&st, &headers(&own.key, t, &sign(&own, &caller_purpose("part", "g1", 7, 1, 0), t)), &purpose)).is_none(), "a signature for another part");
+    let t = now + 2;
+    assert!(block(signed_caller(&st, &headers(&own.key, t, &sign(&own, &caller_purpose("part", "g2", 7, 0, 0), t)), &purpose)).is_none(), "a signature for another grant");
+    let t = now + 3;
+    assert!(block(signed_caller(&st, &headers(&own.key, t, &sign(&other, &purpose, t)), &purpose)).is_none(), "signed by another key than the one named");
+    let old = now - 10 * 60 * 1000;
+    assert!(block(signed_caller(&st, &headers(&own.key, old, &sign(&own, &purpose, old)), &purpose)).is_none(), "a stale signature");
+    // A chat line is signed over `content\nts` and broadcast (the second review, R6): the owner's
+    // signed chat line "held_part:g1:7:0:0" never passes for a caller, because every purpose starts
+    // with its own domain line. Seen red 2026-11-20 with `caller_purpose` leaving the domain line
+    // out: "a chat-style signature of the bare purpose line" named the owner's key.
+    let bare = purpose.split_once('\n').map_or(purpose.as_str(), |(_, b)| b);
+    let t = now + 4;
+    assert!(block(signed_caller(&st, &headers(&own.key, t, &sign(&own, bare, t)), &purpose)).is_none(), "a chat-style signature of the bare purpose line");
+    assert!(purpose.starts_with("hum/held-caller/v1\nheld_part:"), "the purpose carries its domain line");
 }
 
 /// A held action never enters the public signed-object store (from a submission or a linked
@@ -572,7 +643,8 @@ fn held_actions_stay_out_of_the_public_store_and_the_list_shows_no_contents() {
 /// nothing ever looked at either.)
 ///
 /// Seen red 2026-11-20 with the staging folder's removal taken out: "an unfinished seal is
-/// removed" (left (0, 1), right (1, 1)).
+/// removed" (left (0, 1), right (1, 1)); and with the owner change's re-wrapped folders skipped as
+/// on the branch reviewed (finding 7): the sweep's count (left (1, 1), right (2, 1)).
 #[test]
 fn the_held_folder_keeps_no_unfinished_seal_and_reports_a_package_with_no_row() {
     let d = dirs("strays");
@@ -590,4 +662,124 @@ fn the_held_folder_keeps_no_unfinished_seal_and_reports_a_package_with_no_row() 
     assert!(!held.join(".staging-0123").exists());
     assert!(held.join("ffffffffffffffffffffffffffffffff").is_dir(), "a package with no row is kept");
     assert!(held.join(&row.package).is_dir(), "a package with its row is left alone");
+
+    // The owner review's finding 7: the sweep used to skip every name starting with a dot. A
+    // re-wrapped copy of a package that is gone is removed at once, one of a package still held is
+    // left for a change that may still use it; a set-aside original of a package that is back in
+    // place is removed, while one whose package has a row and no folder (the ONLY copy) is put back.
+    let gone = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    for name in [format!(".handover-{gone}"), format!(".handover-{}", row.package), format!(".pre-handover-{}", row.package)] {
+        std::fs::create_dir_all(held.join(&name)).unwrap();
+    }
+    assert_eq!(st.db.held_sweep_strays_in(d.folders(), an_hour_ago).unwrap(), (2, 1));
+    assert!(!held.join(format!(".handover-{gone}")).exists(), "a re-wrapped copy of a package that is gone");
+    assert!(held.join(format!(".handover-{}", row.package)).is_dir(), "a fresh re-wrapped copy of a held package stays");
+    assert!(!held.join(format!(".pre-handover-{}", row.package)).exists(), "a set-aside original whose package is back");
+    std::fs::rename(held.join(&row.package), held.join(format!(".pre-handover-{}", row.package))).unwrap();
+    st.db.held_sweep_strays_in(d.folders(), an_hour_ago).unwrap();
+    assert!(held.join(&row.package).join("0.sealed").is_file(), "the only copy is put back, never deleted");
 }
+
+// ── The sixth review's M1: a hide is one task of its own, sealed to the recipients of then ──
+
+/// How many hides are counted as sealing now (handlers/owner.rs `ChangeSlot::sealing`).
+fn sealing_count(st: &RelayState) -> u32 {
+    crate::relay::handlers::owner::slot(st).sealing
+}
+
+/// Pause the next hide under `d`'s held folder at its very start: a receiver that hears once it has
+/// started, and a sender that lets it go on.
+fn pause_hide(d: &Dirs) -> (std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>) {
+    let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+    let (go_tx, go_rx) = std::sync::mpsc::channel::<()>();
+    let hook = move || {
+        let _ = entered_tx.send(());
+        let _ = go_rx.recv_timeout(std::time::Duration::from_secs(60));
+    };
+    crate::relay::storage::held::BEFORE_HIDE.lock().unwrap().push((held_dir_beside(d.folders()), Box::new(hook)));
+    (entered_rx, go_tx)
+}
+
+/// A HIDE WHOSE MODERATOR LEAVES MID-WAY STILL FINISHES EVERYTHING (the sixth review's M1). The
+/// decision's future is dropped while its hide is inside the sealing step (the moderator's socket
+/// went away), and the hide still carries out all of it: the post out of view, every client told to
+/// drop it, the delete queued for linked servers, the signed action recorded, the report's decision
+/// recorded and the moderator told; and it stays counted as sealing (so no owner change begins)
+/// until it has finished, not from the moment its caller left.
+///
+/// Seen red 2026-11-21 (scratchpad ownfix9-red-relay.log) against the hide as it was (awaited inline
+/// by the decision, its blocking seal's await cancelled with the caller): "the hide is still counted
+/// as sealing after its caller left" (left 0, right 1).
+#[test]
+fn a_hide_whose_caller_leaves_midway_still_finishes_everything() {
+    let d = dirs("hide_cancel");
+    let (st, id, _rae, tom, ada) = reported_post("hide_cancel", &d);
+    make_owner(&st, &person(9), true);
+    let mut rx = st.broadcast_tx.subscribe();
+    let raw = json!({ "type": "report_decide", "id": id, "decision": "hide_and_keep", "note": "", "action": signed(&st, &ada, "hide_and_keep", "report", id, 0) });
+    let (entered, go) = pause_hide(&d);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let decide = handle_decide_in(&st, &ada.key, &raw, d.folders());
+        tokio::pin!(decide);
+        let started = tokio::task::spawn_blocking(move || entered.recv_timeout(std::time::Duration::from_secs(30)).is_ok());
+        tokio::select! {
+            _ = &mut decide => panic!("the decision finished before its hide paused"),
+            ok = started => assert!(ok.unwrap(), "the hide started"),
+        }
+        // `decide` is dropped here, mid-hide: its caller is gone.
+    });
+    assert_eq!(sealing_count(&st), 1, "the hide is still counted as sealing after its caller left");
+    go.send(()).unwrap();
+    let mut all = Vec::new();
+    let start = std::time::Instant::now();
+    while !told(&all, &ada.key).contains("decided: hide_and_keep") && start.elapsed() < std::time::Duration::from_secs(30) {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        all.extend(drain(&mut rx));
+    }
+    assert!(told(&all, &ada.key).contains("decided: hide_and_keep") && told(&all, &ada.key).contains("1 post(s) and 3 file(s)"), "the moderator is told: {}", told(&all, &ada.key));
+    assert_eq!(st.db.report_by_id(id).unwrap().unwrap().decision.as_deref(), Some("hide_and_keep"), "the report's decision is recorded");
+    assert!(st.db.post_for_report(&tom.key, 42).unwrap().is_none(), "the post is out of view");
+    assert!(all.iter().any(|m| matches!(m, RelayMessage::Delete { from, timestamp: 42 } if *from == tom.key)), "every client is told to drop it");
+    assert!(outbox_kinds(&st).iter().any(|k| k == "delete"), "the delete is queued for linked servers: {:?}", outbox_kinds(&st));
+    let recorded: i64 = st.db.with_conn(|c| c.query_row("SELECT COUNT(*) FROM held_actions WHERE action = 'hide_and_keep'", [], |r| r.get(0))).unwrap();
+    assert_eq!(recorded, 1, "the signed action is recorded");
+    assert_eq!(sealing_count(&st), 0, "once finished, it is no longer counted as sealing");
+}
+
+/// A SEAL TAKES ITS RECIPIENTS UNDER THE HELD FOLDER'S LOCK, AT SEALING TIME (the sixth review's
+/// M1). A quick change lands between the hide's start and its seal (here Bea is named successor,
+/// with her key card, as a carry-out that slipped in would leave it): the copy is sealed to the
+/// recipients of then, the owner AND Bea, and opens for her, not to the card read when the hide
+/// began.
+///
+/// Seen red 2026-11-21 (scratchpad ownfix9-red-relay.log) against `hide_post_in` sealing to the
+/// card the handler read at the hide's start: "sealed to the successor named meanwhile" (left "",
+/// right Bea's key).
+#[test]
+fn a_seal_during_a_quick_change_uses_the_recipients_of_then() {
+    use humanity_protocol::held_seal::{open_bytes, part_context};
+    use humanity_protocol::pq_crypto::{derive_kyber_seed, KyberKeypair};
+    let d = dirs("hide_quick");
+    let (st, id, _rae, _tom, ada) = reported_post("hide_quick", &d);
+    let (own, bea) = (person(9), person(6));
+    make_owner(&st, &own, true);
+    assert!(st.db.store_key_card(&key_card::sign_card(&bea.seed, TS).unwrap()).unwrap().stored());
+    let (st2, bea_key) = (st.clone(), bea.key.clone());
+    let quick_change = move || {
+        st2.db
+            .with_conn(|c| c.execute("INSERT OR REPLACE INTO owner_successor (id, public_key, card_at, named_at) VALUES (1, ?1, ?2, ?2)", rusqlite::params![bea_key, TS as i64]))
+            .unwrap();
+    };
+    crate::relay::storage::held::BEFORE_HIDE.lock().unwrap().push((held_dir_beside(d.folders()), Box::new(quick_change)));
+    let all = decide(&st, &d, &ada, id, "hide_and_keep");
+    assert!(told(&all, &ada.key).contains("decided: hide_and_keep"), "{}", told(&all, &ada.key));
+    let (package, also): (String, String) = st.db.with_conn(|c| c.query_row("SELECT package, also_sealed_to FROM held_items", [], |r| Ok((r.get(0)?, r.get(1)?)))).unwrap();
+    assert_eq!(also, bea.key, "sealed to the successor named meanwhile");
+    let part0 = std::fs::read(held_dir_beside(d.folders()).join(&package).join("0.sealed")).unwrap();
+    let kp = KyberKeypair::from_seed(&derive_kyber_seed(&bea.seed)).unwrap();
+    assert!(open_bytes(&kp, &part_context(&package, 0), &part0).is_ok(), "and it opens for her");
+}
+
+#[path = "held_round8_tests.rs"]
+mod round8;

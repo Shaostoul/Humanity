@@ -571,6 +571,7 @@ function loadChat() {
   const run = (rel) => vm.runInContext(read(rel), ctx, { filename: rel });
   run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
+  run("shared/roles.js"); // who counts as an admin, as web/chat/index.html loads it before app.js (BUG-332)
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
   run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js

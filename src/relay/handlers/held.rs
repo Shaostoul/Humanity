@@ -12,6 +12,13 @@
 //! a pinned copy's room has its pins sent again, and the delete goes to linked servers and the
 //! words leave the federation outbox (federation_log.rs `after_delete`).
 //!
+//! ONE TASK, WHATEVER HAPPENS TO THE MODERATOR'S CONNECTION (the sixth review's M1, 2026-11-21):
+//! reports.rs runs the whole hide (the move, the seal, the record, the broadcast, the federation
+//! and the report's decision) as a task of its own that owns the sealing count, so a dropped socket
+//! no longer cancels the await of a seal already running and loses everything after it, nor stops
+//! the hide being counted as sealing while it still seals. The seal reads its recipients under the
+//! held folder's lock at sealing time (storage/held.rs `hide_post_in`).
+//!
 //! SIGNED (rung 4). Every action here carries the actor's own signed `mod_action_v1` under
 //! `action` (the JSON `POST /api/v2/objects` takes), checked by storage/moderation_held.rs and
 //! recorded once carried out; a frame without one is refused ([`UNSIGNED`]). The owner's `held_act`
@@ -28,8 +35,8 @@ use std::sync::Arc;
 use crate::relay::handlers::federation_log;
 use crate::relay::handlers::msg_handlers::mod_action_refusal;
 use crate::relay::relay::{PinData, RelayMessage, RelayState};
-use crate::relay::storage::files::Folders;
-use crate::relay::storage::held::{legal_hold_refusal, Keeper};
+use crate::relay::storage::files::{Folders, OwnedFolders};
+use crate::relay::storage::held::legal_hold_refusal;
 use crate::relay::storage::moderation::held::HeldAction;
 use crate::relay::api_v2_objects::SignedObjectSubmission;
 use humanity_protocol::object::Object;
@@ -74,17 +81,37 @@ pub async fn hide_and_keep_in(state: &Arc<RelayState>, me: &str, report: &Report
     if posts.is_empty() {
         return Err("it has no post of theirs to hide.".to_string());
     }
+    // Sealing now, or waiting (the owner branch's third review, S3): while an owner change is
+    // pending or being carried out, the post leaves every view at once as always, but its sealed copy
+    // WAITS and is made right after the change is carried out or rolled back, to whoever the
+    // recipients are then (owner.rs `seal_waiting`). Otherwise it is sealed now, counted as sealing
+    // so no change begins meanwhile, and the owner's card is read inside that count.
+    let sealing = crate::relay::handlers::owner::SealingNow::start(state);
     let card = state.db.owner_card();
     if let Some(why) = card.refusal() {
         return Err(why.to_string());
     }
-    let crate::relay::storage::held::OwnerCard::Ready { owner, kyber, card_at } = &card else {
+    if !matches!(card, crate::relay::storage::held::OwnerCard::Ready { .. }) {
         return Err(crate::relay::storage::held::NO_CARD.to_string());
-    };
-    let keeper = Keeper { owner, kyber, card_at: *card_at, held_by: me, now_ms: crate::relay::storage::now_millis() as i64 };
+    }
+    let now = crate::relay::storage::now_millis() as i64;
+    let waits = sealing.is_none();
     let (mut hidden, mut files, mut left) = (0usize, 0usize, Vec::new());
     for (author, stamp) in posts {
-        match state.db.hide_post_in(report.id, &author, stamp, &keeper, folders) {
+        // Hiding a post seals its files (whole files read and written): on a blocking thread, never
+        // on the async runtime (the fifth review's L4). The card is read again inside, under the
+        // held folder's lock (the sixth review's M1); the one read above only says why not, early.
+        let (st, by, author2, owned, report_id) = (state.clone(), me.to_string(), author.clone(), OwnedFolders::of(folders), report.id);
+        let done = tokio::task::spawn_blocking(move || {
+            let folders = owned.get();
+            if waits {
+                return st.db.hide_post_waiting_in(report_id, &author2, stamp, &by, now, folders);
+            }
+            st.db.hide_post_in(report_id, &author2, stamp, &by, now, folders)
+        })
+        .await
+        .unwrap_or_else(|e| Err(crate::relay::storage::held::HideError::Seal(format!("the server stopped while sealing it ({e})"))));
+        match done {
             Ok(Some(h)) => {
                 hidden += 1;
                 files += h.files;
@@ -102,14 +129,31 @@ pub async fn hide_and_keep_in(state: &Arc<RelayState>, me: &str, report: &Report
             }
         }
     }
+    drop(sealing);
     if hidden == 0 {
         return Err("its posts are no longer on this server (deleted by their author, or expired), so there was nothing to hide.".to_string());
     }
     record(state, me, &signed, &json);
-    let mut words = format!(
-        "{hidden} post(s) and {files} file(s) taken out of view and kept sealed to the owner's key card. They are deleted in {} days unless the owner places a legal hold.",
-        crate::relay::storage::held::HELD_KEEP_DAYS
-    );
+    let mut words = if waits {
+        // Said on the moderator's screen (S3): the copy is not sealed yet, and why.
+        format!(
+            "{hidden} post(s) and {files} file(s) taken out of view. Their sealed copy WAITS for the owner change in progress: it is made as soon as that change is carried out or rolled back, sealed to whoever then holds the role, and kept {} days from now unless the owner places a legal hold. Until then it waits on the server unsealed, out of every view.",
+            crate::relay::storage::held::HELD_KEEP_DAYS
+        )
+    } else {
+        format!(
+            "{hidden} post(s) and {files} file(s) taken out of view and kept sealed to the owner's key card. They are deleted in {} days unless the owner places a legal hold.",
+            crate::relay::storage::held::HELD_KEEP_DAYS
+        )
+    };
+    // The change may have ended while this hide waited: its copy is sealed now, not at the next one
+    // (on a blocking thread: the fifth review's L4).
+    if waits {
+        let (st, owned) = (state.clone(), OwnedFolders::of(folders));
+        if let Err(e) = tokio::task::spawn_blocking(move || crate::relay::handlers::owner::seal_waiting(&st, owned.get())).await {
+            tracing::error!("Hide and keep: sealing the copies that waited stopped ({e}); the owner's minute seals them.");
+        }
+    }
     if !left.is_empty() {
         words.push_str(&format!(" {} file(s) could not be taken out of the uploads folder; the server's log names them.", left.len()));
     }
@@ -130,7 +174,7 @@ fn now_ms() -> i64 {
 
 /// The signed action a frame carries under `action` (the JSON `POST /api/v2/objects` takes),
 /// parsed, with its JSON text to record.
-fn action_of(raw: &Value) -> Result<(Object, String), String> {
+pub(crate) fn action_of(raw: &Value) -> Result<(Object, String), String> {
     let Some(v) = raw.get("action").filter(|v| v.is_object()) else { return Err(UNSIGNED.to_string()) };
     let sub: SignedObjectSubmission = serde_json::from_value(v.clone()).map_err(|_| UNSIGNED.to_string())?;
     let object = sub.to_object().map_err(|_| UNSIGNED.to_string())?;
@@ -148,6 +192,42 @@ pub(crate) fn signed_action(state: &RelayState, me: &str, raw: &Value, want: &st
 }
 
 /// Record a carried-out action; a failure is logged and said, never undoes what was done.
+/// The decision's note for a hide completed at a start, when its signed record landed before the stop.
+pub const UNFINISHED_HIDE_NOTE: &str = "Completed when the server started again: it had stopped part-way through this hide and keep. The copy is held and the post out of view, as decided.";
+/// The same, when the moderator's signed record of it was lost with the stop.
+pub const UNFINISHED_HIDE_NOTE_NO_RECORD: &str = "Completed when the server started again: it had stopped part-way through this hide and keep. The copy is held and the post out of view, as decided, but the moderator's signed record of it was lost with the stop and cannot be signed again.";
+
+/// At start (the owner branch's seventh review, L2): every hide and keep a stop cut short, its copy
+/// sealed and its post out of view but its report still open, is completed: the report's decision
+/// is recorded under the moderator who held it, with words saying it was completed at this start
+/// (and that the signed record was lost, when it was: it cannot be signed again), the log says so,
+/// and the linked servers' delete is queued again for each of its posts. Graceful shutdown waits for
+/// hides in flight (owner.rs `wait_for_hides`), so this is for a crash or a kill. Returns how many
+/// reports it completed.
+pub async fn complete_unfinished_hides(state: &Arc<RelayState>) -> usize {
+    let rows = match state.db.held_unfinished_hides() {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!("Hide and keep: could not look for hides a stop cut short: {e}");
+            return 0;
+        }
+    };
+    let mut completed = 0;
+    for h in rows {
+        let note = if h.recorded { UNFINISHED_HIDE_NOTE } else { UNFINISHED_HIDE_NOTE_NO_RECORD };
+        match state.db.report_record_decision(h.report_id, &h.held_by, "hide_and_keep", note, now_ms()) {
+            Ok(true) => {
+                completed += 1;
+                tracing::warn!("Hide and keep: report #{}: {note}", h.report_id);
+            }
+            Ok(false) => {}
+            Err(e) => tracing::error!("Hide and keep: report #{}: its decision could not be recorded at start: {e}", h.report_id),
+        }
+        federation_log::after_delete(state, &h.author, h.stamp, Some(room(&h.channel).to_string())).await;
+    }
+    completed
+}
+
 fn record(state: &RelayState, me: &str, a: &HeldAction, json: &str) {
     if let Err(e) = state.db.record_held_action(a, json, now_ms()) {
         tracing::error!("Held items: {} of #{} was carried out but could not be recorded: {e}", a.action, a.target);
@@ -160,7 +240,7 @@ fn tell(state: &RelayState, who: &str, message: String) {
 }
 
 fn is_admin(state: &RelayState, key: &str) -> bool {
-    matches!(state.db.get_role(key).unwrap_or_default().as_str(), "admin" | "owner")
+    crate::relay::handlers::msg_handlers::is_admin_role(&state.db.get_role(key).unwrap_or_default())
 }
 
 fn name_or_key(state: &RelayState, key: &str) -> String {
@@ -174,6 +254,11 @@ fn name_or_key(state: &RelayState, key: &str) -> String {
 /// and legal hold; nothing of what it holds), the signed actions log, the counts, and whether
 /// this server can keep a copy at all (and if not, why, in words).
 pub fn handle_list(state: &RelayState, me: &str) {
+    handle_list_in(state, me, Folders::live());
+}
+
+/// [`handle_list`] with the uploads (and the held folder beside them) in `folders`.
+pub fn handle_list_in(state: &RelayState, me: &str, folders: Folders) {
     if !is_admin(state, me) {
         return tell(state, me, "Only admins can see held items.".to_string());
     }
@@ -182,6 +267,17 @@ pub fn handle_list(state: &RelayState, me: &str) {
         crate::relay::storage::held::OwnerCard::Ready { owner, .. } => owner.clone(),
         _ => String::new(),
     };
+    // The successor the owner named (every admin sees who it is), and the owner log: each claim,
+    // handover and change of successor (handlers/owner.rs).
+    let successor = state.db.successor().unwrap_or_default();
+    let successor_json = if successor.is_empty() { Value::Null } else { serde_json::json!({ "key": successor, "name": name_or_key(state, &successor) }) };
+    let owner_log: Vec<Value> = state
+        .db
+        .owner_log(50)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|l| serde_json::json!({ "kind": l.kind, "old_name": if l.old_key.is_empty() { String::new() } else { name_or_key(state, &l.old_key) }, "new_name": name_or_key(state, &l.new_key), "reason": l.reason, "at": l.at, "object": l.object }))
+        .collect();
     let items = state
         .db
         .held_items()
@@ -192,11 +288,16 @@ pub fn handle_list(state: &RelayState, me: &str) {
                 "id": r.id, "report_id": r.report_id, "file_count": r.file_count, "parts": r.parts,
                 "sealed_bytes": r.sealed_bytes, "held_at": r.held_at, "held_by_name": name_or_key(state, &r.held_by),
                 "delete_after": r.delete_after, "legal_hold_until": r.legal_hold_until, "deleted_at": r.deleted_at(),
-                "exported_count": r.exported_count, "sealed_to_owner": !owner.is_empty() && r.sealed_to == owner,
+                "exported_count": r.exported_count, "sealed_to_owner": !owner.is_empty() && r.opens_for(&owner),
+                "sealed_to_successor": !successor.is_empty() && r.also_sealed_to == successor,
+                // The post's author and time, shown, so the owner tells apart the posts of one report
+                // and the app checks that what an Export or a Restore opens is that very post (the
+                // fourth review's finding 8). The report already showed the admins both.
+                "author": r.author_key, "author_name": name_or_key(state, &r.author_key), "stamp": r.stamp,
             });
             // The package id goes to the owner whose key it is sealed to, and to nobody else: their
             // device needs it to open the parts (each part is bound to it). Never drawn.
-            if !owner.is_empty() && owner == me && r.sealed_to == me {
+            if !owner.is_empty() && owner == me && r.opens_for(me) {
                 item["package"] = serde_json::Value::String(r.package.clone());
             }
             item
@@ -208,13 +309,24 @@ pub fn handle_list(state: &RelayState, me: &str) {
         .unwrap_or_default()
         .into_iter()
         .map(|a| {
+            // An export's or a restore's signed object names its grant (its object id), so only
+            // the owner whose grant it is gets it; every other admin sees who, what, when and why.
+            // (The part routes also check the caller's own signature, so a grant alone fetches
+            // nothing: the owner review's finding 1, 2026-11-20.)
+            let grant_bearing = matches!(a.action.as_str(), "held_export" | "held_restore");
+            let object = if grant_bearing && !(owner == me && a.signer_key == me) { Value::Null } else { Value::String(a.object.clone()) };
             serde_json::json!({
                 "action": a.action, "target": a.target, "signer": a.signer_key, "signer_name": name_or_key(state, &a.signer_key),
-                "reason": a.reason, "until": a.until_ms, "signed_at": a.signed_at, "object": a.object,
+                "reason": a.reason, "until": a.until_ms, "signed_at": a.signed_at, "object": object,
             })
         })
         .collect();
-    let counts = serde_json::to_value(state.db.held_counts().unwrap_or_default()).unwrap_or_default();
+    // The hides waiting for their sealed copy, and any waiting folder a stop left with no note and no
+    // post to name it, told to every admin in words (the fourth review's finding 5a: never silent).
+    let mut counted = state.db.held_counts().unwrap_or_default();
+    let (waiting, unidentified) = state.db.held_waiting_counts_in(folders);
+    (counted.waiting, counted.unidentified) = (waiting as i64, unidentified as i64);
+    let counts = serde_json::to_value(counted).unwrap_or_default();
     let _ = state.broadcast_tx.send(RelayMessage::HeldItems {
         to: me.to_string(),
         can_keep: card.refusal().is_none(),
@@ -223,6 +335,8 @@ pub fn handle_list(state: &RelayState, me: &str) {
         items,
         actions,
         counts,
+        successor: successor_json,
+        owner_log,
     });
 }
 
@@ -252,12 +366,21 @@ pub async fn handle_act_in(state: &Arc<RelayState>, me: &str, raw: &Value, folde
                 Err(e) => return tell(state, me, format!("Nothing was done: the server could not save the hold ({e}).")),
             }
         }
-        "held_destroy" => match state.db.held_destroy_in(item.id, folders) {
-            Ok(_) => format!("Held item #{} is destroyed: its sealed copy and its row are deleted.", item.id),
-            Err(e) => return tell(state, me, format!("Held item #{} could not be destroyed ({e}); it is kept.", item.id)),
-        },
+        // On a blocking thread (the owner branch's seventh review, L1): the destroy takes the held
+        // folder's one lock, which a hide holds across its whole seal, so taken here on the async
+        // runtime it parked a worker for as long as the longest seal.
+        "held_destroy" => {
+            let (st, owned, id) = (state.clone(), OwnedFolders::of(folders), item.id);
+            let destroyed = tokio::task::spawn_blocking(move || st.db.held_destroy_in(id, owned.get()).map_err(|e| e.to_string()))
+                .await
+                .unwrap_or_else(|e| Err(format!("the server stopped while destroying it ({e})")));
+            match destroyed {
+                Ok(_) => format!("Held item #{} is destroyed: its sealed copy and its row are deleted.", item.id),
+                Err(e) => return tell(state, me, format!("Held item #{} could not be destroyed ({e}); it is kept.", item.id)),
+            }
+        }
         "held_export" => {
-            if item.sealed_to != me {
+            if !item.opens_for(me) {
                 return tell(state, me, format!("Held item #{} is sealed to an earlier owner's key card, so only that key can open it. Nothing was done.", item.id));
             }
             if let Err(e) = state.db.held_count_export(item.id) {
@@ -268,7 +391,7 @@ pub async fn handle_act_in(state: &Arc<RelayState>, me: &str, raw: &Value, folde
         // Restore (rung 5): the owner's device fetches the parts, opens them and sends each file
         // back within the grant (held_restore.rs); the relay checks every byte against the plan.
         "held_restore" => {
-            if item.sealed_to != me {
+            if !item.opens_for(me) {
                 return tell(state, me, format!("Held item #{} is sealed to an earlier owner's key card, so only that key can open it. Nothing was done.", item.id));
             }
             format!("Restore of held item #{} granted for {} minutes: your device is putting it back.", item.id, EXPORT_GRANT_MS / 60_000)
@@ -289,21 +412,65 @@ pub async fn handle(state: &Arc<RelayState>, me: &str, kind: &str, raw: &Value) 
     }
 }
 
-/// Held item `id` under `grant` (the object id of the owner's recorded export or restore, at most
-/// [`EXPORT_GRANT_MS`] old, by the key the item is sealed to, who is the owner now), with which of
-/// the two the grant is; None for anything else.
-pub(crate) fn granted_item(state: &RelayState, id: i64, grant: &str, now: i64) -> Option<(crate::relay::storage::held::HeldRow, String)> {
+// ── Who may fetch or send a part (the owner review's finding 1, 2026-11-20) ──
+//
+// A grant (a signed action's object id) is in the held items log, and a part is sealed to the
+// owner AND the successor, so a grant alone must never hand out a part: an admin who is the
+// successor, or anyone an admin passed the grant to, would open it unlogged. Every part route
+// therefore proves its CALLER's key with the project's signed-request pattern (files.rs
+// `check_signed`: Dilithium3 over `purpose\ntimestamp`, five minutes fresh, used once; the purpose
+// starts with core held_seal's CALLER_DOMAIN line), and the caller must be the key the grant
+// belongs to: the owner who signed the export or restore. An owner change has routes of its own,
+// which serve headers alone (handlers/owner.rs, owner_accept.rs).
+// NOT YET CLOSED, said plainly (the owner branch's third review, S6, 2026-11-21): the domain line alone
+// does not keep a signed chat line out today, because a chat message's content may hold a
+// newline, so a chat line whose content is this very purpose is signed over the same
+// `purpose\ntime` and broadcast to everyone, who could replay it within the five minutes. What
+// closes it is the relay refusing every chat line that begins with a `hum/` domain line, which
+// arrives with the signed-requests branch (src/relay/signed_request.rs, round 2); once both
+// branches are merged, the held caller moves onto that request scheme. NOTE to whoever merges the
+// second of the two: make that move then (it is not done here).
+
+// The headers and the purpose are the protocol's, shared with the desktop app (core held_seal).
+pub use humanity_protocol::held_seal::{caller_purpose, CALLER_KEY, CALLER_SIG, CALLER_TIME};
+
+/// The key that signed this request for `purpose` ([`CALLER_KEY`] and the rest), or None for a
+/// request with no signature, a bad one, a stale one or a replay.
+pub async fn signed_caller(state: &RelayState, headers: &axum::http::HeaderMap, purpose: &str) -> Option<String> {
+    let h = |n: &str| headers.get(n).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+    let (key, sig) = (h(CALLER_KEY), h(CALLER_SIG));
+    let ts: u64 = h(CALLER_TIME).parse().ok()?;
+    if key.is_empty() || sig.is_empty() {
+        return None;
+    }
+    crate::relay::files::check_signed(state, &key, ts, &sig, purpose).await.ok()?;
+    Some(key)
+}
+
+/// Held item `id` under `grant` for `caller` (the key a signed request proved): the object id of
+/// the owner's recorded export or restore, at most [`EXPORT_GRANT_MS`] old, signed by the key the
+/// item is sealed to, who is the owner now and is the caller. With which it is; None for anything
+/// else, a grant in other hands above all. An owner CHANGE's grant is not one: a change is served
+/// headers alone (handlers/owner.rs), never a body, so beginning a change, fetching under its grant
+/// and cancelling reads nothing (the second review, R3: it served every original part, unlogged).
+pub(crate) fn granted_item(state: &RelayState, id: i64, grant: &str, caller: &str, now: i64) -> Option<(crate::relay::storage::held::HeldRow, String)> {
+    if caller.is_empty() {
+        return None;
+    }
     let (signer, at, action) = state.db.held_grant(grant, id).ok().flatten()?;
+    if signer != caller {
+        return None;
+    }
     let item = state.db.held_item(id).ok().flatten()?;
     let fresh = now - at <= EXPORT_GRANT_MS;
     let owner_now = state.db.owner_keys().unwrap_or_default() == [signer.clone()];
-    (fresh && owner_now && item.sealed_to == signer).then_some((item, action))
+    (fresh && owner_now && item.opens_for(&signer)).then_some((item, action))
 }
 
-/// Where part `part` of held item `id` is, for the export or restore `grant`
+/// Where part `part` of held item `id` is, for the export or restore `grant` and its `caller`
 /// ([`granted_item`]). Every refusal is the same 404, so a guess learns nothing.
-pub fn export_part_path(state: &RelayState, id: i64, part: i64, grant: &str, folders: Folders, now: i64) -> Option<std::path::PathBuf> {
-    let (item, _) = granted_item(state, id, grant, now)?;
+pub fn export_part_path(state: &RelayState, id: i64, part: i64, grant: &str, caller: &str, folders: Folders, now: i64) -> Option<std::path::PathBuf> {
+    let (item, _) = granted_item(state, id, grant, caller, now)?;
     if part < 0 || part >= item.parts {
         return None;
     }
@@ -316,8 +483,9 @@ pub struct GrantQuery {
     pub grant: String,
 }
 
-/// `GET /api/held/{id}/{part}?grant=<object id>`: one sealed part, ciphertext only the owner's
-/// device opens ([`export_part_path`]); 404 for anything else.
+/// `GET /api/held/{id}/{part}?grant=<object id>`, signed by the owner ([`signed_caller`]): one
+/// sealed part, ciphertext only the owner's device opens ([`export_part_path`]); 404 for anything
+/// else.
 pub async fn api_export_part(
     axum::extract::State(state): axum::extract::State<Arc<RelayState>>,
     axum::extract::Path((id, part)): axum::extract::Path<(i64, i64)>,
@@ -325,7 +493,10 @@ pub async fn api_export_part(
     req: axum::extract::Request,
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
-    match export_part_path(&state, id, part, &q.grant, Folders::live(), now_ms()) {
+    let Some(caller) = signed_caller(&state, req.headers(), &caller_purpose("part", &q.grant, id, part, 0)).await else {
+        return axum::http::StatusCode::NOT_FOUND.into_response();
+    };
+    match export_part_path(&state, id, part, &q.grant, &caller, Folders::live(), now_ms()) {
         Some(path) => match tower_http::services::ServeFile::new(path).try_call(req).await {
             Ok(r) => r.into_response(),
             Err(_) => axum::http::StatusCode::NOT_FOUND.into_response(),
@@ -347,4 +518,4 @@ pub use restore::{api_restore_finish, api_restore_piece};
 
 #[cfg(test)]
 #[path = "held_tests.rs"]
-mod tests;
+pub(crate) mod tests;

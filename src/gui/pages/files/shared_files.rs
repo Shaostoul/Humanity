@@ -172,7 +172,7 @@ fn delete_shared_blocking(
 /// regardless of what the button shows.
 fn admin_here(state: &GuiState) -> bool {
     let me = &state.profile_public_key;
-    state.chat_users.iter().find(|u| &u.public_key == me).is_some_and(|u| u.role == "admin")
+    state.chat_users.iter().find(|u| &u.public_key == me).is_some_and(|u| crate::net::roles::is_admin_role(&u.role))
 }
 
 fn start_refresh(server: String) -> std::sync::mpsc::Receiver<ListResult> {
@@ -550,6 +550,22 @@ fn start_shared_upload(state: &mut GuiState, path: std::path::PathBuf, signed_in
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The server's owner counts as an admin (BUG-332's sweep): she is offered Remove on anyone's
+    /// shared file, as an admin is. Seen red 2026-11-20 against `u.role == "admin"`: "the owner
+    /// removes any shared file".
+    #[test]
+    fn the_owner_removes_any_shared_file_as_an_admin_does() {
+        let mut gs = GuiState::default();
+        gs.profile_public_key = "me".into();
+        let me = |role: &str| crate::gui::ChatUser { name: "Me".into(), public_key: "me".into(), role: role.into(), status: String::new() };
+        gs.chat_users.push(me("owner"));
+        assert!(admin_here(&gs), "the owner removes any shared file");
+        gs.chat_users[0] = me("admin");
+        assert!(admin_here(&gs), "as an admin does");
+        gs.chat_users[0] = me("mod");
+        assert!(!admin_here(&gs), "the control: a moderator removes only their own");
+    }
 
     /// ANOTHER SERVER'S SHARED LIST IS FORGOTTEN (the 2026-10-11 review of the Files page): on a
     /// server switch the list, its status and any answer still on its way go, and it is asked for

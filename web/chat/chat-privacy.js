@@ -192,7 +192,10 @@ async function exportMyAccountData() {
       body: JSON.stringify(auth),
     });
     if (!res.ok) {
-      say('Export failed: ' + (await res.text() || ('HTTP ' + res.status)));
+      // The server's words, marked as its own (the owner branch's seventh review, H1 (c)).
+      const why = await res.text();
+      if (why && typeof addServerMessage === 'function') addServerMessage('Export failed: ' + why);
+      else say('Export failed: HTTP ' + res.status);
       return;
     }
     const blob = await res.blob();
@@ -332,7 +335,10 @@ function reachPeers() {
 
 function reachDisplayName(key) {
   const p = reachPeers()[key];
-  return (p && p.display_name) || (typeof shortKey === 'function' ? shortKey(key) : String(key).slice(0, 8));
+  // A name from the member list, written into the app's own lines: an honest name, or the
+  // refused-name words (app.js shownName; the owner branch's seventh review, H1 (c)).
+  if (p && p.display_name) return typeof shownName === 'function' ? shownName(p.display_name) : String(p.display_name);
+  return typeof shortKey === 'function' ? shortKey(key) : String(key).slice(0, 8);
 }
 
 function reachStore() {

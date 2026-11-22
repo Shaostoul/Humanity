@@ -135,7 +135,7 @@ pub fn resolve(service: &str) -> Option<&'static (&'static str, &'static str, &'
 }
 
 fn is_admin(role: &str) -> bool {
-    role == "admin" || role == "owner"
+    crate::relay::handlers::msg_handlers::is_admin_role(role)
 }
 
 /// Start/stop an allowlisted daemon. `caller_role` is the resolved role

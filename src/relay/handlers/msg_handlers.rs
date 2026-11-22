@@ -1240,8 +1240,8 @@ pub fn mod_action_refusal(state: &RelayState, my_key: &str, action: &str, target
     let my_role = state.db.get_role(my_key).unwrap_or_default();
     // The owner is an admin here as everywhere else (BUG-330, 2026-11-20: this read "admin" alone,
     // so the server's own owner could not decide a report it was shown).
-    let is_admin = my_role == "admin" || my_role == "owner";
-    let is_mod = is_admin || my_role == "moderator" || my_role == "mod";
+    let is_admin = is_admin_role(&my_role);
+    let is_mod = is_staff_role(&my_role);
     if !is_mod {
         return Some("You don't have permission to perform moderation actions.".to_string());
     }
@@ -1279,15 +1279,17 @@ pub fn mod_action_refusal(state: &RelayState, my_key: &str, action: &str, target
     {
         return Some(format!("You can't {action} yourself."));
     }
+    // Nobody, admins included, kicks, bans, mutes, warns or changes the role of the server's owner
+    // (handlers/owner.rs).
+    if let Some(why) = crate::relay::handlers::owner::refuse_if_owner(state, &candidate_keys, action) {
+        return Some(why);
+    }
     // Don't allow non-admins to act on a protected (admin/owner)
     // account. Now checks ALL resolved keys — if ANY registration under
     // the target name is an admin, a non-admin mod is refused, even on
     // the name-only path that used to skip this entirely.
     if !is_admin {
-        let touches_protected = candidate_keys.iter().any(|k| {
-            let r = state.db.get_role(k).unwrap_or_default();
-            r == "admin" || r == "owner"
-        });
+        let touches_protected = candidate_keys.iter().any(|k| is_admin_role(&state.db.get_role(k).unwrap_or_default()));
         if touches_protected {
             return Some("Only an admin can act on another admin.".to_string());
         }
@@ -1697,7 +1699,14 @@ pub async fn handle_account_delete(
         return;
     }
     let role = state.db.get_role(my_key).unwrap_or_default();
-    if role == "admin" || role == "owner" {
+    if role == crate::relay::storage::owner::OWNER_ROLE {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Account deletion refused: you are this server's owner, and every held copy is sealed to your key card. Hand the owner role to someone first (Server Settings, Hand over ownership).".to_string(),
+        });
+        return;
+    }
+    if is_admin_role(&role) {
         let _ = state.broadcast_tx.send(RelayMessage::Private {
             to: my_key.to_string(),
             message: "Account deletion refused: you are an admin. Hand off or remove the admin role first so the server is not orphaned.".to_string(),
@@ -3110,8 +3119,7 @@ pub async fn handle_game_join(
 /// True if this key is an admin or owner (the game-admin gate). Defaults to
 /// false (deny) on any DB error -- consistent with refusing the action.
 pub(crate) fn is_game_admin(state: &Arc<RelayState>, my_key: &str) -> bool {
-    let r = state.db.get_role(my_key).unwrap_or_default();
-    r == "admin" || r == "owner"
+    is_admin_role(&state.db.get_role(my_key).unwrap_or_default())
 }
 
 /// Admin issues a game-world ban. Refuses non-admins, self-targets, and
@@ -3144,7 +3152,7 @@ pub async fn handle_game_ban(state: &Arc<RelayState>, my_key: &str, raw: &serde_
     }
     // Don't let an admin game-ban another admin/owner.
     let target_role = state.db.get_role(&target).unwrap_or_default();
-    if target_role == "admin" || target_role == "owner" {
+    if is_admin_role(&target_role) {
         send_game_private(state, my_key, &serde_json::json!({
             "type": "game_admin_error",
             "message": "That account is protected (admin/owner) and can't be game-banned.",

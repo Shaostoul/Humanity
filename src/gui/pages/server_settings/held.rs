@@ -11,8 +11,9 @@
 //! each file and sends it back, and the server checks every byte before putting the post back).
 //!
 //! When the server cannot keep a copy (no owner, or no checked key card for the owner) the page
-//! says so in the relay's own words, what works instead, and what to do today while setting an
-//! owner is not in the app (docs/design/in-app-ops.md, "Setting the server's owner").
+//! says so in the relay's own words, what works instead, and where to claim the server (Claim
+//! ownership, server_settings/owner.rs). Every admin also sees the successor the owner named,
+//! whether each item is sealed to them too, and the owner log (server_settings/owner.rs).
 
 use egui::RichText;
 
@@ -76,6 +77,14 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .size(theme.font_size_small)
             .color(theme.text_muted()),
     );
+    // Hides whose copy is not sealed yet, said in words (the fourth review's finding 5a).
+    if c.waiting > 0 {
+        ui.label(RichText::new(tf("held.waiting_line", &[("n", &c.waiting)])).size(theme.font_size_small).color(theme.warning()));
+    }
+    if c.unidentified > 0 {
+        ui.label(RichText::new(tf("held.unidentified_line", &[("n", &c.unidentified)])).size(theme.font_size_small).color(theme.danger()));
+    }
+    super::owner::successor_line(ui, theme, Some(&list));
     if !list.i_am_owner {
         widgets::body_hint(ui, theme, t("held.owner_only"));
     }
@@ -85,7 +94,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     for item in &list.items {
         widgets::card(ui, theme, |ui| {
             ui.set_min_width(ui.available_width());
-            draw_item(ui, theme, state, item, list.i_am_owner);
+            draw_item(ui, theme, state, item, &list);
         });
         ui.add_space(theme.spacing_sm);
     }
@@ -102,16 +111,20 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .color(theme.text_secondary()),
         );
     }
+    super::owner::draw_log(ui, theme, &list); // claims, handovers and changes of successor
 
     draw_picker(ui.ctx(), theme, state, &list.items);
 }
 
 /// One held item: its numbers and dates, and for the owner the actions.
-fn draw_item(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &HeldItem, owner: bool) {
+fn draw_item(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &HeldItem, list: &crate::net::held::HeldList) {
+    let owner = list.i_am_owner;
     ui.label(RichText::new(tf("held.item_line", &[("id", &item.id), ("report", &item.report_id)])).color(theme.text_primary()).strong());
     let line = |ui: &mut egui::Ui, words: String| {
         ui.label(RichText::new(words).size(theme.font_size_small).color(theme.text_secondary()));
     };
+    // Which post it is: one report can hold several (the fourth review's finding 8).
+    line(ui, tf("held.post_line", &[("when", &when(item.stamp)), ("name", &item.author_name)]));
     line(ui, tf("held.held_line", &[("when", &when(item.held_at)), ("name", &item.held_by_name)]));
     line(ui, tf("held.expires_line", &[("when", &when(item.deleted_at.max(item.delete_after)))]));
     line(ui, if item.legal_hold_until > 0 { tf("held.hold_line", &[("when", &when(item.legal_hold_until))]) } else { t("held.no_hold").to_string() });
@@ -120,6 +133,7 @@ fn draw_item(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Held
     if !item.sealed_to_owner {
         line(ui, t("held.not_owner_sealed").to_string());
     }
+    super::owner::item_successor_line(ui, theme, list, item);
     if !owner {
         return;
     }

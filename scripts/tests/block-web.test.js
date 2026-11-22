@@ -276,6 +276,7 @@ async function loadChat() {
   // In index.html's order.
   run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
+  run("shared/roles.js"); // who counts as an admin, as web/chat/index.html loads it before app.js (BUG-332)
   run("shared/friend-pass.js");
   run("shared/reach.js");
   run("shared/block.js");

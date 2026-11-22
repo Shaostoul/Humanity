@@ -52,7 +52,7 @@
 20 src/gui/pages/game_admin.rs
 1 src/gui/pages/herd.rs
 5 src/gui/pages/homes.rs
-25 src/gui/pages/host_node.rs
+24 src/gui/pages/host_node.rs
 10 src/gui/pages/household.rs
 15 src/gui/pages/hud.rs
 27 src/gui/pages/identity.rs

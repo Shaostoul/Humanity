@@ -13,7 +13,15 @@
 //! app asks for a card (`key_card_request`, at most 16 keys a frame) when it has none pinned for
 //! someone it may seal to (the people it has conversations with, follows, is followed by, has a
 //! request from, or has open in Chat), or when a list shows a card newer than the pinned one. The
-//! answer (`key_cards`) is checked card by card here, from whichever server sent it.
+//! answer (`key_cards`) is checked card by card here, from whichever server sent it, and ONLY a
+//! card for a key this app asked for (a `key_card_request` it sent, matched by key, within
+//! [`ANSWER_WINDOW`]) is taken into the pins; any other card in the frame is dropped and logged
+//! (the owner branch's third review, W1, 2026-11-21: a relay pushed its own key's card unasked and
+//! the app pinned it on first sight, and the owner picker then counted the pin as trust). A pin is
+//! what a DM is sealed to, not proof of who the person is: the owner picker trusts no pin and no
+//! friendship, only the four groups of the listed key's fingerprint, at positions drawn for that
+//! ask, as the person read them out from their own screen (engine/owner.rs `pick` and
+//! `check_groups`; the fourth review's finding 1, the fifth review's H1).
 
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -28,6 +36,8 @@ const ASK_AGAIN: Duration = Duration::from_secs(60);
 const SWEEP_EVERY: Duration = Duration::from_secs(30);
 /// The most request frames sent in one frame of the app.
 const FRAMES_PER_PUMP: usize = 4;
+/// How long an answer to a request this app sent is taken; later, the card is dropped (W1).
+const ANSWER_WINDOW: Duration = Duration::from_secs(5 * 60);
 
 /// The app's key-card bookkeeping (in `GuiState::key_cards`).
 #[derive(Default)]
@@ -38,6 +48,10 @@ pub struct KeyCardsState {
     queue: Vec<String>,
     /// When each card was last asked for.
     asked: HashMap<String, Instant>,
+    /// When a request naming each key was SENT, on any socket: the only cards a `key_cards` frame
+    /// may give (W1). Not cleared by a new sign-in (an answer on a background link still counts);
+    /// an entry goes once answered, or past [`ANSWER_WINDOW`].
+    requested: HashMap<String, Instant>,
     /// People a server said it holds no card for, or sent one that did not check out.
     no_card: HashSet<String>,
     /// When the people this app may seal to were last looked over.
@@ -239,30 +253,56 @@ pub fn pump(gs: &mut GuiState) {
             c.send(&frame);
         }
         let now = Instant::now();
-        for k in batch {
-            gs.key_cards.asked.insert(k, now);
+        for k in &batch {
+            gs.key_cards.asked.insert(k.clone(), now);
         }
+        note_requested(gs, &batch);
     }
 }
 
 // ── Answers ──
 
-/// A `key_cards` answer from any server: every card checked and taken by the pin rule; the keys
-/// it holds no card for noted.
+/// A `key_cards` answer from any server: each card for a key this app asked for checked and taken
+/// by the pin rule, any other dropped and logged (W1); the keys it holds no card for noted.
 pub fn on_key_cards_frame(gs: &mut GuiState, val: &serde_json::Value) {
+    gs.key_cards.requested.retain(|_, at| at.elapsed() <= ANSWER_WINDOW);
+    let mut answered = Vec::new();
     for card in val.get("cards").and_then(|v| v.as_array()).into_iter().flatten() {
+        let key = card.get("key").and_then(|k| k.as_str()).unwrap_or("");
+        if !gs.key_cards.requested.contains_key(key) {
+            // The key is whatever the relay sent, so it is cut by CHARACTERS, never by bytes: a byte
+            // cut panics on a multi-byte character at byte 12 (the fourth review's finding 3, a
+            // remote crash), through core's one text-cut helper (BUG-340).
+            log::warn!("key cards: dropped a card for {}… this app never asked for", humanity_core::text::prefix(key, 12));
+            continue;
+        }
+        answered.push(key.to_string());
         ingest(gs, card);
     }
+    for k in answered {
+        gs.key_cards.requested.remove(&k);
+    }
     for k in val.get("missing").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|v| v.as_str()) {
+        gs.key_cards.requested.remove(k);
         if !gs.peer_kyber_keys.contains_key(k) {
             gs.key_cards.no_card.insert(k.to_string());
         }
     }
 }
 
+/// Note that a request naming `keys` was sent (pump does it for every request frame): their cards
+/// may then be taken from an answer (W1). Tests stand in for the socket with it too.
+pub(crate) fn note_requested(gs: &mut GuiState, keys: &[String]) {
+    let now = Instant::now();
+    for k in keys {
+        gs.key_cards.requested.insert(k.clone(), now);
+    }
+}
+
 /// Check one card and take it by the pin rule. A card that does not check out (a server-swapped
 /// key, the wrong signer, the wrong shape) gives no key. Returns what it meant (None: refused).
-pub fn ingest(gs: &mut GuiState, value: &serde_json::Value) -> Option<Seen> {
+/// Only for a card this app asked for ([`on_key_cards_frame`] holds that rule).
+fn ingest(gs: &mut GuiState, value: &serde_json::Value) -> Option<Seen> {
     let card = key_card::parse_card(value)?;
     gs.key_cards.asked.remove(&card.key);
     if !key_card::card_for(&card, &card.key) {

@@ -181,6 +181,10 @@
           <div id="my-key-display" style="font-family:monospace;font-size:0.55rem;opacity:0.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;cursor:pointer;"
             data-tip-title="Your Public Key" data-tip-desc="Click to copy your full public key to clipboard."
             data-on-click="copyMyKeyDisplay(this)"></div>
+          <!-- My key's fingerprint (2026-11-21, the owner branch's fifth review, H1): the groups an
+               owner who hands me the role or names me successor asks me to read out. Filled by
+               chat-owner.js through /shared/own-fingerprint.js. -->
+          <div id="my-fingerprint" style="font-size:0.7rem;margin:0.3rem 0;word-break:normal;"></div>
           <!-- Security & Recovery lives in the #identity-security section below. This whole
                #my-identity block is relocated at runtime into the header's "Account & Identity"
                popover by relocateIdentityToMenu() (chat-ui.js), so these controls are always
@@ -720,6 +724,9 @@
        it, the name check, the frame, the receipt and the erased person's words, shared with Node
        tests. Before app.js (account_erased) and chat-ui.js (the member menu and its confirm). -->
   <script src="/shared/admin-erase.js?v=3"></script>
+  <!-- roles.js: who counts as an admin or a moderator (BUG-332's sweep, 2026-11-20); the owner
+       is an admin everywhere. Every chat script's role gate asks it: before app.js. -->
+  <script src="/shared/roles.js?v=1"></script>
   <!-- Files on the sender's device and in messages (2026-10-11, docs/design/files-showcase.md,
        parts 1 to 4), shared with Node tests. strip-metadata.js removes where a picture or a video
        was taken (the relay's Rust strips, ported); upload-clean.js runs it on every file before it
@@ -769,7 +776,10 @@
   <!-- key-card.js: key cards (2026-10-22): a person's Kyber768 key signed by their own identity,
        the words signed, the check, and the pin rule, held to the relay's builder. Before crypto.js,
        which signs my own card, and chat-key-cards.js, which checks everyone else's. -->
-  <script src="/shared/key-card.js?v=1"></script>
+  <script src="/shared/key-card.js?v=2"></script>
+  <!-- own-fingerprint.js: my own key's fingerprint in words (2026-11-21), for the Account and
+       Identity menu and the owner change's check prompt. -->
+  <script src="/shared/own-fingerprint.js?v=2"></script>
   <!-- drop-overlay.js: files dragged from the computer onto the page (2026-10-17), the desktop's
        words while they are over it ("Drop to upload to Files and post in #global" over a channel,
        "Drop to send in Ben" in a private conversation) and its drop. upload-window.js: the window a
@@ -816,11 +826,11 @@
   <script src="/shared/video-poster.js?v=1"></script>
   <!-- The dock a playing video moves into when its card is scrolled away (2026-11-06, rung 3). -->
   <script src="/shared/video-dock.js?v=1"></script>
-  <script src="/chat/app.js?v=43"></script>
-  <script src="/chat/chat-messages.js?v=29"></script>
+  <script src="/chat/app.js?v=46"></script>
+  <script src="/chat/chat-messages.js?v=30"></script>
   <script src="/chat/chat-dms.js?v=25"></script>
   <script src="/chat/chat-social.js?v=22"></script>
-  <script src="/chat/chat-groups-p2p.js?v=21"></script>
+  <script src="/chat/chat-groups-p2p.js?v=22"></script>
   <script src="/shared/over-limit.js?v=1"></script>
   <!-- notify-rules.js: THE notification rule, shared with Node tests and twin of the desktop's
        src/notifications/decide.rs (2026-10-30, docs/design/notifications.md); chat-notify.js: the
@@ -831,7 +841,7 @@
        Settings > Audio & Video > Sound levels; chat-notify.js plays through it. -->
   <script src="/shared/sound-levels.js?v=1"></script>
   <script src="/chat/chat-notify.js?v=7"></script>
-  <script src="/chat/chat-ui.js?v=28"></script>
+  <script src="/chat/chat-ui.js?v=30"></script>
   <script src="/chat/chat-voice-rooms.js?v=10"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>
   <script src="/chat/chat-voice-webrtc.js?v=2"></script>
@@ -839,20 +849,24 @@
   <!-- Live-now mirror of the native Chat live strip: /api/live directory, links to /watch (v0.1151) -->
   <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
-  <script src="/chat/chat-voice-modal.js?v=4"></script>
+  <script src="/chat/chat-voice-modal.js?v=5"></script>
   <script src="/chat/chat-profile.js?v=13"></script>
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) and /shared/privacy-tiers.js loaded first. -->
   <script src="/chat/chat-privacy.js?v=21"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
-  <script src="/chat/chat-game-admin.js?v=3"></script>
+  <script src="/chat/chat-game-admin.js?v=4"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
        and moderators. After chat-privacy.js (Block, which the dialog can run). -->
-  <script src="/chat/chat-reports.js?v=7"></script>
+  <script src="/chat/chat-reports.js?v=8"></script>
   <!-- Hide and keep (2026-11-20, docs/design/hide-and-keep.md rung 5): the signed decision on a
        report and Held copies for admins, built as DOM. After chat-reports.js, which it decorates. -->
-  <script src="/chat/chat-held.js?v=1"></script>
+  <script src="/chat/chat-held.js?v=3"></script>
+  <!-- The server owner (2026-11-20): Claim ownership while the server has none, and in Held copies
+       the successor, the owner log and the owner's Hand over and Successor controls, built as DOM.
+       After chat-held.js, whose view it draws into. -->
+  <script src="/chat/chat-owner.js?v=5"></script>
   <!-- Warnings on messages and the recovery-phrase guard (step F, 2026-10-10): warnings under
        received DMs and group messages, the stranger link line, the Safety switch, and the check
        every send path runs before anything I wrote leaves. -->

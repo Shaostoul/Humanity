@@ -34,6 +34,9 @@ use humanity_core::i18n::t;
 pub(crate) mod reports;
 /// Held copies (hide and keep, 2026-11-20): what was hidden and kept, for admins; the owner's actions.
 pub(crate) mod held;
+/// The server's owner (2026-11-20): Claim ownership for everyone while there is none; the owner's
+/// handover and successor; the successor and the owner log on Held copies.
+pub(crate) mod owner;
 
 /// An admin erases another person's data (10i, 2026-10-10): the Members tab's "Erase their data",
 /// its confirm and the server's receipt.
@@ -106,14 +109,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     let role = current_user_role(state);
                     // "moderator" too: the relay accepts both spellings (reports.rs, api.rs,
                     // relay.rs), and a moderator spelled that way could not see Reports (2026-10-09).
-                    let is_mod   = matches!(role.as_str(), "mod" | "moderator" | "admin" | "owner");
-                    let is_admin = matches!(role.as_str(), "admin" | "owner");
+                    let is_mod   = crate::net::roles::is_staff_role(&role);
+                    let is_admin = crate::net::roles::is_admin_role(&role);
 
                     draw_tab_bar(ui, theme, state, is_mod);
                     ui.add_space(theme.spacing_md);
 
                     match state.server_settings_tab {
                         0 => {
+                            owner::draw_claim(ui, theme, state); // only while the server has no owner
+                            owner::draw_check(ui, theme, state); // a change waiting for this device to check the copies
                             draw_user_section(ui, theme, state, &role);
                             ui.add_space(theme.spacing_lg);
                             if is_mod {
@@ -502,7 +507,7 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // ── Reports (step D, 2026-10-09): the open and decided lists with their evidence and the
         // decision buttons, in server_settings/reports.rs. It replaced a "View reports" button
         // that typed /reports into the chat. ──
-        let is_admin = matches!(current_user_role(state).as_str(), "admin" | "owner");
+        let is_admin = crate::net::roles::is_admin_role(&current_user_role(state));
         reports::draw(ui, theme, state, is_admin);
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
@@ -534,6 +539,7 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.separator();
             ui.add_space(theme.spacing_sm);
             held::draw(ui, theme, state);
+            owner::draw_owner(ui, theme, state); // the owner's handover and successor
         }
     });
 }
@@ -2990,6 +2996,9 @@ fn kv_row_with_definition(ui: &mut egui::Ui, theme: &Theme, key: &str, glossary_
 /// Send a slash command via the existing chat WebSocket. Server processes
 /// `/kick`, `/ban`, `/lockdown`, `/channel-*`, `/mod`, `/verify`, etc.
 pub(crate) fn send_slash(state: &mut GuiState, command: &str) {
+    if state.ws_client.as_ref().is_some_and(|c| c.is_connected()) {
+        crate::engine::friend_code::note_sent(state, command); // a /redeem's one answer (friend_code.rs)
+    }
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
             let ts = std::time::SystemTime::now()

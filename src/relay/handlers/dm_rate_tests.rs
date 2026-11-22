@@ -238,7 +238,7 @@ fn self_copies_and_admins_are_not_limited() {
     member(&st, "Admin", "rate_admin", 3_600);
     member(&st, "Owner", "rate_owner", 3_600);
     st.db.set_role("rate_admin", "admin").unwrap();
-    st.db.set_role("rate_owner", "owner").unwrap();
+    st.db.claim_owner("rate_owner", 0).unwrap();
     for key in ["rate_admin", "rate_owner"] {
         for i in 0..(DM_BURST + 4) {
             assert!(put(&st, key, inbox).0, "{key} send {} is not limited", i + 1);

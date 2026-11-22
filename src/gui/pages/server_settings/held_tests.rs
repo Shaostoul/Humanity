@@ -282,7 +282,11 @@ fn export_writes_only_to_the_chosen_file_and_never_to_screen() {
     crate::engine::held::on_frame(&mut gs, &list(true, true));
     gs.reports.held.reasons.insert(1, "a CyberTipline report".into());
     let folder = humanity_core::test_temp::dir("held_export_gui");
-    let item = gs.reports.held.list.as_ref().unwrap().items[0].clone();
+    // The item as the list shows the test package (net/held_tests.rs `package`: report 4, author
+    // "aa", post time 42): what opens must be the item chosen (the third review's W7, the fourth
+    // review's finding 8). Round 4 left this list at report 5, so this test failed from W7 on.
+    let mut item = gs.reports.held.list.as_ref().unwrap().items[0].clone();
+    (item.report_id, item.author, item.stamp) = (4, "aa".into(), 42);
     crate::engine::held::export(&mut gs, &item, folder.path());
     let frames = sent_frames(&sent);
     let act = frames.iter().find(|f| f["type"] == "held_act").expect("the signed export is sent first");

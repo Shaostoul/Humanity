@@ -302,8 +302,9 @@ pub async fn handle_mod_command(
         _ => return format!("User '{}' not found.", target_name),
     };
 
-    let is_admin = caller_role == "admin";
-    let is_mod = caller_role == "mod" || is_admin;
+    // The owner counts as an admin, and "moderator" as "mod" (BUG-332's sweep).
+    let is_admin = crate::relay::handlers::msg_handlers::is_admin_role(caller_role);
+    let is_mod = crate::relay::handlers::msg_handlers::is_staff_role(caller_role);
 
     // ── The two guards the button path has had since v0.247 ──
     //
@@ -324,11 +325,11 @@ pub async fn handle_mod_command(
         // mints and there is no in-app way back.
         return format!("You can't {} yourself.", cmd.trim_start_matches('/'));
     }
+    if let Some(why) = crate::relay::handlers::owner::refuse_if_owner(state, &target_keys, cmd) {
+        return why;
+    }
     if !is_admin {
-        let touches_protected = target_keys.iter().any(|k| {
-            let r = state.db.get_role(k).unwrap_or_default();
-            r == "admin" || r == "owner"
-        });
+        let touches_protected = target_keys.iter().any(|k| crate::relay::handlers::msg_handlers::is_admin_role(&state.db.get_role(k).unwrap_or_default()));
         if touches_protected {
             return "Only an admin can act on another admin.".to_string();
         }

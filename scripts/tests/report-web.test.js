@@ -345,6 +345,7 @@ async function loadChat(opts = {}) {
   // In index.html's order.
   run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
+  run("shared/roles.js"); // who counts as an admin, as web/chat/index.html loads it before app.js (BUG-332)
   run("shared/friend-pass.js");
   run("shared/reach.js");
   run("shared/block.js");
@@ -854,6 +855,20 @@ test("a plain member cannot open the Reports view; a mod can, and /reports opens
   assert.ok(mod.el("reports-card").innerHTML.includes("reported by a member"), "a mod sees a member");
   // The command palette's action is registered.
   assert.equal(typeof mod.fn("CMD_PALETTE_ACTIONS").openReports, "function");
+  // The server's owner counts as an admin, as the relay counts them (2026-11-20): the Reports view
+  // opens (and with it Held copies), and the palette shows the moderator and admin sections.
+  // Red first, 2026-11-20, each alone in a copy of web/ (HOS_WEB_DIR): chat-reports.js's
+  // reportsAmStaff leaving 'owner' out failed "the owner opens the Reports view"; chat-ui.js's
+  // palette leaving it out failed "the owner sees the mod section".
+  const owner = await loadChat({ myRole: "owner" });
+  assert.equal(owner.fn("openReportsView")(), true, "the owner opens the Reports view");
+  const palette = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "data", "commands.json"), "utf8"));
+  owner.fn("(d) => { CMD_PALETTE_DATA = d; }")(palette);
+  const sections = owner.fn("getCmdPaletteItems")().map((c) => c.name);
+  for (const role of ["mod", "admin"]) {
+    const cat = palette.categories.find((c) => c.requires_role === role);
+    assert.ok(sections.includes(cat.name), "the owner sees the " + role + " section");
+  }
 });
 
 test("the privacy explanation carries 10e's sentence", async () => {

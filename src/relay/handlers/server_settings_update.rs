@@ -61,7 +61,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         gameplay_rules,
     } = upd else { return };
     let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-    if role != "admin" && role != "owner" {
+    if !crate::relay::handlers::msg_handlers::is_admin_role(&role) {
         let private = RelayMessage::Private {
             to: my_key_for_recv.clone(),
             message: "Only admins can update server settings.".to_string(),
@@ -197,7 +197,13 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         }
         match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
             Ok(true) => {
-                state_clone.db.run_expiry_sweeps(); // a lowered window or cap holds at once (storage/expiry.rs)
+                // A lowered window or cap holds at once (storage/expiry.rs), on a blocking thread: the
+                // held-copy sweep takes the held folder's lock, which a hide holds across its whole
+                // seal (the owner branch's seventh review, L1).
+                let sweeper = state_clone.clone();
+                if let Err(e) = tokio::task::spawn_blocking(move || sweeper.db.run_expiry_sweeps()).await {
+                    tracing::error!("Server settings: the expiry sweeps stopped ({e})");
+                }
                 // Saved first, then the running world: a restart keeps it.
                 set_world_clock(state, current.world_time_scale).await;
                 super::fleet_ledger::set_fleet_supply(state, &current.fleet_supply_mode).await;

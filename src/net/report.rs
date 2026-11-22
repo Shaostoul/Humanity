@@ -636,16 +636,24 @@ pub struct ReportUi {
     /// Hide and keep (rung 5): whether this server can keep a sealed copy, Held copies, and the
     /// owner's actions (net/held.rs, engine/held.rs).
     pub held: super::held::HeldUi,
+    /// The server's owner: Claim ownership, the handover and the successor (net/owner.rs,
+    /// engine/owner.rs).
+    pub owner: super::owner::OwnerUi,
 }
 
 impl ReportUi {
-    /// A new socket or another server: the list is that server's, so it is asked for again.
+    /// A new socket or another server: the list is that server's, so it is asked for again. The
+    /// owner state is that server's too, but for the keys refused per server, kept until the app
+    /// restarts (the sixth review's L1: a switch away and back gave a ground key a fresh draw).
     pub fn forget_server(&mut self) {
         self.list.clear();
         self.requested = false;
         self.decide_notes.clear();
         self.status.clear();
         self.held.forget_server();
+        let refused = std::mem::take(&mut self.owner.refused);
+        self.owner = Default::default();
+        self.owner.refused = refused;
     }
 }
 

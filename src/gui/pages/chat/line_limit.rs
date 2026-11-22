@@ -63,7 +63,7 @@ pub(crate) fn limit_here(state: &GuiState) -> Option<usize> {
     if let Some(n) = state.chat_line_limits.get(&target_server(state)) {
         return Some(*n);
     }
-    let admin = state.chat_users.iter().any(|u| u.public_key == state.profile_public_key && u.role == "admin");
+    let admin = state.chat_users.iter().any(|u| u.public_key == state.profile_public_key && crate::net::roles::is_admin_role(&u.role));
     Some(if admin { 10_000 } else { 2_000 })
 }
 
@@ -194,6 +194,19 @@ mod tests {
             gs.chat_active_channel = private.to_string();
             assert_eq!(limit_here(&gs), None, "{private} is not measured");
         }
+    }
+
+    /// The server's owner counts as an admin (BUG-332's sweep): before the server says her limit,
+    /// the guess is the admins' 10,000. Seen red 2026-11-20 against `u.role == "admin"`: "the
+    /// owner's guess is the admins'" (left: Some(2000), right: Some(10000)).
+    #[test]
+    fn the_owner_gets_the_admins_guess_before_the_server_says() {
+        let mut gs = room_state("wss://public.guide/ws");
+        let me = |role: &str| crate::gui::ChatUser { name: "Me".into(), public_key: "me".into(), role: role.into(), status: String::new() };
+        gs.chat_users.push(me("owner"));
+        assert_eq!(limit_here(&gs), Some(10_000), "the owner's guess is the admins'");
+        gs.chat_users[0] = me("verified");
+        assert_eq!(limit_here(&gs), Some(2_000), "the control: anyone else's is 2,000");
     }
 
     #[test]

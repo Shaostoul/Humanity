@@ -28,7 +28,21 @@ function sendFriendCodeRequest() {
   }
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'friend_code_request' }));
+    friendCodeAsks.code = Date.now();
   }
+}
+
+// THE ONE ANSWER EACH ASK IS FOR (the owner branch's seventh review, H1 (c), 2026-11-21): a server
+// pushed friend_code_result unasked and the page followed the key it named, and friend_code_response
+// unasked and the page wrote the relay's text as its own. Each is now taken only as the answer to a
+// request or a redeem this page sent in the last two minutes, and used up by it; any other is
+// dropped and logged. The desktop app's twin is src/engine/friend_code.rs `note_sent`.
+const FRIEND_CODE_ANSWER_MS = 120000;
+const friendCodeAsks = { code: 0, redeem: 0 };
+function takeFriendCodeAsk(which) {
+  const at = friendCodeAsks[which];
+  friendCodeAsks[which] = 0;
+  return at > 0 && Date.now() - at < FRIEND_CODE_ANSWER_MS;
 }
 
 // A friend code redeemed with the PIN while the protected setup is on: the
@@ -55,6 +69,7 @@ function redeemFriendCode(code) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return false;
   redeemApprovedPending = typeof protectedIsOn === 'function' && protectedIsOn();
   ws.send(JSON.stringify({ type: 'friend_code_redeem', code }));
+  friendCodeAsks.redeem = Date.now();
   return true;
 }
 window.redeemFriendCode = redeemFriendCode;
@@ -80,17 +95,25 @@ function resolveNameToKey(name) {
 const _origHandleMessageFollow = handleMessage;
 handleMessage = function(msg) {
   if (msg.type === 'friend_code_response') {
-    // Server generated a one-time friend code for us to share.
-    const code = msg.code || '';
-    const expires = msg.expires_at ? new Date(msg.expires_at).toLocaleString() : '24h';
-    addSystemMessage(`🤝 Your friend code: <strong style="font-family:monospace;color:var(--accent);">${esc(code)}</strong> (expires ${expires}). Share it with someone; they can use /redeem ${esc(code)} to auto-follow each other.`);
+    // Server generated a one-time friend code for us to share: only the one we asked for, only
+    // shaped like a code, and drawn as the server's words (the seventh review, H1 (c)).
+    if (!takeFriendCodeAsk('code')) { console.warn('Dropped a friend_code_response this page did not ask for.'); return; }
+    const code = String(msg.code == null ? '' : msg.code).trim();
+    if (!/^[A-Za-z0-9-]{1,32}$/.test(code)) { console.warn('Dropped a friend code not shaped like one.'); return; }
+    addServerMessage(i18n.t('friend_code.made', { code }));
     navigator.clipboard?.writeText(code);
     return;
   }
   if (msg.type === 'friend_code_result') {
+    // Never follow a key the server names unasked.
+    if (!takeFriendCodeAsk('redeem')) {
+      redeemApprovedPending = false;
+      console.warn('Dropped a friend_code_result this page did not ask for.');
+      return;
+    }
     if (msg.success) {
-      const name = esc(msg.name || 'them');
-      addSystemMessage(`🤝 Friend code accepted! Following ${name} and sending your hello; when they add you back, you'll be friends.`);
+      // The name is the server's to give: its words, marked.
+      addServerMessage(i18n.t('friend_code.accepted', { name: String(msg.name == null ? '' : msg.name) }));
       // Follows removal (2026-08-24): the relay no longer creates the
       // edges — the redeemer's client opens the friendship exchange.
       if (msg.owner_key && typeof setFollowLocal === 'function') {
@@ -101,7 +124,7 @@ handleMessage = function(msg) {
       }
     } else {
       redeemApprovedPending = false;
-      addSystemMessage(`⚠️ Friend code failed: ${esc(msg.message || 'Unknown error')}`);
+      addServerMessage(i18n.t('friend_code.failed', { why: String(msg.message == null ? '' : msg.message) }));
     }
     return;
   }
@@ -1070,7 +1093,7 @@ async function ingestDmControl(inner) {
       if (store) store.setFollower(peer, true);
       myFollowers.add(peer);
       const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
-      addSystemMessage(`👁️ ${esc(peerName)} is now following you.`);
+      addSystemMessage(`👁️ ${shownName(peerName)} is now following you.`);
       if (myFollowing.has(peer)) await sendFriendCertTo(peer);
     }
   } else if (inner.text === CTL_UNFOLLOW) {
@@ -1107,7 +1130,7 @@ async function ingestDmControl(inner) {
       _passReachRefused.delete(inner.from);
       if (!hadOne) {
         const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
-        addSystemMessage(`🤝 You and ${esc(peerName)} are friends now: messages between you are unlimited.`);
+        addSystemMessage(`🤝 You and ${shownName(peerName)} are friends now: messages between you are unlimited.`);
       }
     } else {
       console.warn('friendship pass failed its check; dropped');

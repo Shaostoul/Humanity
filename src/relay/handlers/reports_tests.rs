@@ -625,7 +625,12 @@ fn a_report_about_a_staff_member_never_reaches_them() {
     let staff = [(&ada, "Ada", "admin"), (&abe, "Abe", "admin"), (&ola, "Ola", "owner"), (&mo, "Mo", "mod")];
     for (p, name, role) in staff {
         st.db.register_name(name, &p.key).unwrap();
-        st.db.set_role(&p.key, role).unwrap();
+        // The owner role is claimed, never set (set_role refuses it since 2026-11-20).
+        if role == "owner" {
+            st.db.claim_owner(&p.key, 0).unwrap();
+        } else {
+            st.db.set_role(&p.key, role).unwrap();
+        }
     }
     block(async {
         let mut peers = st.peers.write().await;

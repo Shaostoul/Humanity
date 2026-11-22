@@ -180,7 +180,7 @@ fn counts_decisions_and_post_lookup() {
     assert_eq!((r.state.as_str(), r.decision.as_deref(), r.decided_by.as_deref(), r.decided_at), ("decided", Some("mute"), Some("admin"), Some(4_000)));
     assert_eq!(db.reports_in_state("open", "", 10).unwrap().len(), 2);
     assert_eq!(db.reports_in_state("decided", "", 10).unwrap().len(), 1);
-    assert_eq!(db.reports_clear_decided().unwrap(), 1);
+    assert_eq!(db.reports_clear_decided(&[]).unwrap(), 1);
     assert_eq!(db.reports_in_state("open", "", 10).unwrap().len(), 2, "clearing keeps the open ones");
 
     db.with_conn(|c| {

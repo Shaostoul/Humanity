@@ -88,7 +88,7 @@ function loadChat(federated) {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
-  for (const rel of ["shared/i18n-en.js", "shared/i18n.js", "shared/events.js", "shared/friend-pass.js", "shared/reach.js", "shared/block.js",
+  for (const rel of ["shared/i18n-en.js", "shared/i18n.js", "shared/events.js", "shared/roles.js", "shared/friend-pass.js", "shared/reach.js", "shared/block.js",
     "chat/crypto.js", "chat/chat-dm-store.js", "chat/view/timestampPill.js", "chat/view/messageRow.js",
     "shared/chat-access.js", "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js", "chat/chat-social.js",
     "chat/chat-groups-p2p.js", "shared/notify-rules.js", "chat/chat-notify.js", "chat/chat-ui.js"]) {

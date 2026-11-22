@@ -177,7 +177,7 @@ pub async fn add_listing_image(
     let seller_key = state.db.get_listing_seller_key(&listing_id)
         .ok_or((StatusCode::NOT_FOUND, "Listing not found.".into()))?;
     let role = state.db.get_role(&public_key).unwrap_or_default();
-    let is_admin = role == "admin" || role == "mod";
+    let is_admin = crate::relay::handlers::msg_handlers::is_staff_role(&role); // the owner too (BUG-332)
     if seller_key != public_key && !is_admin {
         return Err((StatusCode::FORBIDDEN, "You can only add images to your own listings.".into()));
     }
@@ -225,7 +225,7 @@ pub async fn delete_listing_image(
     let seller_key = state.db.get_listing_seller_key(&listing_id)
         .ok_or((StatusCode::NOT_FOUND, "Listing not found.".into()))?;
     let role = state.db.get_role(&public_key).unwrap_or_default();
-    let is_admin = role == "admin" || role == "mod";
+    let is_admin = crate::relay::handlers::msg_handlers::is_staff_role(&role); // the owner too (BUG-332)
     if seller_key != public_key && !is_admin {
         return Err((StatusCode::FORBIDDEN, "You can only delete images from your own listings.".into()));
     }
@@ -388,7 +388,7 @@ pub async fn delete_listing_review(
     }
 
     let user_role = state.db.get_role(&q.key).unwrap_or_default();
-    let is_admin = user_role == "admin" || user_role == "mod";
+    let is_admin = crate::relay::handlers::msg_handlers::is_staff_role(&user_role); // the owner too (BUG-332)
 
     match state.db.delete_review(review_id, &q.key, is_admin) {
         Ok(true) => {

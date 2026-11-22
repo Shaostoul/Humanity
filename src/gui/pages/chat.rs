@@ -1279,11 +1279,22 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
 /// the send was aborted (unencryptable DM stashed for the confirm modal, or
 /// a failed P2P-group send) -- the composer keeps its input in that case.
 fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
+    // A line starting with `/claim` (zero-width characters ignored, any case, a space, a colon or
+    // the code right after, or nothing) goes to the server alone or shows the claim help, before any
+    // routing: never to the people of an open DM or group (the owner review's finding 6 and the
+    // second review's W5, engine/owner.rs `typed_claim`).
+    if crate::engine::owner::typed_claim(state, content) {
+        return true;
+    }
     let channel = state.chat_active_channel.clone();
     // Step F: the recovery-phrase guard, before anything leaves (the local scratchpad sends nothing);
     // step G: a typed `/redeem` makes a friend, so the protected setup asks its PIN first.
     if channel != "scratchpad" && (crate::engine::warnings::guard_stops(state, &[content]) || !crate::engine::protected::allows_typed(state, content)) {
         return false; // nothing leaves; the draft stays so the phrase can be removed
+    }
+    // A typed /friend-code or /redeem: the one answer it asks for is taken (engine/friend_code.rs).
+    if channel != "scratchpad" {
+        crate::engine::friend_code::note_sent(state, content);
     }
     // Single timestamp for both the WS send and the local echo so
     // reaction-targeting (which keys on sender + ts) matches.
@@ -1367,6 +1378,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                     timestamp_ms: ts,
                     channel: channel.clone(),
                     server: norm_server_url(&state.server_url),
+                    origin: crate::gui::LineOrigin::App, // the app's own voice (seventh review, H1 (a))
                     ..Default::default()
                 });
                 log::warn!("DM not sent ({reason}); fail closed, no plaintext path exists.");
@@ -2440,6 +2452,9 @@ pub(crate) fn name_color(name: &str) -> Color32 {
 /// Send a slash command as a chat message (server handles moderation via slash commands).
 /// `pub(crate)` for the protected setup, which sends a `/redeem` once its PIN is entered.
 pub(crate) fn send_slash_command(state: &mut GuiState, command: &str) {
+    if state.ws_client.as_ref().is_some_and(|c| c.is_connected()) {
+        crate::engine::friend_code::note_sent(state, command); // the one answer it asks for
+    }
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
             let ts = std::time::SystemTime::now()

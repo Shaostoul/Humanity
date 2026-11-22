@@ -64,7 +64,7 @@ pub struct ActivityStats {
 
 impl Storage {
     pub fn get_civilization_stats(&self, online_count: u32) -> CivilizationStats {
-        let db = self.conn.lock().unwrap();
+        let db = self.lock_conn(); // recovers from a panic elsewhere (conn_lock.rs)
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -307,7 +307,7 @@ mod civilization_counter_tests {
         }
         db.set_channel_access("feedback", ReadLevel::Anyone, PostLevel::Members).unwrap();
         let lines = [("feedback", 2), ("team", 5)];
-        let conn = db.conn.lock().unwrap();
+        let conn = db.lock_conn();
         let mut ts = 1_793_700_000_000i64;
         for (channel, n) in lines {
             for _ in 0..n {

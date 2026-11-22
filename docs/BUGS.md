@@ -8031,7 +8031,9 @@ he noticed the "2+ hour task".
 - **Cause**: those checks in src/relay/handlers/msg_handlers.rs read `role == "admin"` (or admin or mod) on their own, each a copy of the rule.
 - **Fix**: two helpers hold the rule, `is_admin_role` (admin or owner) and `is_staff_role` (those or a moderator, both spellings), and every such check in the file uses them.
 - **Held by**: `the_owner_counts_as_an_admin_for_listings_reviews_and_projects` and `the_owner_lists_for_sale_and_runs_voice_channels_as_an_admin_does` (src/relay/handlers/msg_handlers_mod_action_tests.rs; seen red against the old checks: "the owner edits another seller's listing", the title stayed "Lamp"; "the owner lists something for sale", then with the listing gate fixed "the owner makes a voice channel"). The listing gate and the voice channels were found while merging (2026-11-20), after the first fix had claimed the whole file.
-- **Still open**: the same reading of "admin" (or "admin" or "mod") outside this file was not swept: src/relay/api.rs, api_market.rs, api_v2_agents.rs, services.rs, relay.rs, handlers/broadcast.rs, chat_gate.rs, chat_rate.rs, reach.rs, stream.rs, and the role queries in storage/ (roles.rs, moderation.rs, channels.rs, pins.rs, messages.rs, world_pieces.rs, mod.rs). Each needs reading: some are a role's own name (a label, a rank, a SQL value), not a check. The apps' own role gates read it the same way (web/chat/chat-ui.js's `myRole === 'admin' || myRole === 'mod'`, for one), so a control the relay now allows the owner may still be hidden from them. No key holds `owner` today unless someone writes the role into the relay's database by hand (docs/design/in-app-ops.md, "Setting the server's owner"), so none of them is reachable from the app alone yet.
+- **Swept (2026-11-20, with the owner set in the app)**: every other role check now asks the helpers. The relay: relay.rs (each admin and moderator slash command, /help, /edit and the edit arm's limit, channel_update, pin_request, delete and delete_by_id of another person's line, the staff auto-unlock and auto-lockdown checks), api.rs (admin stats, the federation admin route, now given the caller's real role, bug details and status, another person's shared file or asset), api_market.rs (another seller's listing images, another person's review), api_v2_agents.rs, chat_gate.rs, chat_rate.rs, reach.rs and stream.rs; storage/roles.rs role_def reads the owner as the Admin row (the owner read as Unverified: no uploads, no stream, 280 characters); channels.rs and pins.rs rank the owner first in the user list (the owner showed with no role). The checks that already counted the owner by hand ask the helpers too. The website: web/shared/roles.js (HosRoles), asked by every chat, Market and Files gate (the owner could not open Reports, where Held copies is, nor see the moderator and admin palette sections). The desktop app: src/net/roles.rs, asked by the chat and Files gates. tests/role_gate_lint.rs fails on any new role name compared on its own in the Rust sources; scripts/tests/roles-web.test.js does the same for the pages.
+- **Held by** (sweep): src/relay/owner_sweep_tests.rs (storage, ten REST routes, the send limiter and DM gate, and a real relay where the owner runs every changed slash command and message arm, a member refused as the control), stream.rs's owner test, roles-web.test.js and report-web.test.js's owner case, net/roles.rs, line_limit.rs and shared_files.rs owner tests, and the lint; each seen red against the old checks.
+- **Still open**: display only. The owner has no badge of its own in either app's member list or the relay's /users (the badges know admin and mod), and the relay's auto-lockdown on disconnect has no behaviour test (it waits 30 s behind a process-wide switch).
 
 ## BUG-333: the headless routine soak gave different results for the same inputs (FIXED 2026-11-20, found 2026-11-20)
 
@@ -8126,3 +8128,367 @@ he noticed the "2+ hour task".
 - **Found by**: the arrival follow-ups (b8e44cddf, 2026-11-21), linking home_solo.ron to ship.ron broke nine tests. The operator, asked "Should a household's figures count only its own machines? I recommend yes, with the ship's machines shown as the ship's.": "Yes".
 - **Fix (2026-11-21)**: each row knows whose it is (`crates/humanity-ship/src/machines/owner.rs`, `MachineHome::owner_of`: a row in a ship zone of a layout that links the ship's file is the ship's, the rule the save splits the files by), and every household figure counts only the household's own rows; the ship's are counted as the ship's (`ship_share`) and shown apart on the Home page and under the Construction page's meters (`src/gui/pages/home_whose.rs`, `home.whose_*`). The family home's three Commons wires are gone; the live sim taps an island of only the ship's machines as the ship's (`ship_power::SHIP_MACHINES`, fed in either Ship life support mode, left out of the household's Live power card) and marks the ship's machines' entities `ShipMachine` (left out of the Live water card). home_solo.ron links ship.ron, its own composter and wall screen renamed `composter_small` and `wall_screen_small`, its tent humidifier and CO2 fan given the ship's definitions; the death screen's not-drawn note, `wake::drawn_here` and the side read of ship.ron in `places_for` are gone. The family home's loop words carry the honest figures.
 - **Held by**: `a_households_meters_count_only_its_own_machines_and_the_ships_are_the_ships` (`crates/humanity-ship/src/machines.rs`), `a_households_food_loop_excludes_the_commons_garden` (`crates/humanity-systems/src/grow_machines.rs`), `the_ships_machines_appear_as_the_ships` (`src/gui/pages/home_whose.rs`), `every_household_draws_the_ships_pods` (`crates/humanity-ship/src/respawners_tests.rs`), `every_place_the_death_screen_offers_is_a_pod_the_world_draws` (`src/engine/wake_tests.rs`), `the_household_machines_charge_their_sourced_daily_energy` at the new figures, and verify-respawn's `solo_draws_the_general_services_pod`. Each was seen red, the evidence in its comment.
+
+## BUG-345: the owner's linked device became a second owner, which stopped hide and keep (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the owner role agent (docs/design/hide-and-keep.md, "How the owner role is set"), reading every path that writes `user_roles`.
+- **Symptom**: linking a new device from the owner's account (a link code redeemed) copied the role `owner` onto the new device's key. Two keys then held the role, so every hide and keep was refused ("More than one key holds this server's owner role"), and held copies sealed to the owner's card could be asked for by a key that cannot open them.
+- **Cause**: `redeem_link_code` (src/relay/storage/messages.rs) copied the creator's role to the linked device whatever it was, and `owner` was simply another role string.
+- **Fix**: the owner's linked device gets `admin`, never `owner`; `set_role` now refuses to grant `owner` or to change the owner's row at all (storage/owner.rs's guard), so no other path can make a second owner either.
+- **Held by**: `nobody_can_remove_demote_ban_mute_kick_or_game_ban_the_owner` (src/relay/handlers/owner_tests.rs: "the owner's linked device is an admin", "and the owner is still one key").
+
+## BUG-346: an admin could read the owner claim code through the data-file routes and make themselves the owner (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the owner role agent, while moving the claim code from "first admin" to "owner".
+- **Symptom**: the data-file routes (`POST /api/data-files`, `/api/data-files/read`) list and read `data/` for any of the server's admins. `data/owner-claim-code.txt` is a `.txt` file there, so an admin could read the claim code in the app and claim the owner role, which receives every held copy. (Before the claim made its bearer the owner it made them an admin, which an admin already was.)
+- **Cause**: BUG-206 made the routes admin-only, which was enough while the code granted only admin.
+- **Fix**: src/relay/storage/data_files.rs `SERVER_ONLY`: the claim code file is never listed, read or written through the routes, for anyone; the code stays in the server's log and on the server machine.
+- **Held by**: `only_an_admin_with_a_signature_may_list_or_read_the_data_folder` (src/relay/features.rs): an admin does not see it listed and cannot read it, the code nowhere in the answer; seen red with the refusal left out (the admin read it, 200).
+
+## BUG-347: a held item's download grant worked for anyone who had it, so an admin successor could open the owner's export unlogged (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 1, HIGH).
+- **Symptom**: every admin's Held copies list carried each held action's full signed object, the owner's held_export and held_restore included, and the download route `GET /api/held/{id}/{part}?grant=` took that object's id as its only proof. Parts are sealed to the owner and the successor, so an admin successor (or anyone an admin passed the id to) could fetch and open every part within the ten minutes, and nothing was logged. The data-file routes also listed `data/held` folder names.
+- **Cause**: the grant was a bearer token: the part routes (export, restore, re-seal) never asked who was calling.
+- **Fix**: every held part route takes a signed caller (core held_seal `caller_purpose`, headers `x-hos-held-key`, `x-hos-held-time`, `x-hos-held-sig`: Dilithium3 over `held_<route>:<grant>:<id>:<part>:<offset>` and the time, replays refused) and serves the part only to the key the grant belongs to (src/relay/handlers/held.rs `signed_caller`, `granted_item`); the list sends non-owners a summary with no signed object; `data/held` is refused by the data-file routes. Both apps sign: the desktop's src/net/held.rs `Caller`, the website's web/chat/chat-held.js `callerHeaders` (Export, Restore, now sent in signed pieces of at most 768 KiB, and the owner's re-seal).
+- **Held by**: `a_part_route_knows_its_caller_only_by_their_signature` and `every_held_action_is_signed_recorded_and_checkable` (src/relay/handlers/held_tests.rs: "an admin with the grant gets nothing", seen red with the caller check taken out), held_restore_tests' finding-1 case, scripts/tests/held-chat-web.test.js (export and restore against a fake relay that refuses unsigned requests; seen red before `callerHeaders`), and the caller lines of scripts/tests/fixtures/held-owner-v1.json, checked by core and by held-web.test.js.
+
+## BUG-348: the website's re-seal sealed every held copy to whoever the relay named (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 2, HIGH).
+- **Symptom**: web/chat/chat-owner.js checked only the grant of the relay's `owner_change_ready` and sealed each part to the recipients it listed, so a dishonest relay could add a key of its own to a handover, or replace the new owner; a key card never seen before was taken on first use. docs/design/hide-and-keep.md claimed the desktop's check had a website twin.
+- **Cause**: the desktop's `check_ready` (src/net/owner.rs) was never ported.
+- **Fix**: chat-owner.js `checkReady` and `expectedRecipients`: the recipients must equal what the signed action implies (the target, plus the current successor as signed, in slot order), refused with the desktop's words (owner.ready_mismatch, owner.recipients_mismatch) and the change cancelled before anything is opened; `pinAllows` reads the pins as the desktop does.
+- **Held by**: scripts/tests/owner-chat-web.test.js, the reviewer's own two answers ([Bea, Cal] and [Cal] for a handover signed to Bea): refused, nothing sealed (seen red before `checkReady`: both were sealed and finished).
+
+## BUG-349: a link code redeemed onto the owner's key overwrote the owner's role (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 3, HIGH; BUG-345's other side).
+- **Symptom**: redeeming a device-link code wrote the code maker's role onto the redeeming key with `ON CONFLICT(public_key) DO UPDATE SET role = ?2` and no owner guard, and `/link` has no role gate, so the owner redeeming any code (the website's "Link this device with a code" keeps the browser's key) lost the owner role, and the server had no owner.
+- **Cause**: several raw SQL writes to the role column, only one of them guarded.
+- **Fix**: src/relay/storage/owner.rs `write_role_in`, the one guarded write of a role that is not a claim or a handover (canonical role, the owner refused, the owner's row never changed), used by `set_role` and the link redeem; `upsert_role` refuses owner keys; the account erase keeps the floor.
+- **Held by**: `a_link_code_redeemed_by_the_owner_keeps_the_owner` (src/relay/handlers/role_commands_tests.rs; seen red with the redeem's raw write as reviewed: "the owner survives" failed, left "verified").
+
+## BUG-350: one key's wrong guesses could stop the owner claim for everyone, the right code included (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 4, MEDIUM).
+- **Symptom**: the claim checked the server-wide miss window before comparing the code, and the per-connection count reset on reconnect, so one key reconnecting and guessing kept the window full and the real code was refused.
+- **Cause**: the limit was applied before the compare.
+- **Fix**: src/relay/handlers/owner.rs: the code is always compared (in constant time) and a correct code always claims; limits count wrong guesses only, per key (`ClaimMisses`, surviving reconnects) and per connection. docs/design/hide-and-keep.md says what an attacker can and cannot do.
+- **Held by**: `wrong_codes_are_counted_but_never_stop_the_right_code` and `the_right_code_claims_after_ones_own_wrong_tries` (src/relay/handlers/owner_tests.rs; seen red with the branch's order put back).
+
+## BUG-351: re-sealed parts the relay could not check replaced every original, so well-formed garbage destroyed the held copies (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 5, MEDIUM).
+- **Symptom**: an owner change checked each re-sealed part's magic, recipient count and size only, then deleted the originals: correctly sized garbage (a sealing bug, or an owner who wanted the copies gone) left no copy anyone could open while the log said the change went through.
+- **Cause**: the relay cannot open a re-sealed part, and nobody who could was asked.
+- **Fix**: two phases (src/relay/handlers/owner.rs, owner_accept.rs). The finish changes nothing; each RECIPIENT of the new seal gets `owner_change_check`, fetches every new part signed (`GET /api/held/{id}/{part}/resealed`), opens and checks it against the package's list of files (core held_seal `check_resealed_package`) and signs `owner_change_accept` (target_kind object, reason `checked <digest>`, core `acceptance_digest`); the relay compares the digest with the one it works out from the restore plans. Only then are the copies swapped and the originals deleted; a decline, a mismatch or 60 minutes without every acceptance rolls back. Both apps answer: the desktop's Server Settings Overview (src/engine/owner.rs `on_check`), the website's chat line with Check and accept and Decline (web/chat/chat-owner.js, the twins in web/shared/held-seal.js); the owner's own copy in a change it started is checked at once.
+- **Held by**: `a_change_with_one_bad_part_changes_nothing` (src/relay/handlers/owner_tests.rs; seen red with the finish swapping at once), core `a_recipient_checks_every_resealed_part_against_the_list_of_files` and `held_owner_fixture_rust_and_the_website_agree`, scripts/tests/held-web.test.js (the website's check and digest against the fixture; garbage, another file, a third key, a wrong count) and owner-chat-web.test.js (the recipient's accept and declines; seen red before the handler and against five breaks).
+
+## BUG-352: `/claim <code>` typed with a direct message or group open was sent to those people (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 6, MEDIUM).
+- **Symptom**: the claim code makes its bearer the owner, but both apps intercepted only the bare `/claim`: on the website chat-ui.js routed `/claim <code>` through sendComposedContent to the DM partner, and chat-groups-p2p.js's composer posted it to the group; the desktop's `send_composed_content` did the same.
+- **Cause**: the command check came after the routing.
+- **Fix**: any line whose first word is /claim, in any case, goes to the server alone as `owner_claim` with `typed: true` before any routing: the desktop's src/gui/pages/chat.rs `send_composed_content` (net/owner.rs `typed_claim`), the website's app.js `takeTypedClaim`, asked first by chat-ui.js's composer, sendComposedContent, the group composer and app.js's sendMessage. The relay answers a typed claim in the chat too.
+- **Held by**: `a_typed_claim_goes_to_the_server_alone` (src/gui/pages/chat/reply_tests.rs; seen red with the interception taken out: in the room the code went out as a chat message and a local copy, and no claim reached the server from the DM or the group) and scripts/tests/claim-typed-web.test.js (seen red: the DM's router got the line and each group's message carried it; each of the four checks taken out alone failed its own test).
+
+## BUG-353: re-sealed copies of a held post survived Destroy now and expiry (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 7, LOW-MEDIUM).
+- **Symptom**: `held_destroy_in` removed only `held/<package>`, so a change's `.handover-<package>` staging copy survived until the next change, cancel or restart; the stray sweep skipped every folder starting with a dot; a finished change left staging for items that had gone.
+- **Fix**: destroy and expiry remove every copy of a package (src/relay/storage/held.rs, staging and pre-handover copies included), and the sweep covers dot folders.
+- **Held by**: `the_held_folder_keeps_no_unfinished_seal_and_reports_a_package_with_no_row` (src/relay/handlers/held_tests.rs; seen red with the re-sealed folders skipped as reviewed) and `destroy_now_deletes_at_once_and_a_hold_has_bounds` ("and an owner change's re-sealed copy", "and an original a swap set aside").
+
+## BUG-354: /verify, /unverify, /donor and /name-release reached the owner (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 8, LOW).
+- **Symptom**: the three role commands looped over `set_role` without the owner check: the guard saved the owner's row, but the admin was told "X is now verified" and the owner's linked devices were demoted; `/name-release` freed the owner's name; the role picker (SetUserRole) had no test. Stale words: /help's "/claim ... Become the first admin" and the Host Node page's "The first person to claim it becomes its admin".
+- **Fix**: the commands and `set_user_role` moved to src/relay/handlers/role_commands.rs and refuse the owner whole; the words fixed (/help, owner.node_claim_hint on the Host Node page, web/home/technical.html).
+- **Held by**: `the_role_and_name_commands_never_touch_the_owner` and `the_role_picker_never_assigns_or_changes_the_owner` (src/relay/handlers/role_commands_tests.rs; seen red with the owner check taken out of `name_command_in`).
+
+## BUG-355: an owner change's swap compared a count of held items, and its undo lost the marker when a rename failed (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 9, LOW).
+- **Symptom**: the swap compared how many items were held, not which (a post held during a change was taken for one re-sealed); the undo deleted its marker even when renames failed, so a restart could not finish the job; the held folder was not synced after the renames; the start-up recovery's "finished" branch had no test.
+- **Fix**: the set of ids is compared, the marker kept on a failed undo, the folder synced after the renames (src/relay/storage/owner_handover.rs).
+- **Held by**: `a_change_rolls_back_in_time_and_a_recorded_one_is_finished` (src/relay/handlers/owner_tests.rs; the "finished" branch's first test; seen red with `expire_pending` doing nothing).
+
+## BUG-356: a held part's list of recipients was not authenticated, and "Owner" was a role an admin could assign (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the adversarial review of the owner branch (finding 10, LOW).
+- **Symptom**: format v2 bound neither a part's recipient count nor its slots, so a slot could be stripped or replaced and the part still opened for the others (the review stripped one); and `set_role`'s guard matched "owner" exactly while is_admin_role, is_owner_role and roles.js normalise, so an admin could assign "Owner" or " owner".
+- **Fix**: held seal format v3 (HUMHELD3, hum/held/v3, hum/held-wrap/v3): each wrapped key's associated data binds the count and slot, and every piece binds BLAKE3 of the whole header, in Rust and in web/shared/held-seal.js alike, with fixtures both sides open (held-v3.json, held-v3-web.json); every role is canonicalised on write (trimmed, lower case) and every spelling of owner refused outside the claim and a handover.
+- **Held by**: core `a_part_with_its_recipients_changed_opens_for_nobody` (seen red with the header digest left out of `piece_aad`), `held_fixture_rust_and_the_website_agree`, owner-chat-web's stripped-slot check, and `the_role_picker_never_assigns_or_changes_the_owner` (seen red with the canonical form taken out).
+
+## BUG-357: an owner change's acceptance digest came from the plaintext hashes, so the owner alone could replace every held body with garbage (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second adversarial review of the owner branch (R1, MEDIUM).
+- **Symptom**: `expected_acceptance` derived the digest from the original restore plan, never from the staged bytes, so anyone holding the old part 0 signed a valid acceptance without opening anything; on a successor removal the owner is the only checker, and correctly sized garbage replaced every copy while the owner log said "owner_successor_remove".
+- **Cause**: the re-seal design: the owner's device re-encrypted every body, and the relay could not tell a body's bytes from garbage.
+- **Fix**: held seal format v4 (crates/humanity-protocol/src/held_seal.rs): a change RE-WRAPS each part's header and never re-encrypts a body. The header carries a key commitment; the relay takes a header alone whose commitment equals the old one (src/relay/storage/owner_handover.rs `take_new_header`), never a body byte, and copies each body byte for byte; the acceptance digest covers every new header's hash and the round, computed by the relay from the headers it staged. What remains, said in hide-and-keep.md and the owner log ("checked by the owner alone"): a modified owner's app can make the owner's own new slot unopenable on a successor removal, the same as destroying the copies, the bodies surviving.
+- **Held by**: `body_bytes_and_a_header_for_another_key_are_refused` and `the_owner_alone_cannot_replace_a_body` (src/relay/handlers/owner_tests.rs; seen red with the commitment check and the header-length check each taken out of `take_new_header`), core `a_slot_wrapping_another_key_is_refused` and `a_change_rewraps_every_header_and_keeps_every_body_byte`.
+
+## BUG-358: a successor-to-be or a handover's target could read every held copy while checking, then decline unrecorded (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (R2, MEDIUM).
+- **Symptom**: `GET /api/held/{id}/{part}/resealed` served each re-sealed part to every recipient, who opened it in full; a decline afterwards left nothing in the owner log or the counts, so "no powers" was false.
+- **Fix**: the route is gone. A recipient is served each NEW HEADER alone (`GET .../rewrapped`, handlers/owner_accept.rs `rewrapped_header_in`) and checks only its own slot against the key commitment (core `check_header`); no body is served to anyone during a change. The words and comments say what is now true (handlers/owner.rs `after_change`, hide-and-keep.md).
+- **Held by**: `nobody_reads_a_body_during_a_change` (owner_tests.rs: a header alone, `header_len(2)` bytes, no part under the change's grant).
+
+## BUG-359: a change's grant served every original part to the owner, so begin, read and cancel was an export nobody logged (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (R3, LOW-MEDIUM).
+- **Symptom**: `granted_item` (src/relay/handlers/held.rs) answered a pending change's grant with the original parts for the owner; cancelling left no export recorded or counted.
+- **Fix**: a change's grant is not a part grant any more: the change has its own routes, which serve headers alone (`current_header_in`).
+- **Held by**: `nobody_reads_a_body_during_a_change` (seen red with `granted_item`'s change branch put back: "the owner is served no part under a change's grant").
+
+## BUG-360: a rollback could run while a change was being carried out, and a round-one acceptance could carry out round two (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (R4, LOW-MEDIUM).
+- **Symptom**: `roll_back` took the pending change while `owner_change_in` was swapping folders: the owner was told "rolled back" while it committed, and its `remove_dir_all` could race the rename and empty the new home; the final push checked only the object id, so an acceptance of a cancelled round carried out a re-begun one; the stray sweep read the marker once, outside any lock.
+- **Fix**: the change slot (handlers/owner.rs `ChangeSlot`): the last acceptance takes the change out of its slot under the lock and names its round as being carried out; cancel, decline, the expiry tick and a new begin refuse with words while it runs. Each begin gets a random round bound into the acceptance digest. The storage's one held-folder lock (`Storage::held_swap`) is held by the swap, by clearing new parts, by the sweep (marker read included) and by destroying a copy.
+- **Held by**: `rollback_and_carry_out_exclude_each_other` (an interleaving hook in `accept_in` and one in the swap; seen red with the pending change left in its slot, and with the sweep's lock taken out: "the sweep waited for the swap") and `a_round_one_acceptance_is_refused_in_round_two` (the same headers sent again; seen red with the round left out of the digest).
+
+## BUG-361: a link code redeemed by the owner's key bound the owner under another name (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (R5, LOW).
+- **Symptom**: `redeem_link_code_on` registered the owner's key under the code's name, so that name ranked as the owner and `refuse_if_owner` blocked admin actions on its other holder.
+- **Fix**: a key holding the owner role is refused with words (`LinkRedeemed::OwnerKey`, `OWNER_LINK_REFUSED`), nothing written and the code left for another device (src/relay/storage/messages.rs `owner_key_on`).
+- **Held by**: `a_link_code_redeemed_by_the_owner_keeps_the_owner` (src/relay/handlers/role_commands_tests.rs).
+
+## BUG-362: a held caller's signature was the same as a chat message's (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (R6, LOW).
+- **Symptom**: held part routes checked a Dilithium3 signature over `purpose\nts`, exactly what a chat line is signed over, and chat lines are broadcast.
+- **Fix**: every held caller's purpose starts with the domain line `hum/held-caller/v1` (core `caller_purpose`, the website's `callerPurpose`), desktop, website and relay alike; the owner fixture is now `held-owner-v2.json`.
+- **Held by**: `a_part_route_knows_its_caller_only_by_their_signature` (src/relay/handlers/held_tests.rs: "a chat-style signature of the bare purpose line" refused) and `held_owner_fixture_rust_and_the_website_agree`.
+
+## BUG-363: the wrong claim codes counted per key were never forgotten (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (R7, LOW).
+- **Fix**: `ClaimMisses::count` (handlers/owner.rs) forgets entries 10 minutes after their latest wrong code and keeps at most 4,096 keys, the oldest first to go.
+- **Held by**: `the_wrong_codes_remembered_per_key_are_bounded` (owner_tests.rs).
+
+## BUG-364: the person picked for a handover or as successor was the relay's word alone (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (W1, MEDIUM, likely HIGH on the desktop).
+- **Symptom**: both apps listed members by the names the relay sent; a compromised relay could list its own key as "Bea" with a valid card, and every held copy would be sealed to it (the website's `pinAllows` answers true when nothing is pinned).
+- **Fix**: each member's key fingerprint (core `key_card::fingerprint`, the website's `key-card.js fingerprint`, one known answer) shows beside the name; a key the device already trusts (a key card pinned there, or a friend given a friendship pass) may be chosen directly, any other only once the owner typed the last TWO groups of its fingerprint (32 bits; one group at first, two by the orchestrator's call of 2026-11-21) after comparing the whole of it with the person (net/owner.rs `pick_allowed`, chat-owner.js `pickAllowed`). hide-and-keep.md no longer says the device "trusts the relay for nothing it can check".
+- **Held by**: `a_key_not_trusted_needs_its_fingerprints_last_two_groups` (src/net/owner_tests.rs), `a_handover_rewraps_every_header_for_the_new_owner_and_fetches_no_body` (src/engine/owner_tests.rs: refused until the last two groups are typed; her last group alone, and another key's groups, refused), owner-chat-web.test.js's relay-made Bea, the Server Settings page test, `the_fingerprint_is_pinned` (key_card.rs) and key-card-web.test.js.
+
+## BUG-365: every owner change and every check sent the relay every restore key, which opens each package's whole manifest (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (W3, MEDIUM).
+- **Fix**: the re-wrap needs no restore key (part 0's body never changes): `owner_change_finish {grant}` and `owner_change_accept {action}` carry none, in both apps.
+- **Held by**: the desktop flow tests ("the finish carries no key", "no restore key travels") and the relay's owner tests, which send none.
+
+## BUG-366: /claim near misses reached a direct message or group, and an edit carried a /claim line to the room (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (W5, LOW).
+- **Symptom**: `/claimCODE`, `/claim:CODE` or a zero-width space before `/claim` were sent as messages, and the edit path sent any text.
+- **Fix**: a line whose first word, after removing zero-width and format characters and trimming, starts with `/claim` (any case) never goes to a person or a group: a well-formed one goes to the server alone, anything else shows the claim help (net/owner.rs `typed_claim`, engine/owner.rs; web/chat/app.js `typedClaim`); the edit paths (src/gui/pages/chat/rows.rs, web/chat/chat-messages.js) ask first.
+- **Held by**: `a_claim_line_never_reaches_a_person_however_it_is_spelled` (src/net/owner_tests.rs), `a_typed_claim_goes_to_the_server_alone` (reply_tests.rs), claim-typed-web.test.js tests 5, 7 and 8 (seen red on the branch's app.js and chat-messages.js).
+
+## BUG-367: the owner's own check after a reload became a question, and a dropped socket marked a check answered (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the second review (W6, LOW).
+- **Fix**: the owner's own change is known from the change's signed action, which `owner_change_check` now carries, being signed by this device's own key (net/owner.rs `is_own_change`, chat-owner.js `actionChecks`), not page memory; a check is marked answered only once its answer is sent, and the relay's re-ask after reconnecting is answered.
+- **Held by**: `the_owners_own_check_survives_a_reload_and_a_dropped_socket` (src/engine/owner_tests.rs) and `a_check_is_believed_only_when_the_owner_signed_it` (src/net/owner_tests.rs).
+
+## BUG-368: a relay could make any key "trusted" for the owner picker by pushing its card (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (W1, HIGH), demos scratchpad critic3-web A1 and A2 (both passed against d88359f76: the relay's own key R, listed as "Bea", was picked with nothing typed and opened every held part).
+- **Cause**: both apps took every good card in ANY `key_cards` frame into the pins on first sight (web/chat/chat-key-cards.js `onFrame`, src/engine/key_cards.rs `on_key_cards_frame`), never asking whether the device had asked for it; and the owner picker counted a pinned key as trusted (chat-owner.js `trusted`, engine/owner.rs `pick`). Anyone who ever wrote to the owner was pinned too.
+- **Fix**: only a card for a key the device asked for (a `key_card_request` it sent, matched by key, within five minutes) is taken into the pins; any other is dropped and logged (`_sent` / `requested`; web/pages/orgs-app.js too). "Trusted" for the picker is only a fingerprint the owner confirmed while the app is open (a mark kept apart from the pins, never on disk) or a friend given a friendship pass. The design doc's "a first-use pin counts as trusted" is withdrawn, with why (docs/design/hide-and-keep.md).
+- **Held by**: owner-chat-web.test.js A1 and A2 (red against d88359f76's web/chat), `a_card_nobody_asked_for_is_dropped` (src/engine/key_cards_tests.rs), `a_pinned_key_is_not_trusted_and_a_confirmed_one_is` (src/engine/owner_tests.rs), the website's hand-over test (a pinned Cal is asked for groups).
+
+## BUG-369: the fingerprint's last two groups were grindable, and a relay could write a fingerprint into a name (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (M2, MEDIUM, both reviewers): 32 fixed bits take about an hour on a rented many-core machine (key_card.rs said a relay "cannot grind" them), and the picker put the relay's name text before the real fingerprint, so R could be listed as "Bea (<Bea's fingerprint>)".
+- **Fix**: the device asks for TWO GROUPS AT RANDOM POSITIONS, drawn afresh each time it asks and never the same pair twice in a row for one key, named by position ("groups 2 and 5"; core `key_card::confirm_positions`, `fingerprint_confirmed_at`; the website's `confirmPositions`, `fingerprintConfirmedAt`), with the arithmetic in key_card.rs and hide-and-keep.md (a key ground on two groups passes one ask in 15). Names are held to the honest relay's rule, `[A-Za-z0-9_-]{1,24}` (`honest_name` / `honestName`); any other shows as a refused name in words and nothing is signed for it; the name and the fingerprint sit in fields of their own (member rows on the website, separate labels on the desktop).
+- **Held by**: `the_fingerprint_is_pinned` and `the_name_rule_is_the_honest_relays` (key_card.rs), key-card-web.test.js (random positions, a key ground on two fixed groups, names), `a_key_not_trusted_needs_the_two_groups_asked` (src/net/owner_tests.rs), `a_name_an_honest_relay_could_not_list_is_refused` (src/engine/owner_tests.rs), owner-chat-web.test.js A2 and M2.
+
+## BUG-370: a second finish or a late header could change the new parts after a recipient checked them (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (S1, MEDIUM): `finish_in` checked `uploading()` once and built unlocked, `take_new_header` and `build_new_parts` took no lock, and the carry-out never compared an acceptance recorded earlier, so a modified owner app with two sockets could carry out headers that differed from what a successor checked.
+- **Fix**: the finish marks the change BUILDING under the slot's lock; a second finish and every header route are refused meanwhile, and a header is taken only under the slot's lock while the change still re-wraps (handlers/owner.rs); taking headers and building parts hold the held-folder lock (`Storage::owner_take_new_header`, `owner_build_new_parts`); at the carry-out, under that lock, `owner_change_in` works out `expected_acceptance` from what is staged NOW and requires every recorded acceptance to carry exactly it. The module header's "every step holds the held-folder lock" is now true for writes and says what reads do.
+- **Held by**: `an_earlier_acceptance_is_checked_again_at_the_carry_out` (the review's sketch made real; red before the comparison) and `a_second_finish_and_headers_are_refused_while_one_builds` (src/relay/handlers/owner_tests.rs).
+
+## BUG-371: a hide that spanned an owner change was sealed to the old recipients, or rolled the change back (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (S3, LOW): a hide read `owner_card` first and committed after a carry-out (the new owner could not export it, and later changes were refused), and a hide in phase 2 added a held row, which rolled the change back.
+- **Fix**: while a change is pending or being carried out, a hide takes the post out of view at once as always, but its sealed copy WAITS (files and a note in `data/held/.waiting-<id>/`, nothing serves it) and is sealed right after the change is carried out or rolled back, to whoever the recipients are then, under the held-folder lock (`Storage::hide_post_waiting_in`, `held_seal_waiting_in`; handlers/owner.rs `seal_waiting`, also at startup and each minute); a hide sealing now holds off a begin (`SealingNow`). The moderator is told in words that the sealed copy waits. A hide never rolls a change back.
+- **Held by**: `a_hide_during_a_change_waits_and_is_sealed_to_the_recipients_then` (a real reported post, both carried out and rolled back) and `a_begin_waits_for_a_hide_sealing_now` (src/relay/handlers/owner_tests.rs).
+
+## BUG-372: a change's restore plan was copied unsynced, then the synced original set aside (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (S4, LOW): storage/owner_handover.rs copied `restore.plan` into the new folder with `std::fs::copy` and no sync before the swap.
+- **Fix**: `copy_synced` copies and syncs it before the folders swap.
+- **Held by**: every carry-out test's restore plan opening after the swap (`a_handover_rewraps_every_header_and_keeps_every_body_byte`); the sync itself cannot be observed in a test.
+
+## BUG-373: the owner claim code file was readable by every account on the server machine (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (S5, LOW): handlers/owner.rs wrote `data/owner-claim-code.txt` with `std::fs::write` (0644 under the usual umask).
+- **Fix**: written 0600 on Unix, and an older file set to 0600 too; on Windows it takes the data folder's permissions (the signed-in user, the administrators and SYSTEM).
+- **Held by**: `the_claim_code_file_is_written_for_the_relay_alone` (its mode assertions run on Linux CI; this Windows machine compiles them out).
+
+## BUG-374: the held caller's domain line does not keep a signed chat line out (OPEN, found 2026-11-21)
+
+**Found by** the owner branch's third review (S6): the comments said "a signed chat line never passes", but a chat message may hold a newline, so a chat line whose content is a held caller's purpose is signed over the same bytes and broadcast.
+- **Now**: the comments in src/relay/handlers/held.rs, core held_seal.rs and web/shared/held-seal.js and the cryptography table say so plainly. It closes when the relay refuses chat lines beginning with a `hum/` domain line (the signed-requests branch, round 2); after both branches merge, the held caller moves onto that request scheme.
+
+## BUG-375: removing a successor read as taking their access back (FIXED in words 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (S7): removal re-wraps every header for the owner alone, but the successor's device opened every part key in its check and bodies never change.
+- **Fix**: said plainly in hide-and-keep.md and beside Remove successor on the owner's screen in both apps (`owner.remove_successor_limit`).
+- **Held by**: the website's remove-the-successor test and the desktop's owner panel test (each asserts the words).
+
+## BUG-376: the website's thread reply sent a typed /claim line to the room (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (W3, LOW): web/chat/chat-messages.js `sendThreadReply` skipped `takeTypedClaim`. The desktop's replies all pass chat.rs `send_composed_content`, which asks `typed_claim` first.
+- **Fix**: the thread reply asks `takeTypedClaim` first.
+- **Held by**: claim-typed-web.test.js test 9 (red against the branch's chat-messages.js: the reply carried the code).
+
+## BUG-377: no test held the website's refusal of a card while a change of key waits (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (W4, LOW): removing the `keyChange` line in chat-owner.js `pinAllows` left every test green.
+- **Fix**: owner-chat-web.test.js's key card test case 5: a change waiting for Bea refuses her card (red with the line removed).
+
+## BUG-378: a check was marked answered as soon as the answer was sent (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (W5, LOW): an answer lost with a dying socket was never given again (chat-owner.js `runCheck`; the desktop's twin forgot it).
+- **Fix**: an answer counts only once the relay acknowledges it (an `owner_reply`); a re-ask of the same change and round with no acknowledgement is answered again (the same decline, or the check run and signed afresh), never once acknowledged (chat-owner.js; engine/owner.rs `sent_answer`).
+- **Held by**: owner-chat-web.test.js W5 and W6, `an_answer_never_acknowledged_is_given_again` (src/engine/owner_tests.rs).
+
+## BUG-379: Export and Restore never compared what opened with the item chosen (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's third review (W7, LOW; on main too): chat-held.js and src/net/held.rs used the relay's package for the item clicked and never compared the opened manifest with it, so a relay could hand over another item's copy.
+- **Fix**: the manifest's package and report must be the item chosen (core `held_seal::manifest_is`, used by `restore_with` and `export_with`; the website's `manifestIs`), refused with words otherwise, nothing written or sent back.
+- **Held by**: held-chat-web.test.js W7, `export_writes_one_zip_only_where_chosen_without_the_restore_key` (src/net/held_tests.rs), `the_apps_restore_round_trips_a_sealed_post` (src/relay/handlers/held_restore_tests.rs).
+
+## BUG-380: a friend given a pass, or a key confirmed earlier, was handed the owner role with no fingerprint typed (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fourth review (finding 1, MEDIUM; demo D2): a mutual follow is one Follow back on a name the relay listed, and both apps then send friendship passes by themselves, so "a friend given a pass" let the relay choose the trusted key (web chat-owner.js `trusted`, src/engine/owner.rs `pick`).
+- **Fix**: no exemption at all: every handover and every naming of a successor asks for the fingerprint's groups at random positions, every time, whoever the person; the in-memory "confirmed" mark is gone, and the groups are drawn afresh after every change signed (net/owner.rs `pick_allowed`, engine/owner.rs `ask_groups`, chat-owner.js `askGroups`, `pickAllowed`).
+- **Held by**: owner-chat-web.test.js D2, M2 and "hand over: a friend given a pass and a key only pinned are both asked", `every_change_asks_four_groups_whoever_the_person` (src/engine/owner_tests.rs), `every_key_needs_the_four_groups_asked` (src/net/owner_tests.rs).
+
+## BUG-381: two groups at random positions let a key ground on three groups pass one ask in five, and the grinding arithmetic was wrong (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fourth review (finding 5): a grinder steps one coefficient of s1 and hashes, about 1 to 2 microseconds a candidate, not a whole key generation, so three groups cost about 10^5 core-hours, within a relay's reach.
+- **Fix**: FOUR groups asked at random positions (15 sets of four of six), never the same set twice running for one key; a key must then match at least four groups (2^64 candidates, 5 to 10 billion core-hours) to pass one ask in 15. The arithmetic corrected in key_card.rs ("WHY FOUR GROUPS AT RANDOM POSITIONS"), key-card.js and docs/design/hide-and-keep.md, with what remains said plainly.
+- **Held by**: `a_key_ground_on_three_groups_passes_no_ask` and `the_fingerprint_is_pinned` (crates/humanity-protocol/src/key_card.rs), key-card-web.test.js "four groups at random positions confirm the fingerprint".
+
+## BUG-382: a key card pushed with a multi-byte character in its key crashed the desktop app (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fourth review (finding 3, MEDIUM): the round-4 "dropped a card" log line cut the relay's key at byte 12 (src/engine/key_cards.rs `on_key_cards_frame`), which panics inside a multi-byte character: a remote crash by any relay.
+- **Fix**: cut by characters, never by bytes, through core's one text-cut helper (`humanity_core::text::prefix`, BUG-340) since the merge it landed in; the branch's own `set_user_role` (src/relay/handlers/role_commands.rs) moved to it at the same merge.
+- **Held by**: `a_card_key_with_a_multibyte_character_does_not_crash` (src/engine/key_cards_tests.rs), and `tests/text_cut_lint.rs` for every byte cut.
+
+## BUG-383: the website named a successor listed under a refused name (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fourth review (finding 4, LOW; demo D1): chat-owner.js `nameSuccessor` skipped the honest-name check `handOver` has; the desktop refused both changes.
+- **Fix**: `nameSuccessor` refuses a member listed under a name an honest relay could not list, with the same words as the desktop.
+- **Held by**: owner-chat-web.test.js D1 and A2.
+
+## BUG-384: a hide that waited for an owner change could stay unsealed: a stop mid-hide, a new begin, no bound on the wait, a cleared report, a second held item (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fourth review (finding 5, LOW; round 4's S3): (a) the waiting hide moved its files before writing its note, so a stop between left files in `.waiting-*` with no note, never sealed nor listed (the seal pass kept them "as they are", the stray sweep skipped dot names); (b) a new begin replaced the pending change without sealing the hides that waited for it, and nothing bounded the wait; (c) `/reports-clear` could delete a report whose hide waited; (e) a stop between recording the held row and removing the waiting folder sealed it again as a second held item.
+- **Fix** (src/relay/storage/held.rs, handlers/owner.rs, storage/reports.rs): the note is written and synced under a staging name and the folder renamed into place before any file moves, all under the held-folder lock; the seal pass finishes a half-done hide from its note, removes a folder with no note and no file, identifies one with files from the messages and report still naming them, and counts the rest for every admin in Held copies in words; a new begin rolls the old change back through the common path, which seals waiting hides; a hide waiting longer than a change may last (`WAITING_CAP_MS`) is sealed at once and the change rolled back; `/reports-clear` keeps reports whose hide waits; the held item's package is the waiting hide's id, so sealing is idempotent.
+- **Held by**: `a_waiting_hide_stopped_mid_way_is_complete_and_finished_by_the_seal_pass`, `a_waiting_folder_with_no_note_is_removed_identified_or_told`, `a_new_begin_seals_the_hides_that_waited_for_the_change_it_replaces`, `a_hide_never_waits_longer_than_a_change_may_last`, `a_report_whose_hide_waits_is_not_cleared`, `sealing_a_waiting_hide_twice_makes_one_held_item` (src/relay/handlers/owner_tests.rs).
+
+## BUG-385: the test said to hold the header re-check under the lock never reached it (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fourth review (finding 7, LOW): `a_second_finish_and_headers_are_refused_while_one_builds` set `building` before sending the header, so the outer check refused it first; its note claiming the re-check was seen red was wrong.
+- **Fix**: a test step between `new_header_in`'s outer check and its lock (`BEFORE_HEADER_LOCK`) marks the change building there; the old test's note corrected.
+- **Held by**: `a_header_is_refused_when_a_finish_starts_between_its_check_and_the_lock` (src/relay/handlers/owner_tests.rs).
+
+## BUG-386: Export and Restore took a sibling post of the same report as the item chosen (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fourth review (finding 8, LOW; W7 partial): one report can hold several posts, each its own held item with the same report number, and the check compared the package and report alone.
+- **Fix**: the held list carries and shows each item's post author and time; core `held_seal::manifest_is` (with `Chosen`) and the website's `manifestIs` compare them too, refused with words otherwise.
+- **Held by**: `export_writes_one_zip_only_where_chosen_without_the_restore_key` (src/net/held_tests.rs), `the_apps_restore_round_trips_a_sealed_post` (src/relay/handlers/held_restore_tests.rs), held-chat-web.test.js "W7 ... a sibling post of the same report".
+
+## BUG-387: the four fingerprint groups the owner typed were copied off the owner's own screen, and the person named could not see their own fingerprint (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fifth review (H1, HIGH; M1 with it): the picker showed the listed key's whole fingerprint and its words told the owner to read it TO the person; the four groups typed were then compared with that same on-screen key, and no screen in either app showed a person their own fingerprint. So a relay listing its own key R as "Bea" passed with no grinding at all: the critic's demo (scratchpad critic5/fp-screen-demo.test.js) typed the groups off the owner's page and handed the role, and every part key, to R. A wrong set also read like an empty field, and a fresh draw (never the same set twice running) gave a grinder another try.
+- **Fix**: the comparison runs from the person's screen to the owner's. Every person sees their own key's fingerprint in words in Settings > Account (desktop `src/gui/pages/settings/own_fingerprint.rs`; website Settings page and the chat's Account and Identity menu, `web/shared/own-fingerprint.js`) and on the check prompt when named. The owner's picker lists members by name alone and names only four POSITIONS, drawn uniformly from the 15 sets for each ask; the listed key's fingerprint shows only once the typed groups matched (Check these groups). Sixteen characters that do not match (core `key_card::judge_at` `Mismatched`, the website's `judgeAt`) are a warning in words, logged, and refuse that key for the session (until the app restarts; until the tab is closed) with no fresh draw. The arithmetic, recomputed in key_card.rs, key-card.js, hide-and-keep.md and cryptography.md: a key ground to match g of the person's groups passes its one ask with probability C(g,4)/15.
+- **Held by**: `the_draw_is_uniform_over_all_fifteen_sets` and `a_wrong_set_is_not_an_empty_one` (crates/humanity-protocol/src/key_card.rs), `groups_read_from_beas_own_screen_refuse_the_relays_key` (src/engine/owner_tests.rs), `the_owners_page_shows_positions_only_and_a_mismatch_warns_and_blocks` (src/gui/pages/server_settings/owner_tests.rs), `settings_account_shows_a_person_their_own_fingerprint` and `the_check_prompt_shows_the_person_named_their_own_fingerprint` (src/gui/pages/settings/own_fingerprint.rs), the snapshot frame check `snapshot_owner_panel` (positions only), owner-chat-web.test.js "A. the demo" and "a person sees their own fingerprint", key-card-web.test.js.
+
+## BUG-388: a panic while carrying out an owner change left it named as carried out until a restart, and one panic ended the owner's minute for good (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fifth review (L1, LOW): `carrying` was set when the last acceptance arrived and cleared by one line after the carry-out, so a panic inside `owner_change_in` left it set: every later hide waited for a change that would never end and every begin was refused, silently, until a restart; and the owner's minute was one task, so a panic in one pass ended the loop and with it the bound on how long a hide waits.
+- **Fix**: `CarryingNow` (src/relay/handlers/owner.rs) clears `carrying` however the carry-out ends, logging a panic; the carry-out runs under `catch_unwind`, puts the held folder right at once as the next start would (`owner_handover_recover_in`) and answers like any failure; the minute's work is `minute`, each pass run by `minute_pass` on a blocking thread, where a panic ends that pass alone, logged.
+- **Held by**: `a_panic_in_the_carry_out_or_the_minute_leaves_nothing_stuck` (src/relay/handlers/owner_tests.rs).
+
+## BUG-389: a waiting folder with no note was paired with a post by searching the messages for a file name, then sealed as its copy and deleted (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fifth review (L2, LOW): `identify_unnoted` (src/relay/storage/held.rs) looked for a message whose words contained a file's name (`instr(content, name)`), so a stray file could be paired with the wrong post, sealed as that post's held copy, and its plaintext deleted.
+- **Fix**: `identify_unnoted` is deleted. A waiting folder with no note and a file in it is never matched by text and never deleted by the seal pass: it is counted and shown to every admin in Held copies in words ("Not sealed and not identified"), and named in the log. Only a folder with no file at all is removed (nothing in it to pair or lose).
+- **Held by**: `a_waiting_folder_with_no_note_is_counted_never_matched_or_deleted` (src/relay/handlers/owner_tests.rs).
+
+## BUG-390: sealing the hides that waited for an owner change, and hiding a post, sealed whole files on the async runtime (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's fifth review (L4, LOW): `seal_waiting` ran inline in the begin, cancel and decline handlers and in the minute loop, and `hide_and_keep_in` called `hide_post_in` inline, each reading and writing whole files on a runtime worker.
+- **Fix**: a begin, a cancel and a decline run on a blocking thread (as the finish and the acceptance already did), so a rollback's `seal_waiting` does too; the owner's minute runs on a blocking thread (`minute_pass`); `hide_and_keep_in` hides each post, and seals the copies that waited, on a blocking thread.
+- **Held by**: the relay test battery (`just verify-relay`); no test measures which thread ran it.
+
+## BUG-391: a server could show a person a fingerprint that was not theirs, in the app's own words: an unsigned check prompt and a plain chat line (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's sixth review (H1, HIGH; demos scratchpad critic6/forged-check-prompt.test.js and fake-own-fp-line.test.js). A relay sent an UNSIGNED `owner_change_check` whose `owner_name` read "Your fingerprint is <R's>... read them from here": both apps drew any check as the app's own "Check the held copies" prompt and checked its signature only on accept (src/engine/owner.rs `on_check`, web/chat/chat-owner.js `onCheck`), and drew the name as sent. Or it wrote the same words as an ordinary `system` frame, drawn as the app's own system line (web/chat/app.js, src/engine/frame_ws_poll.rs, sender "System"). Groups read off either passed the owner's check for R at all 15 sets. Withholding `owner_state` also left the website chat menu's own fingerprint empty, and the genuine prompt line (round 6) arrived only after the finish, teaching the shape the fake copied.
+- **Fix**: (a) a person's own fingerprint is shown ONLY in Settings > Account (and the website chat's Account and Identity menu), worked out from the device's own key at startup, never waiting on a frame (app.js calls `hosShowMyFingerprint` once it knows the key); the prompt draws none (`owner.check_my_fp` deleted). (b) Beside it: "Your fingerprint is only ever shown here. A fingerprint in a chat line, a message or a prompt is never yours to read out." (`owner.my_fp_only_here`, with the hint `owner.my_fp_hint`); the prompt and the owner's words say to open Settings > Account on your own device (`owner.check_where_fp`, `owner.fp_needed`). (c) A check prompt is drawn only after its signed action verifies on the device and its signer is the one owner the member list shows (net/owner.rs `gate_check`, chat-owner.js `takeCheck`); anything else draws nothing and is logged; one arriving before the member list waits for it; names pass the honest-name rule or show as a refused name; the relay's answer to an acceptance is no longer drawn in the prompt (the app's own words say whether the server took it, and the relay's words go to the chat as the server's). (d) Every line the relay writes into the chat (a `system` frame, also how its private lines arrive) is drawn as the server's words: under the sender "From this server" on the desktop (engine/friend_code.rs `server_line`), marked "From this server:" before the text on the website (app.js `addServerMessage`).
+- **Held by**: `a_check_prompt_is_drawn_only_when_signed_by_the_owner_this_device_knows`, `a_name_in_a_check_prompt_an_honest_relay_could_not_list_is_refused`, `the_check_prompt_shows_no_fingerprint_and_says_where_yours_is`, `a_check_that_comes_before_the_member_list_waits_for_it` (src/gui/pages/server_settings/owner_tests.rs), `settings_account_says_the_fingerprint_is_shown_only_here` (src/gui/pages/settings/own_fingerprint.rs), `a_line_the_server_wrote_is_marked_as_the_servers` (src/engine/friend_code_tests.rs); scripts/tests/owner-chat-web.test.js "H1." (the first demo), "H1 (d)." (the second), "H1 (a).", "H1 (c)." (two), "B." (five forged objects draw nothing).
+
+## BUG-392: a hide whose moderator's connection dropped lost its broadcast, its linked servers' delete, its signed record and the report's decision, and stopped counting as sealing while it still sealed (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's sixth review (M1, MEDIUM). `hide_and_keep_in` (src/relay/handlers/held.rs) awaited each post's seal on a blocking thread inline in the moderator's own frame handler: a dropped socket cancelled the await, the seal finished on its thread, and everything after it (the `Delete` broadcast, `federation_log::after_delete`, the signed record, the report's decision) was lost; `SealingNow` dropped with the future, so an owner change could begin while the copy was still being sealed; and `seal_package` ran before the held folder's lock with the owner's card read at the hide's start (storage/held.rs).
+- **Fix**: reports.rs runs the whole hide and the report's decision as one `tokio::spawn`ed task that owns `SealingNow` and finishes whatever happens to the moderator's connection (the caller awaits the task's handle, which cancels nothing when dropped); `hide_post_in` reads the recipients (`owner_card`) under the held folder's lock at sealing time and seals, puts in place and records under that one lock.
+- **Held by**: `a_hide_whose_caller_leaves_midway_still_finishes_everything` (the caller's future dropped mid-hide) and `a_seal_during_a_quick_change_uses_the_recipients_of_then` (src/relay/handlers/held_tests.rs).
+
+## BUG-393: a key whose typed groups did not match was asked again after a server switch on the desktop, and in a new tab on the website (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's sixth review (L1, LOW). `ReportUi::forget_server` (src/net/report.rs), run on every switch of server (src/gui/connections.rs), reset the whole owner state, refused keys included; the website kept them in sessionStorage, which a new tab does not share. Either gave a ground key a fresh draw, and the words ("until the app restarts", "until this tab is closed") promised more than was built.
+- **Fix**: the desktop keeps the refused keys per server and key (`net/owner.rs RefusedKeys`) across a switch until the app restarts; the website keeps them per server and key in localStorage for 24 hours, in every tab (chat-owner.js `saveRefused`); the website's words and hint say 24 hours (`chat_owner.fp_blocked`, `chat_owner.fp_check_hint`).
+- **Held by**: `a_refused_key_stays_refused_on_its_server_across_a_switch` (src/engine/owner_tests.rs); scripts/tests/owner-chat-web.test.js "L1.".
+
+## BUG-394: the owner's words allowed reading the groups over this server's own messages and calls, where a relay answers for the person (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's sixth review (L2, LOW): `owner.fp_compare` said "in person or on a call you trust", which does not rule out a direct message or call through this very server, where a relay listing its own key as "Bea" answers for her.
+- **Fix**: the words say "in person, or by a call or message that does not go through this server", and docs/design/hide-and-keep.md lists the channel among the residuals.
+- **Held by**: the words themselves (data/i18n/en.json `owner.fp_compare`); nothing in the software can tell which channel the owner used.
+
+## BUG-395: a panic inside a database closure poisoned the relay's writer connection, and every later write panicked until a restart (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's sixth review (L3, LOW): `Storage::with_conn` and `with_conn_mut` (src/relay/storage/mod.rs) took the writer connection with `lock().unwrap()`.
+- **Fix**: `Storage::lock_conn` (src/relay/storage/conn_lock.rs) takes the inner guard of a poisoned lock, rolls back a transaction the panicking closure left open, logs it and clears the poison; `with_conn`, `with_conn_mut` and the civilization stats use it.
+- **Held by**: `the_storage_lock_recovers_after_a_panic_inside_the_closure` (src/relay/storage/conn_lock.rs).
+
+## BUG-396: relay text still reached the app's own voice, on both apps: game admin errors, skill verify, friend codes, and a chat frame named "System" (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's seventh review (H1, HIGH; demos scratchpad critic7/web-unmarked-lines.test.js A, B, C). Website: a `system` frame `__game__:{"type":"game_admin_error"}` went app.js -> chat-game-admin.js `showGameAdminError` -> `addSystemMessage`, drawn unmarked for anyone; `__skill_verify_resp__` drew its note unmarked; `__skill_verify_req__` put relay text in a browser `confirm()`; `friend_code_response` and `friend_code_result` drew relay text in app lines and were taken unasked (the result followed the key it named). Desktop: the app's voice was the sender "System" with an empty key, the chat arm took `from` and `from_name` as sent and rows drew from the name alone, so `{"type":"chat","from":"","from_name":"System"}` was pixel-identical to an app line (and continued one, rows grouping by name); identify allowed the name "System"; `friend_code_response` was taken unasked.
+- **Fix**: (a) ONE app voice no network row can carry: desktop `ChatMessage::origin` (`LineOrigin::App`, set only by local code), drawn by `widgets/app_line.rs` with an accent bar and a painted diamond and no sender name; rows group by origin, key and name; the website's `addSystemMessage` draws `.app-line` (the same mark, messages.css) and `addServerMessage` `.server-line`, one line (`serverWords`). (b) The relay refuses the app's and the server's names at identify and on the bot route, in any case and through ASCII lookalikes (core `key_card::reserved_name`, `fold_name`; `honest_name` refuses them too; the website's twin in key-card.js), with words (`live_conns::RESERVED_NAME_REFUSED`). (c) Every relay string is the server's words: game admin errors (status line and chat), skill verify (the request a chat line with Endorse and Not now, no browser dialog), friend codes, upload refusals, the export failure; names in the app's own lines go through `shownName`; a friend-code answer is taken only as the one answer to a request or redeem sent in the last two minutes, else dropped and logged, on both apps.
+- **Held by**: scripts/tests/server-voice-web.test.js (demos A, B, C, the marks, friend codes), `the_app_line_carries_a_mark_no_network_row_can` and `only_local_code_writes_the_apps_voice` (src/gui/pages/chat/app_voice_tests.rs, the page drawn headlessly and its shapes read), `a_friend_code_answer_nobody_asked_for_is_dropped` (src/engine/friend_code_tests.rs), `identify_refuses_the_apps_and_servers_names_with_words` (src/relay/handlers/reserved_names_tests.rs, the real relay), `the_apps_and_servers_names_are_nobodys` (key_card.rs) and key-card-web.test.js; the GPU snapshot `chat_app_voice`.
+
+## BUG-397: the website's check prompt drew relay free text through an unsigned item id, and the website could never check an owner change apart from the server that served it (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's seventh review (M1, MEDIUM: chat-owner.js drew `items[].id` through `owner.check_item_failed`, even on the genuine owner's change, demos G1 and G2; M2, MEDIUM, structural: the website is served by the same server, so a dishonest one can send a page that shows the wrong fingerprint or a `judgeAt` that always matches); and L4 (LOW): `owner.check_answer_ok` and `_refused` said the server's words were in the chat when it sent none.
+- **Fix**: owner changes (a handover, a naming or removal of a successor, and a recipient's check and acceptance) happen only in the desktop app, a deliberate parity exception written down in docs/design/hide-and-keep.md and docs/design/key-cards.md. The website keeps Claim ownership (the relay's answer marked) and read-only views in Held copies (who the owner is, the successor, the owner log, and for the owner, in words, why the controls are not there: `chat_owner.desktop_only`); an `owner_change_check` draws one line per round in the app's own words that the desktop app does the check (`chat_owner.check_desktop`), none of the frame, and sends nothing; its own fingerprint display says it is only as trustworthy as the server that sent the page. The words of L4 now say "If it said why". The website parts of BUG-390 to BUG-393 (its pickers, check prompt and refused-key store) are withdrawn with it.
+- **Held by**: scripts/tests/owner-chat-web.test.js (rewritten: G1 and G2 as tests, the owner's and an admin's read-only views, nothing signed, begun or fetched, the docs).
+
+## BUG-398: a held copy's destroy, and the expiry sweeps, parked a server worker for as long as the longest seal (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's seventh review (L1, LOW): the held folder's lock is held across `seal_package`, and `held_destroy_in` (handlers/held.rs) and the expiry sweeps (server_settings_update.rs, relay mod.rs's periodic pass) took it synchronously on the async runtime.
+- **Fix**: each runs on `spawn_blocking`.
+- **Held by**: `a_destroy_during_a_long_seal_does_not_park_the_runtime` (src/relay/handlers/held_round8_tests.rs: on a one-thread runtime a 50 ms timer fires on time while the destroy waits for the lock).
+
+## BUG-399: a shutdown mid-hide lost the hide's signed record, the report's decision, the broadcast and the linked servers' delete (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's seventh review (L2, LOW): the hide runs as a spawned task (BUG-392), which a stopping runtime cancels at its next await (handlers/held.rs, reports.rs).
+- **Fix**: the owner change slot counts hide tasks (`hiding`, owner.rs `HidingNow`), and graceful shutdown waits for them (`wait_for_hides`, up to 120 s, logged); at start, `complete_unfinished_hides` records the decision of every held post whose report is still open, under the moderator who held it, with words saying it was completed at this start (and that the signed record was lost, when it was: it cannot be signed again), and queues the linked servers' delete again.
+- **Held by**: `a_shutdown_waits_for_a_hide_and_a_start_completes_one_cut_short` (src/relay/handlers/held_round8_tests.rs).
+
+## BUG-400: two moderators deciding one words-only report at once made two held items for one post (FIXED 2026-11-21, found 2026-11-21)
+
+**Found by** the owner branch's seventh review (L3, LOW): `hide_post_in` read the post (`post_for_report`) before taking the held folder's lock, so both hides read it and each sealed a copy (a post with files failed the second seal instead).
+- **Fix**: `hide_post_in` and `hide_post_waiting_in` read the post under the lock, so the second finds it gone and does nothing.
+- **Held by**: `two_moderators_deciding_one_report_at_once_make_one_held_item` (src/relay/handlers/held_round8_tests.rs).

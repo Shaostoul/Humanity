@@ -182,20 +182,29 @@ compiling, so even a 1 GB box provisions in minutes), and
 `scripts/node.env.example` is the three-line config you edit for your own
 domain. See "Production Setup" below.
 
-## Becoming the first admin (fresh server)
+## Becoming the server's owner (claim code)
 
-When the relay starts with NO admin configured, it prints a one-time claim
-code on its console and saves it to `data/owner-claim-code.txt` beside the
-database. Connect with the app or web chat and type:
+While no one holds the server's OWNER role, the relay prints a one-time claim
+code to its log (`journalctl -u humanity-relay` on a systemd install) and saves
+it to `data/owner-claim-code.txt` beside the database. Only someone who can
+read the server machine can see it: no app, page or route ever shows it, not
+even to an admin. Sign in with the desktop app or the website once (that sends
+your key card to the server), then paste the code into **Claim ownership**
+(the desktop app's Server Settings; on the website, the line in the chat or the
+command palette), or type in chat:
 
 ```
 /claim <code>
 ```
 
-You are now the server's first admin (the code burns on use). Grant further
-admins and moderators in-app or with `/mod <name>`. Setting `ADMIN_KEYS` in
-the environment (comma-separated Dilithium3 public keys) still works and
-skips the claim step - useful for scripted deployments.
+You are now the server's owner, which counts as an admin (the code burns on
+use and the file is deleted). The owner is the one person every kept copy of a
+reported post is sealed to (hide and keep), and nobody can ban, demote or erase
+the owner. The owner can later hand the role to another member, and name one
+successor, from Server Settings. Grant further admins and moderators in-app or
+with `/mod <name>`. Setting `ADMIN_KEYS` in the environment (comma-separated
+Dilithium3 public keys) still makes those keys admins at startup, useful for
+scripted deployments; it never makes an owner.
 
 ## Backups and restore
 

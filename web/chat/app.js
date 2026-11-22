@@ -607,6 +607,9 @@ async function connect(how) {
     return;
   }
   myKey = myIdentity.publicKeyHex; // now the Dilithium3 public-key hex
+  // My own fingerprint in the Account and Identity menu, worked out from my own key now, never
+  // waiting on a frame from the server (chat-owner.js; the owner branch's sixth review, H1 (a)).
+  if (typeof window.hosShowMyFingerprint === 'function') window.hosShowMyFingerprint();
 
   // Never my recovery phrase (step F, chat-warnings.js): my name goes out with
   // every message and every contact request, so a name made of the phrase's
@@ -1856,7 +1859,8 @@ async function handleMessage(msg) {
             case 'game_admin_error':
             // A done-and-said from a game-admin action (releasing a plot): the same status line.
             case 'game_admin_notice':
-              if (typeof showGameAdminError === 'function') showGameAdminError(game.message || 'Game admin error.');
+              // The relay's words, marked as the server's (chat-game-admin.js; seventh review, H1 (c)).
+              if (typeof showGameAdminError === 'function') showGameAdminError(game.message);
               else console.warn(game.type + ':', game.message);
               break;
             default:
@@ -1901,7 +1905,10 @@ async function handleMessage(msg) {
       // chat message, which is preserved + shown there.
       const inPrivateView = !!window.activeP2pGroup
         || (typeof activeDmPartner !== 'undefined' && !!activeDmPartner);
-      if (!handledAdminFeedback && !inPrivateView) addSystemMessage(msg.message);
+      // The server's own words, drawn marked as the server's, never in the app's own voice (the
+      // owner branch's sixth review, H1 (d): a relay wrote "Your fingerprint is <another key's>"
+      // into the chat as a system line). Its private lines arrive here too.
+      if (!handledAdminFeedback && !inPrivateView) addServerMessage(msg.message);
       break;
     case 'thread_response': {
       // Server sent back the messages in a thread. Pass to chat-messages.js renderer.
@@ -1988,10 +1995,65 @@ async function handleMessage(msg) {
   }
 }
 
+// ── A /claim typed in the chat (2026-11-20, the owner review's finding 6) ──
+//
+// The claim code from the server's own log makes its bearer the server's owner, so a line carrying
+// it must never reach a person. A line whose first word, once zero-width and other format
+// characters are removed and the line trimmed, starts with /claim (any case, followed by a space, a
+// colon, the code right after, or nothing) is never a message (the second review, W5): a code of
+// letters, digits and dashes alone goes to the server alone as {"type":"owner_claim","code","typed":true}
+// (the relay answers in the chat too), whatever room, direct message or group is open; `/claim`
+// alone opens Claim ownership (chat-owner.js); anything else shows the claim help. The twin of the
+// desktop's net/owner.rs typed_claim. chat-ui.js's composer and its sendComposedContent,
+// chat-groups-p2p.js's composer, and the edit path (chat-messages.js) each ask takeTypedClaim FIRST,
+// before any routing, and so does this one. Tested by scripts/tests/claim-typed-web.test.js.
+
+/** Zero-width and other format characters (Unicode Cf), which a pasted line can carry unseen. */
+const CLAIM_INVISIBLE = /[\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]/g;
+
+/** What a line starting with /claim is: { code } for a well-formed claim (the code may be empty),
+ *  { help: true } for any other line starting with /claim, or null for every other line. */
+function typedClaim(line) {
+  const s = String(line == null ? '' : line).replace(CLAIM_INVISIBLE, '').trim();
+  if (s.slice(0, 6).toLowerCase() !== '/claim') return null;
+  const code = s.slice(6).replace(/^[\s:]+/, '').trim();
+  return /^[A-Za-z0-9-]*$/.test(code) ? { code } : { help: true };
+}
+
+/** The code of a typed /claim line, or null for any other line (a malformed one included). */
+function typedClaimCode(line) {
+  const c = typedClaim(line);
+  return c && !c.help ? c.code : null;
+}
+
+/** When `line` is a typed /claim: send it to the server alone (or open Claim ownership for a bare
+ *  /claim) and answer true, so the caller sends nothing else. False for every other line. */
+function takeTypedClaim(line) {
+  const c = typedClaim(line);
+  if (c === null) return false;
+  if (c.help) {
+    addSystemMessage(window.i18n ? i18n.t('owner.claim_help') : '');
+    return true;
+  }
+  const code = c.code;
+  if (!code && typeof window.openOwnerClaim === 'function') {
+    window.openOwnerClaim();
+    return true;
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'owner_claim', code, typed: true }));
+  else addSystemMessage(window.i18n ? i18n.t('held.not_connected') : '');
+  return true;
+}
+
 async function sendMessage() {
   const input = document.getElementById('msg-input');
   let content = input.value.trim();
   if (!content) return;
+  if (takeTypedClaim(content)) {
+    input.value = '';
+    input.style.height = 'auto';
+    return;
+  }
 
   // ── Scratch Pad: handle locally, never send to server ──
   if (isScratchPad()) {
@@ -2122,34 +2184,65 @@ function handleChannelAdminFeedback(message) {
 }
 
 /**
- * Show a toast notification asking the local user to approve a peer's skill endorsement request.
- * Sends a skill_verify_response back to the relay if approved.
+ * A peer's request, relayed by the server, that I endorse their skill. Drawn in the chat as the
+ * SERVER'S words (marked "From this server:", `.server-line`), with a note field, Endorse and Not
+ * now: never a browser confirm() or prompt() holding the relay's text, which drew it in the
+ * browser's own dialog (the owner branch's seventh review, H1 (c)). Endorse sends a
+ * skill_verify_response back through the relay; Not now sends nothing.
  * @param {{from_key, from_name, skill_id, level}} d
  */
-async function handleSkillVerifyRequest(d) {
-  const msg = `${d.from_name || 'A peer'} is asking to verify your "${d.skill_id}" skill (level ${d.level}). Approve?`;
-  if (!confirm(msg)) return;
-  const note = prompt('Optional note for the endorsement:', 'Verified!') ?? 'Verified';
-  // Never my recovery phrase (step F, chat-warnings.js).
-  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(note, 'Your endorsement was not sent.')) return;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'skill_verify_response',
-      skill_id: d.skill_id,
-      to_key: d.from_key,
-      approved: true,
-      note,
-    }));
-  }
+function handleSkillVerifyRequest(d) {
+  const el = document.createElement('div');
+  el.className = 'message system server-line skill-verify';
+  const words = document.createElement('div');
+  words.textContent = '• ' + i18n.t('chat.from_server', { text: serverWords(i18n.t('skill_verify.request', {
+    name: String(d.from_name == null ? '' : d.from_name), skill: String(d.skill_id == null ? '' : d.skill_id), level: String(d.level == null ? '' : d.level),
+  })) });
+  el.appendChild(words);
+  const note = document.createElement('input');
+  note.type = 'text';
+  note.maxLength = 200;
+  note.className = 'skill-verify-note';
+  note.setAttribute('aria-label', i18n.t('skill_verify.note_label'));
+  note.placeholder = i18n.t('skill_verify.note_label');
+  i18n.hint(note, 'skill_verify.note_hint');
+  el.appendChild(note);
+  const status = document.createElement('div');
+  const done = (key) => { endorse.disabled = true; later.disabled = true; note.disabled = true; status.textContent = i18n.t(key); };
+  const endorse = document.createElement('button');
+  endorse.type = 'button';
+  endorse.className = 'vr-btn';
+  endorse.textContent = i18n.t('skill_verify.endorse');
+  i18n.hint(endorse, 'skill_verify.endorse_hint');
+  endorse.addEventListener('click', async () => {
+    const text = note.value.trim();
+    // Never my recovery phrase (step F, chat-warnings.js).
+    if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text, i18n.t('skill_verify.not_sent'))) return;
+    if (!(ws && ws.readyState === WebSocket.OPEN)) { status.textContent = i18n.t('skill_verify.not_sent'); return; }
+    ws.send(JSON.stringify({ type: 'skill_verify_response', skill_id: d.skill_id, to_key: d.from_key, approved: true, note: text }));
+    done('skill_verify.sent');
+  });
+  const later = document.createElement('button');
+  later.type = 'button';
+  later.className = 'vr-btn';
+  later.textContent = i18n.t('skill_verify.decline');
+  i18n.hint(later, 'skill_verify.decline_hint');
+  later.addEventListener('click', () => done('skill_verify.declined'));
+  el.appendChild(endorse);
+  el.appendChild(later);
+  el.appendChild(status);
+  appendMessage(el);
 }
 
 /**
- * Show a system message when a peer approves our skill endorsement request.
+ * A peer endorsed my skill: the relay's words, marked as the server's (seventh review, H1 (c)).
  * @param {{from_name, skill_id, approved, note}} d
  */
 function handleSkillVerifyResponse(d) {
-  if (d.approved) {
-    addSystemMessage(`✅ ${d.from_name || 'A peer'} endorsed your "${d.skill_id}" skill: "${d.note || 'Verified'}"`);
+  if (d && d.approved === true) {
+    addServerMessage(i18n.t('skill_verify.endorsed', {
+      name: String(d.from_name == null ? '' : d.from_name), skill: String(d.skill_id == null ? '' : d.skill_id), note: String(d.note == null ? '' : d.note),
+    }));
   }
 }
 
@@ -2296,7 +2389,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 
   // Action buttons: react, reply, edit (own), pin (admin/mod), delete (own).
   const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
-  const isStaff = myRole === 'admin' || myRole === 'mod';
+  const isStaff = HosRoles.isStaffRole(myRole); // the owner too (/shared/roles.js)
   // A P2P group's row (opts.privateRow) is encrypted end to end: no reaction, edit, server pin
   // or delete, each of which sends the message's text or who reacted to it to the server
   // (BUG-178, 2026-10-10). Nor Pin for me (the batch review, 2026-10-10): it kept the
@@ -2567,7 +2660,17 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   return el;
 }
 
-function addSystemMessage(text) {
+/**
+ * A line in the APP'S OWN VOICE: words this page wrote, never text the relay sent (the owner
+ * branch's seventh review, H1 (a), 2026-11-21). Drawn with the app's mark (the `.app-line` class:
+ * an accent bar and a diamond, web/chat/messages.css), which addServerMessage's lines never carry.
+ * The desktop app's twin is src/gui/widgets/app_line.rs. Text from the network goes through
+ * addServerMessage instead, whatever route it came by.
+ */
+function addSystemMessage(text) { drawSystemLine(text, 'app-line'); }
+
+/** One system line, routed as a notice or a line, carrying `kind` ('app-line' or 'server-line'). */
+function drawSystemLine(text, kind) {
   // Suppress an immediately-repeated identical banner (a reconnect storm against the
   // relay's per-IP rate limit would otherwise print the same line again and again).
   if (text === lastSystemMessageText) return;
@@ -2576,41 +2679,69 @@ function addSystemMessage(text) {
   const lower = text.toLowerCase();
   // Link codes, ephemeral yellow, 5 minutes (matches server expiry)
   if (lower.includes('link code:')) {
-    return addNotice(text, 'yellow', 300);
+    return addNotice(text, 'yellow', 300, kind);
   }
   // Invite codes, ephemeral yellow, 24h display for 60s (code lasts 24h, notice fades)
   if (lower.includes('invite code:')) {
-    return addNotice(text, 'yellow', 120);
+    return addNotice(text, 'yellow', 120, kind);
   }
   // Rate limiting / slow mode / connection throttle, ephemeral cyan, 15s. "Too many
   // connection attempts" is the relay's per-IP identify throttle -- make it a transient
   // notice, not a permanent message that piles up during a reconnect storm.
   if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')
       || lower.includes('too many connection attempts') || lower.includes('try again in a minute')) {
-    return addNotice(text, 'cyan', 15);
+    return addNotice(text, 'cyan', 15, kind);
   }
   // Kick/ban/mute, important red, 30s
   if (lower.includes('kicked') || lower.includes('banned') || lower.includes('muted')) {
-    return addNotice(text, 'red', 30);
+    return addNotice(text, 'red', 30, kind);
   }
   // Lockdown, red, 30s
   if (lower.includes('lockdown')) {
-    return addNotice(text, 'red', 30);
+    return addNotice(text, 'red', 30, kind);
   }
   // Pin actions, green, 20s
   if (lower.includes('pinned a message')) {
-    return addNotice(text, 'green', 20);
+    return addNotice(text, 'green', 20, kind);
   }
   // Verified/donor, green, 20s
   if (lower.includes('verified') || lower.includes('donor')) {
-    return addNotice(text, 'green', 20);
+    return addNotice(text, 'green', 20, kind);
   }
   // Everything else, regular system message
   const el = document.createElement('div');
-  el.className = 'message system';
+  el.className = 'message system ' + kind;
   el.textContent = `• ${text}`;
   appendMessage(el);
 }
+
+/**
+ * A line the SERVER wrote (a `system` frame, which is also how its private lines arrive), drawn
+ * marked "From this server:" before anything it wrote, so it never reads as the app's own words
+ * (the owner branch's sixth review, H1 (d), 2026-11-21). The desktop app's twin is
+ * src/engine/friend_code.rs `server_line`. Routed like any system line (a notice or a line).
+ */
+function addServerMessage(text) {
+  // No unmarked fallback: without the words (i18n.js not loaded) this throws and draws nothing,
+  // rather than drawing the server's text in the app's own voice. Its line breaks and runs of
+  // space are one space, so nothing it wrote can start a line of its own below the mark, and the
+  // line never carries the app's mark (`.server-line`, never `.app-line`: the seventh review, H1 (a)).
+  drawSystemLine(i18n.t('chat.from_server', { text: serverWords(text) }), 'server-line');
+}
+
+/**
+ * A name from the network, for the app's own words ("Ada hung up"): shown as sent only when an
+ * honest relay could have listed it (/shared/key-card.js honestName: 1 to 24 letters, digits, _ or
+ * -, and none of the app's or the server's own names), else the refused-name words, so no relay can
+ * write a sentence into the app's voice through a name (the owner branch's seventh review, H1 (c)).
+ */
+function shownName(name) {
+  const K = window.HosKeyCard;
+  return K && typeof K.honestName === 'function' && K.honestName(name) ? String(name) : i18n.t('owner.name_refused');
+}
+
+/** Text the server wrote, as one line: every run of white space (a line break included) one space. */
+function serverWords(text) { return String(text == null ? '' : text).replace(/\s+/g, ' ').trim(); }
 
 function formatCountdown(secs) {
   if (secs >= 60) {
@@ -2627,9 +2758,10 @@ function formatCountdown(secs) {
  * @param {string} color - red|yellow|green|blue|cyan|magenta
  * @param {number} seconds - Auto-dismiss after N seconds
  */
-function addNotice(text, color, seconds) {
+function addNotice(text, color, seconds, kind) {
   const el = document.createElement('div');
-  el.className = `notice notice-${color}`;
+  // The app's own notice carries its mark; the server's (drawSystemLine 'server-line') never does.
+  el.className = `notice notice-${color} ${kind === 'server-line' ? 'server-line' : 'app-line'}`;
   const textSpan = document.createElement('span');
   textSpan.className = 'notice-text';
   textSpan.textContent = text;

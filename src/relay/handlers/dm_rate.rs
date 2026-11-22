@@ -186,10 +186,10 @@ pub(crate) fn account_age(state: &RelayState, key: &str) -> u64 {
 /// `dm_put` always had; the owner is an admin everywhere else in the relay). Verified, donor,
 /// moderator, admin and owner accounts skip the new-account rule.
 pub fn allow(state: &Arc<RelayState>, sender: &str, role: &str) -> bool {
-    if matches!(role, "admin" | "owner") {
+    if crate::relay::handlers::msg_handlers::is_admin_role(role) {
         return true;
     }
-    let trusted = matches!(role, "verified" | "donor" | "mod" | "admin" | "owner");
+    let trusted = crate::relay::handlers::msg_handlers::is_staff_role(role) || matches!(role, "verified" | "donor");
     match state.dm_rate.take_at(sender, state.dm_rate.now(), trusted, || account_age(state, sender)) {
         Ok(()) => true,
         Err(wait) => {

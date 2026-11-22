@@ -219,11 +219,23 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
     let mut deferred_avatars: Vec<crate::gui::widgets::row::DeferredAvatar> = Vec::new();
 
     for msg in &filtered {
-        let show_header = msg.sender_name != last_sender;
+        // The app's own voice (origin set only by local code): its mark, no name, none of a member's
+        // row (widgets/app_line.rs; the owner branch's seventh review, H1 (a)). Any other row is
+        // someone's words under the name it claims, and a row only continues the one above when
+        // both came the same way from the same key under the same name, so a frame named "System"
+        // never reads as the line before it.
+        if msg.origin == crate::gui::LineOrigin::App {
+            sender_parity = !sender_parity;
+            last_sender = "app".to_string();
+            crate::gui::widgets::app_line::draw(ui, theme, &msg.content, if sender_parity { bg_even } else { bg_odd });
+            continue;
+        }
+        let sender_id = format!("{:?}\u{1f}{}\u{1f}{}", msg.origin, msg.sender_key, msg.sender_name);
+        let show_header = sender_id != last_sender;
         if show_header {
             sender_parity = !sender_parity;
         }
-        last_sender = msg.sender_name.clone();
+        last_sender = sender_id;
 
         let row_bg = if sender_parity { bg_even } else { bg_odd };
         let icon_color = name_color(&msg.sender_name);
@@ -497,7 +509,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
                 .find(|u| u.public_key == state.profile_public_key)
                 .map(|u| u.role.clone())
                 .unwrap_or_default();
-            let is_admin_or_mod = my_role == "admin" || my_role == "mod" || my_role == "moderator";
+            let is_admin_or_mod = crate::net::roles::is_staff_role(&my_role); // the owner too (BUG-332)
             row_resp.response.context_menu(|ui| {
                 ui.set_min_width(160.0);
                 // Plain text labels — leading emoji glyphs were
@@ -996,7 +1008,10 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
         pending_reactions.clear();
         pending_deletes.clear();
     }
-    if let Some((ts, new_content)) = pending_edit_save.take().filter(|(_, c)| !crate::engine::warnings::guard_stops(state, &[c])) {
+    // An edit that is a `/claim` line is never sent to the room: the claim goes to the server alone,
+    // or the claim help shows (the second review, W5), and the message stays as it was.
+    let pending_edit_save = pending_edit_save.filter(|(_, c)| !crate::engine::owner::typed_claim(state, c));
+    if let Some((ts, new_content)) = pending_edit_save.filter(|(_, c)| !crate::engine::warnings::guard_stops(state, &[c])) {
         if let Some(ref client) = state.ws_client {
             if client.is_connected() {
                 let msg = serde_json::json!({
@@ -1104,3 +1119,7 @@ pub(crate) fn draw_full_timestamp(ctx: &egui::Context, theme: &Theme, id: egui::
         .text(Words::new(full_ts, egui::FontId::monospace(theme.small_size), theme.text_secondary()))
         .paint(ctx, id, crate::gui::layers::Layer::Tooltip, Place::At(right_center, egui::Align2::RIGHT_CENTER))
 }
+
+#[cfg(test)]
+#[path = "app_voice_tests.rs"]
+mod app_voice_tests;

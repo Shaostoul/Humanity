@@ -653,22 +653,6 @@ pub fn validate_environment() -> (String, std::net::SocketAddr) {
     (db_path, listen_addr)
 }
 
-/// Where a fresh server with no admin keeps its first-admin claim code (`run_relay`), beside its
-/// database. Whoever reads it can make themselves the admin with `/claim <code>`, so it is for the
-/// host's eyes alone: the data-file routes serve nothing under data/ to anyone but an admin
-/// (BUG-206), and the website's copy of data/ takes only JSON (scripts/sync-web-root.sh).
-pub const CLAIM_CODE_FILE: &str = "data/owner-claim-code.txt";
-
-/// Write the claim code file ([`CLAIM_CODE_FILE`]) for `code`.
-pub fn write_claim_code_file(code: &str) -> std::io::Result<()> {
-    std::fs::write(
-        CLAIM_CODE_FILE,
-        format!(
-            "HumanityOS server claim code: {code}\nThis server has no admin yet. In the app or web chat, type:\n  /claim {code}\nto become the first admin. The code burns on use and this file is deleted.\n"
-        ),
-    )
-}
-
 /// Run the relay server. Contains all startup logic from main().
 /// Call after initializing logging and validating the environment.
 /// Boot a relay on an explicit database + an already-bound listener, with
@@ -789,7 +773,7 @@ pub async fn run_relay() {
         let owner = owner.trim().to_string();
         if !owner.is_empty() {
             let current = db.get_role(&owner).unwrap_or_default();
-            if current != "admin" && current != "owner" {
+            if !crate::relay::handlers::msg_handlers::is_admin_role(&current) {
                 match db.set_role(&owner, "admin") {
                     Ok(()) => tracing::info!(
                         "Owner key {}... granted admin on this node",
@@ -825,7 +809,8 @@ pub async fn run_relay() {
     if let Ok(admin_keys) = std::env::var("ADMIN_KEYS") {
         for key in admin_keys.split(',') {
             let key = key.trim();
-            if !key.is_empty() {
+            // The owner already counts as an admin, and the role guard refuses to change it.
+            if !key.is_empty() && !db.is_owner(key) {
                 if let Err(e) = db.set_role(key, "admin") {
                     tracing::error!("Failed to set admin for {key}: {e}");
                 } else {
@@ -885,38 +870,40 @@ pub async fn run_relay() {
     let mut relay_state = RelayState::new(db);
     relay_state.init_vapid_key();
 
-    // First-admin claim code (v0.936, in-app-ops gap #1): a fresh server with
-    // ZERO admins (and no ADMIN_KEYS above) prints a one-time code to the
-    // console and writes it beside the DB. Whoever controls the host reads it
-    // and types `/claim <code>` in chat to become the first admin - the same
-    // trust anchor as editing .env (host access), with no hex-copying, no env
-    // editing, and no restart. Deliberately NOT first-user-wins: on a public
-    // relay the first stranger to connect would win the server.
-    match relay_state.db.admin_count() {
-        Ok(0) => {
-            use rand::Rng;
-            // 64 bits from the CSPRNG as 16 hex chars: unguessable over the
-            // rate-limited chat path, short enough to type from the console.
-            let code = format!("{:016X}", rand::rng().random::<u64>());
-            let path = CLAIM_CODE_FILE;
-            if let Err(e) = write_claim_code_file(&code) {
-                tracing::warn!("Could not write {path}: {e} (the console line below still works)");
-            }
-            tracing::info!("==========================================================");
-            tracing::info!("SERVER OWNER SETUP: this server has no admin yet.");
-            tracing::info!("Type this in chat to claim it:   /claim {code}");
-            tracing::info!("(also saved to {path}; the code burns on first use)");
-            tracing::info!("==========================================================");
-            *relay_state.claim_code.get_mut() = Some(code);
-        }
-        Ok(_) => {
-            // Owned server: make sure no stale code file lingers from before.
-            let _ = std::fs::remove_file(CLAIM_CODE_FILE);
-        }
-        Err(e) => tracing::error!("admin_count failed ({e}); claim-code bootstrap skipped"),
-    }
+    // A handover of the owner role a stop interrupted is finished or undone first (storage/
+    // owner_handover.rs), then the owner claim code (2026-11-20, handlers/owner.rs): while no key
+    // holds the owner role, a one-time code goes to this log and beside the DB, never to a client.
+    // Whoever controls the host reads it and pastes it into Claim ownership (or types `/claim
+    // <code>`) to become the owner. Deliberately NOT first-user-wins: on a public relay the first
+    // stranger to connect would win the server.
+    relay_state.db.owner_handover_recover_in(storage::files::Folders::live());
+    // A hidden post whose sealed copy waited for an owner change a stop interrupted (no change
+    // survives a restart) is sealed now (the owner branch's third review, S3).
+    handlers::owner::seal_waiting(&relay_state, storage::files::Folders::live());
+    handlers::owner::mint_claim_code(&mut relay_state);
 
     let state = Arc::new(relay_state);
+    // A hide and keep a stop cut short (its copy sealed, its post out of view, its decision not
+    // recorded) is completed, or said in words where it cannot be (the seventh review, L2).
+    handlers::held::complete_unfinished_hides(&state).await;
+
+    // An owner change past its window is rolled back, its re-wrapped copies removed and the owner
+    // told (handlers/owner.rs `expire_pending`, the owner review's finding 5).
+    {
+        let owner_state = state.clone();
+        // Each pass (handlers/owner.rs `minute`): a change past its window rolled back; a hide that
+        // has waited past a change's whole life sealed, the change rolled back if it must be (the
+        // fourth review's finding 5b: the wait has a bound); and, as a safety net, any hide still
+        // waiting with no change in flight (S3). On a blocking thread, and a panic in one pass ends
+        // only that pass (the fifth review's L1 and L4: `minute_pass`).
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(tokio::time::Duration::from_secs(60));
+            loop {
+                tick.tick().await;
+                handlers::owner::minute_pass(owner_state.clone(), storage::files::OwnedFolders::of(storage::files::Folders::live())).await;
+            }
+        });
+    }
 
     // The continuous backup's shipper: always running, idle while backup is off, so turning it
     // on in the app needs no restart.
@@ -1150,7 +1137,12 @@ pub async fn run_relay() {
                 // The expiry pass (storage/expiry.rs: the DM mailbox, public
                 // messages past the retention window, erased accounts) BEFORE
                 // the backup runs, so nothing expired rides into the backup.
-                sweep_state.db.run_expiry_sweeps();
+                // On a blocking thread: its held-copy sweep takes the held folder's lock, which a
+                // hide holds across its whole seal (the owner branch's seventh review, L1).
+                let sweeper = sweep_state.clone();
+                if let Err(e) = tokio::task::spawn_blocking(move || sweeper.db.run_expiry_sweeps()).await {
+                    tracing::error!("Expiry sweeps stopped ({e})");
+                }
 
                 // Ensure backup directory exists.
                 if let Err(e) = std::fs::create_dir_all(&backup_dir) {
@@ -1412,6 +1404,8 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // and the public counts with no details.
         .route("/api/held/{id}/restore", post(crate::relay::handlers::held::api_restore_finish))
         .route("/api/held/{id}/{part}", get(crate::relay::handlers::held::api_export_part).put(crate::relay::handlers::held::api_restore_piece))
+        .route("/api/held/{id}/{part}/header", get(crate::relay::handlers::owner::api_current_header).put(crate::relay::handlers::owner::api_new_header))
+        .route("/api/held/{id}/{part}/rewrapped", get(crate::relay::handlers::owner::accept::api_rewrapped_header))
         .route("/api/held-count", get(crate::relay::handlers::held::api_count))
         .route("/api/assets", get(api::get_assets).post(api::create_asset))
         .route("/api/assets/{id}", delete(api::delete_asset))
@@ -1607,6 +1601,10 @@ async fn shutdown_signal(state: Arc<RelayState>) {
         _ = terminate => {},
     }
 
+    // A hide and keep in flight finishes first: its signed record, its decision, its broadcast and
+    // its linked servers' delete (the owner branch's seventh review, L2).
+    handlers::owner::wait_for_hides(&state, std::time::Duration::from_secs(120)).await;
+
     // Only when the game is actually running. With `game` disabled we never
     // restored the snapshot, so the in-memory world is an empty default — saving
     // it would OVERWRITE the persisted world (one fixed key, last write wins)
@@ -1747,3 +1745,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>, client_ip: Str
 // split, 2026-10-31, docs/design/crate-split.md): src/relay/crossing_tests/mod.rs.
 #[cfg(test)]
 mod crossing_tests;
+
+// BUG-332's sweep: the owner passes every role check an admin passes, across the relay.
+#[cfg(test)]
+mod owner_sweep_tests;

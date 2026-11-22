@@ -279,6 +279,13 @@ impl Storage {
     /// page's members-only one, storage/files.rs `Folders`), so a test can erase files in
     /// folders of its own (2026-10-11) rather than in the checkout's data folder.
     pub fn delete_account_in(&self, key: &str, name: &str, folders: super::files::Folders) -> Vec<(String, usize)> {
+        // The floor under the erase handlers' own refusal (handlers/account_erase.rs): the server's
+        // owner is never erased, so the owner's role row is never deleted here (the owner review's
+        // finding 3, "no write may change an owner row"); the role is handed over first.
+        if self.is_owner(key) {
+            tracing::error!("Account erase refused at the storage floor: the key holds the owner role");
+            return vec![("owner_FAILED".to_string(), 1)];
+        }
         // Upload files first (need the rows to find the paths).
         let upload_files: Vec<String> = self
             .with_read_conn(|conn| {

@@ -667,8 +667,7 @@ function reportsMyRole() {
 }
 
 function reportsAmStaff() {
-  const r = reportsMyRole();
-  return r === 'admin' || r === 'mod';
+  return HosRoles.isStaffRole(reportsMyRole()); // the owner too (/shared/roles.js)
 }
 
 /** Ask the relay for one list (`reports_list`). */

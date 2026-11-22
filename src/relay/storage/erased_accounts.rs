@@ -133,6 +133,9 @@ pub enum LinkRedeemed {
     NoSuchCode,
     /// This relay remembers the key erasing its account here: nothing written, the code kept.
     ErasedHere,
+    /// The key holds the owner role (the second review, R5): never bound under another name;
+    /// nothing written, the code kept.
+    OwnerKey,
 }
 
 impl Storage {
@@ -233,6 +236,9 @@ impl Storage {
         self.with_conn(|conn| {
             if !key.starts_with("bot_") && remembered_on(conn, &fp, window, today)? {
                 return Ok(LinkRedeemed::ErasedHere);
+            }
+            if super::messages::owner_key_on(conn, key)? {
+                return Ok(LinkRedeemed::OwnerKey);
             }
             Ok(match super::messages::redeem_link_code_on(conn, code, key)? {
                 Some(name) => LinkRedeemed::Linked(name),

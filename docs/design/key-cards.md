@@ -1,6 +1,8 @@
 # Key cards
 
 **Status: built 2026-10-22** (operator, 2026-10-22: "Let's do this however you believe best").
+Owner changes that rest on a key card and its fingerprint (handing over ownership, naming a successor, a recipient's check) are the desktop app only: a deliberate parity exception, because the website is served by the server being checked and cannot compare its fingerprint apart from it (docs/design/hide-and-keep.md, "Owner changes are the desktop app's only", 2026-11-21). The website's own fingerprint display says it is only as trustworthy as the server that sent the page.
+
 The card itself: `crates/humanity-protocol/src/key_card.rs` and its website twin `web/shared/key-card.js`, held
 to the same bytes by the shared fixture `scripts/tests/fixtures/key-card-v1.json`. The relay:
 `src/relay/storage/key_cards.rs` and `src/relay/handlers/key_cards.rs`. The desktop app:

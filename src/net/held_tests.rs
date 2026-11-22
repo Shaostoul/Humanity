@@ -43,7 +43,7 @@ pub(crate) fn package(kp: &KyberKeypair, pkg: &str) -> Vec<Vec<u8>> {
         restore_key: "ab".repeat(32),
     };
     let json = serde_json::to_vec(&m).unwrap();
-    [json.as_slice(), PIC, PDF].iter().enumerate().map(|(n, plain)| seal_bytes(&kp.public_key(), &part_context(pkg, n), plain).unwrap()).collect()
+    [json.as_slice(), PIC, PDF].iter().enumerate().map(|(n, plain)| seal_bytes(&[&kp.public_key()], &part_context(pkg, n), plain).unwrap()).collect()
 }
 
 /// Read a stored .zip back: its entries' names and bytes, each CRC checked.
@@ -84,7 +84,7 @@ fn export_writes_one_zip_only_where_chosen_without_the_restore_key() {
     let path = export_path(dir.path(), 7);
     assert_eq!(path.file_name().unwrap(), "held-item-7.zip");
     let fetch = |p: usize| -> Result<Box<dyn Read>, String> { Ok(Box::new(std::io::Cursor::new(parts[p].clone()))) };
-    let done = export_with(&kp, "pkg", &path, 99, fetch).unwrap();
+    let done = export_with(&kp, &chosen("pkg", 4), &path, 99, fetch).unwrap();
     assert_eq!(done, Exported { path: path.clone(), files: 2 });
     let in_folder: Vec<_> = std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
     assert_eq!(in_folder, vec![std::ffi::OsString::from("held-item-7.zip")], "only the chosen file is written");
@@ -105,11 +105,34 @@ fn export_writes_one_zip_only_where_chosen_without_the_restore_key() {
     let last = broken[2].len() - 1;
     broken[2][last] ^= 1;
     let fetch = |p: usize| -> Result<Box<dyn Read>, String> { Ok(Box::new(std::io::Cursor::new(broken[p].clone()))) };
-    assert!(export_with(&kp, "pkg", &second, 99, fetch).is_err(), "a part that does not open fails the export");
+    assert!(export_with(&kp, &chosen("pkg", 4), &second, 99, fetch).is_err(), "a part that does not open fails the export");
     assert!(!second.exists(), "and leaves no file behind");
     let other = owner_keys(8);
     let fetch = |p: usize| -> Result<Box<dyn Read>, String> { Ok(Box::new(std::io::Cursor::new(parts[p].clone()))) };
-    assert!(export_with(&other, "pkg", &second, 99, fetch).is_err() && !second.exists(), "another key opens nothing and writes nothing");
+    assert!(export_with(&other, &chosen("pkg", 4), &second, 99, fetch).is_err() && !second.exists(), "another key opens nothing and writes nothing");
+    // W7 (the third review): the copy that opened must be the item chosen (report #4 here): another
+    // report is refused with words and no file is written. Seen red 2026-11-21 before export_with
+    // compared the manifest: the export of "report #5" wrote report #4's file.
+    let fetch = |p: usize| -> Result<Box<dyn Read>, String> { Ok(Box::new(std::io::Cursor::new(parts[p].clone()))) };
+    let wrong = export_with(&kp, &chosen("pkg", 5), &second, 99, fetch);
+    assert!(wrong.as_ref().is_err_and(|w| w.contains("not the item you chose") && w.contains("report #4")), "{wrong:?}");
+    assert!(!second.exists(), "and no file is written");
+    // The fourth review's finding 8: a SIBLING post of the same report (same package and report as
+    // the relay listed them, another post time or author) is refused too. Seen red 2026-11-21
+    // (scratchpad ownfix7-batch1.log, mutant P-2 of ownfix6-rust-mutants.json) with manifest_is
+    // comparing the package and report alone (the round-4 rule): "a sibling post is refused" failed,
+    // the sibling's export written (Ok(Exported { .., files: 2 })).
+    for sibling in [held_seal::Chosen { stamp: 43, ..chosen("pkg", 4) }, held_seal::Chosen { author: "bb", ..chosen("pkg", 4) }] {
+        let fetch = |p: usize| -> Result<Box<dyn Read>, String> { Ok(Box::new(std::io::Cursor::new(parts[p].clone()))) };
+        let wrong = export_with(&kp, &sibling, &second, 99, fetch);
+        assert!(wrong.as_ref().is_err_and(|w| w.contains("another post of that report")), "a sibling post is refused: {wrong:?}");
+        assert!(!second.exists(), "and no file is written");
+    }
+}
+
+/// The item the owner chose, as the test package's list would show it (author "aa", post time 42).
+fn chosen(package: &str, report_id: i64) -> held_seal::Chosen<'_> {
+    held_seal::Chosen { package, report_id, author: "aa", stamp: 42 }
 }
 
 /// THE CLIENT'S RULES: the list read from the relay's frame (the package id only when sent), the

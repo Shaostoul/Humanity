@@ -21,10 +21,13 @@ fn a_copy_is_sealed_only_to_the_one_owners_own_checked_card() {
     assert_eq!(OwnerCard::NoOwner.refusal(), Some(NO_OWNER));
     let (own, other) = ([9u8; 32], [8u8; 32]);
     let (own_key, other_key) = (key_of(&own), key_of(&other));
-    db.set_role(&own_key, "owner").unwrap();
-    db.set_role(&other_key, "owner").unwrap();
+    db.claim_owner(&own_key, 0).unwrap();
+    // A second owner exists only if someone writes it into the database by hand (set_role refuses
+    // the role, storage/owner.rs), and keeping still refuses it.
+    let by_hand = |sql: &str| db.with_conn(|c| c.execute(sql, rusqlite::params![other_key])).unwrap();
+    by_hand("INSERT INTO user_roles (public_key, role) VALUES (?1, 'owner')");
     assert_eq!(db.owner_card(), OwnerCard::ManyOwners(2));
-    db.set_role(&other_key, "admin").unwrap();
+    by_hand("UPDATE user_roles SET role = 'admin' WHERE public_key = ?1");
     assert_eq!(db.owner_card(), OwnerCard::NoCard);
     assert_eq!(db.owner_card().refusal(), Some(NO_CARD));
 
@@ -43,7 +46,7 @@ fn a_copy_is_sealed_only_to_the_one_owners_own_checked_card() {
     let mine = key_card::sign_card(&own, 2_000).unwrap();
     assert!(db.store_key_card(&mine).unwrap().stored());
     match db.owner_card() {
-        OwnerCard::Ready { owner, kyber, card_at } => {
+        OwnerCard::Ready { owner, kyber, card_at, .. } => {
             assert_eq!(owner, own_key);
             assert_eq!(Some(kyber), key_card::kyber_bytes(&mine));
             assert_eq!(card_at, 2_000);

@@ -16,7 +16,8 @@ fn grant_of(action: &serde_json::Value) -> String {
 
 /// What `who`'s device opens of part `part` (the bytes on disk read under the grant).
 fn opened(st: &RelayState, d: &Dirs, kp: &KyberKeypair, row: &HeldRow, grant: &str, part: usize) -> Vec<u8> {
-    let path = export_part_path(st, row.id, part as i64, grant, d.folders(), now_ms()).expect("the restore grant reaches the part");
+    let owner = st.db.owner_keys().unwrap().pop().unwrap();
+    let path = export_part_path(st, row.id, part as i64, grant, &owner, d.folders(), now_ms()).expect("the restore grant reaches the part");
     open_bytes(kp, &part_context(&row.package, part), &std::fs::read(path).unwrap()).unwrap()
 }
 
@@ -73,14 +74,19 @@ fn restore_puts_back_exactly_what_was_held_and_only_that() {
     let key = m.restore_key.clone();
     assert_eq!(key.len(), 64, "part 0 carries the restore key");
     let now = now_ms();
-    let put = |part: usize, offset: u64, body: &[u8], key: &str, grant: &str| piece_in(&st, row.id, part as i64, &PieceQuery { grant: grant.into(), offset }, key, body, d.folders(), now);
+    let put = |part: usize, offset: u64, body: &[u8], key: &str, grant: &str| piece_in(&st, row.id, part as i64, &PieceQuery { grant: grant.into(), offset }, &own.key, key, body, d.folders(), now);
 
     let pic = m.files.iter().find(|f| f.name == "pic_1.png").unwrap();
     let pic_bytes = opened(&st, &d, &kp, &row, &grant, pic.part);
     assert_eq!(status(&put(pic.part, 0, &pic_bytes, &key, &export_grant)), 404, "an export's grant takes nothing back");
     assert_eq!(status(&put(pic.part, 0, &pic_bytes, &"00".repeat(32), &grant)), 403, "nothing without the key part 0 carries");
     assert_eq!(status(&put(m.files.len() + 9, 0, b"x", &key, &grant)), 404, "nothing for a part the plan does not hold");
-    assert_eq!(status(&finish_in(&st, row.id, &grant, &key, d.folders(), now)), 409, "nothing is put back before every file arrived");
+    assert_eq!(status(&finish_in(&st, row.id, &grant, &own.key, &key, d.folders(), now)), 409, "nothing is put back before every file arrived");
+    // The owner review's finding 1: the grant and the restore key are not enough. An admin holding
+    // both (from the log and a part they could open as successor) is refused, piece and finish.
+    let file_part = m.files[0].part as i64;
+    assert_eq!(status(&piece_in(&st, row.id, file_part, &PieceQuery { grant: grant.clone(), offset: 0 }, &ada.key, &key, b"x", d.folders(), now)), 404, "an admin's piece under the owner's grant");
+    assert_eq!(status(&finish_in(&st, row.id, &grant, &ada.key, &key, d.folders(), now)), 404, "an admin's finish under the owner's grant");
 
     let mut altered = pic_bytes.clone();
     altered[0] ^= 1;
@@ -102,7 +108,7 @@ fn restore_puts_back_exactly_what_was_held_and_only_that() {
     assert!(st.db.post_for_report(&row.author_key, 42).unwrap().is_none(), "the post is still hidden until the finish");
 
     let mut rx = st.broadcast_tx.subscribe();
-    let r = finish_in(&st, row.id, &grant, &key, d.folders(), now);
+    let r = finish_in(&st, row.id, &grant, &own.key, &key, d.folders(), now);
     assert_eq!(status(&r), 200);
     let all = drain(&mut rx);
     let (content, channel) = st.db.post_for_report(&row.author_key, 42).unwrap().expect("the post is back");
@@ -120,7 +126,7 @@ fn restore_puts_back_exactly_what_was_held_and_only_that() {
     assert!(st.db.held_item(row.id).unwrap().is_none(), "the held row is gone");
     assert!(!crate::relay::storage::held::held_dir_beside(d.folders()).join(&row.package).exists(), "and its sealed copy");
     assert_eq!(st.db.held_counts().unwrap().restored, 1, "the restore is counted");
-    assert_eq!(status(&finish_in(&st, row.id, &grant, &key, d.folders(), now)), 404, "and cannot be done twice");
+    assert_eq!(status(&finish_in(&st, row.id, &grant, &own.key, &key, d.folders(), now)), 404, "and cannot be done twice");
 }
 
 /// THE APPS' RESTORE ROUND-TRIPS A SEALED POST ON A TEMP RELAY (rung 5): the protocol's
@@ -144,20 +150,35 @@ fn the_apps_restore_round_trips_a_sealed_post() {
     let grant = grant_of(&restore);
     let now = now_ms();
     let fetch = |part: usize| -> Result<Box<dyn Read>, String> {
-        let path = export_part_path(&st, row.id, part as i64, &grant, d.folders(), now).ok_or("no such part")?;
+        let path = export_part_path(&st, row.id, part as i64, &grant, &own.key, d.folders(), now).ok_or("no such part")?;
         Ok(Box::new(std::fs::File::open(path).map_err(|e| e.to_string())?))
     };
     let upload = |part: usize, key: &str, src: &mut dyn Read| {
         humanity_protocol::held_seal::send_in_pieces(src, 7, |offset, piece| {
-            let r = piece_in(&st, row.id, part as i64, &PieceQuery { grant: grant.clone(), offset }, key, piece, d.folders(), now);
+            let r = piece_in(&st, row.id, part as i64, &PieceQuery { grant: grant.clone(), offset }, &own.key, key, piece, d.folders(), now);
             if r.status().is_success() { Ok(()) } else { Err(format!("piece refused: {}", r.status())) }
         })
     };
     let finish = |key: &str| {
-        let r = finish_in(&st, row.id, &grant, key, d.folders(), now);
+        let r = finish_in(&st, row.id, &grant, &own.key, key, d.folders(), now);
         if r.status().is_success() { Ok("restored".to_string()) } else { Err(format!("finish refused: {}", r.status())) }
     };
-    assert_eq!(humanity_protocol::held_seal::restore_with(&kp, &row.package, fetch, upload, finish), Ok("restored".to_string()));
+    // W7 (the third review): an item the owner did not choose (another report than the one the list
+    // showed) is refused before anything is uploaded. Seen red 2026-11-21 before restore_with compared
+    // the manifest: the restore of the wrong report went through ("restored").
+    // The fourth review's finding 8: a sibling post of the same report (the post time differs) is
+    // refused too. Seen red 2026-11-21 (scratchpad ownfix7-batch1.log, mutant P-2 of
+    // ownfix6-rust-mutants.json) with manifest_is comparing package and report alone: "the sibling's
+    // restore is refused" failed with Ok("restored").
+    use humanity_protocol::held_seal::Chosen;
+    let chosen = Chosen { package: &row.package, report_id: row.report_id, author: &row.author_key, stamp: row.stamp as u64 };
+    let uploads = std::cell::Cell::new(0);
+    for wrong in [Chosen { report_id: row.report_id + 1, ..chosen }, Chosen { stamp: row.stamp as u64 + 1, ..chosen }] {
+        let refused = humanity_protocol::held_seal::restore_with(&kp, &wrong, fetch, |_, _, _| { uploads.set(uploads.get() + 1); Ok(()) }, |_| Ok("restored".to_string()));
+        assert!(refused.as_ref().is_err_and(|w| w.contains("not the item you chose")), "the sibling's restore is refused: {refused:?}");
+    }
+    assert_eq!(uploads.get(), 0, "nothing was uploaded");
+    assert_eq!(humanity_protocol::held_seal::restore_with(&kp, &chosen, fetch, upload, finish), Ok("restored".to_string()));
     let (content, _) = st.db.post_for_report(&row.author_key, 42).unwrap().expect("the post is back");
     assert!(content.starts_with(MARKER));
     assert_eq!(std::fs::read(d.uploads.join("vid_2.mp4")).unwrap(), format!("{MARKER} video").into_bytes());

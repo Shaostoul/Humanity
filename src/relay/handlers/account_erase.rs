@@ -124,6 +124,9 @@ pub enum Refused {
     /// The target is an admin or the owner: the same rule as the person's own erase, so the
     /// server is never left without one by accident.
     AnAdmin,
+    /// The target is the server's owner, whose role nobody else can remove (storage/owner.rs): only
+    /// the owner hands it over.
+    TheOwner,
     /// The typed name is not exactly the target's registered name.
     WrongName,
 }
@@ -135,7 +138,8 @@ impl Refused {
             Refused::NotAnAdmin => "Erase refused: only an admin or the owner of this server can erase another person's data.",
             Refused::Yourself => "Erase refused: that is your own account. Erase your own data from Settings > Account instead.",
             Refused::NoAccount => "Erase refused: there is no account with that key on this server.",
-            Refused::AnAdmin => "Erase refused: that person is an admin or the owner of this server. Remove their role first.",
+            Refused::AnAdmin => "Erase refused: that person is an admin of this server. Remove their role first.",
+            Refused::TheOwner => "Erase refused: that person is this server's owner. Nobody can erase the owner's account or take the role away; only the owner can hand it to someone else.",
             Refused::WrongName => "Erase refused: the typed name did not match their registered name.",
         }
     }
@@ -145,7 +149,7 @@ impl Refused {
 /// name when it may, or why not. Reads only; nothing is changed either way. The sender's role is
 /// checked first, so somebody who is not an admin learns nothing about the target.
 pub fn admin_erase_check(state: &RelayState, my_key: &str, target: &str, confirm_name: &str) -> Result<String, Refused> {
-    let is_admin = |key: &str| matches!(state.db.get_role(key).unwrap_or_default().as_str(), "admin" | "owner");
+    let is_admin = |key: &str| crate::relay::handlers::msg_handlers::is_admin_role(&state.db.get_role(key).unwrap_or_default());
     if !is_admin(my_key) {
         return Err(Refused::NotAnAdmin);
     }
@@ -155,6 +159,9 @@ pub fn admin_erase_check(state: &RelayState, my_key: &str, target: &str, confirm
     let name = state.db.name_for_key(target).ok().flatten().unwrap_or_default();
     if target.is_empty() || name.is_empty() {
         return Err(Refused::NoAccount);
+    }
+    if state.db.is_owner(target) {
+        return Err(Refused::TheOwner);
     }
     if is_admin(target) {
         return Err(Refused::AnAdmin);
@@ -214,7 +221,9 @@ mod tests {
             ("t1", "Target", ""),
         ] {
             state.db.register_name(name, key).unwrap();
-            if !role.is_empty() {
+            if role == "owner" {
+                state.db.claim_owner(key, 0).unwrap();
+            } else if !role.is_empty() {
                 state.db.set_role(key, role).unwrap();
             }
         }
@@ -228,7 +237,7 @@ mod tests {
             ("an unknown target", "a1", "nobody", "Target", Err(Refused::NoAccount)),
             ("no target", "a1", "", "", Err(Refused::NoAccount)),
             ("another admin", "a1", "a2", "Other Admin", Err(Refused::AnAdmin)),
-            ("the owner", "a1", "o1", "Owner", Err(Refused::AnAdmin)),
+            ("the owner", "a1", "o1", "Owner", Err(Refused::TheOwner)),
             ("a name in other letters", "a1", "t1", "target", Err(Refused::WrongName)),
             ("a different name", "a1", "t1", "Targe", Err(Refused::WrongName)),
             ("an admin, the name with spaces around it", "a1", "t1", "  Target  ", Ok("Target")),

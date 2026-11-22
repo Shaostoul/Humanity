@@ -59,6 +59,9 @@ impl Storage {
         if public_key.is_empty() {
             return Ok(());
         }
+        if self.is_owner(public_key) {
+            return Err(super::owner::owner_protected()); // the owner is never banned (storage/owner.rs)
+        }
         self.with_conn(|conn| {
             // Idempotent upsert via delete-then-insert. We can't rely on
             // INSERT OR REPLACE here: SQLite treats NULL primary-key values as

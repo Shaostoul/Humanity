@@ -517,7 +517,8 @@ impl Storage {
             // Group by name, take highest role.
             let mut users: std::collections::BTreeMap<String, (String, usize)> = std::collections::BTreeMap::new();
             let role_priority = |r: &str| -> u8 {
-                match r { "admin" => 4, "mod" => 3, "donor" => 2, "verified" => 1, _ => 0 }
+                // The owner ranks first (the owner's linked devices are admins), and both spellings of moderator count.
+                match r { "owner" => 5, "admin" => 4, "mod" | "moderator" => 3, "donor" => 2, "verified" => 1, _ => 0 }
             };
             for (name, _key, role) in &rows {
                 let lower_name = name.to_lowercase();
@@ -559,28 +560,12 @@ impl Storage {
         })
     }
 
-    /// Set the role for a public key.
+    /// Set the role for a public key. Refused ([`super::owner::owner_protected`]) for the role
+    /// `owner` in any spelling and for the key that holds it: the owner role moves only by a claim
+    /// or a handover (storage/owner.rs), so no path, checked or not, can demote the owner or make a
+    /// second one. The role is stored canonical (trimmed, lower case: [`super::owner::canonical_role`]).
     pub fn set_role(&self, public_key: &str, role: &str) -> Result<(), rusqlite::Error> {
-        self.with_conn(|conn| {
-            conn.execute(
-                "INSERT INTO user_roles (public_key, role) VALUES (?1, ?2)
-                 ON CONFLICT(public_key) DO UPDATE SET role = ?2",
-                params![public_key, role],
-            )?;
-            Ok(())
-        })
-    }
-
-    /// Number of admins on this server (the claim-code bootstrap gate:
-    /// a fresh server with zero admins prints a one-time /claim code).
-    pub fn admin_count(&self) -> Result<i64, rusqlite::Error> {
-        self.with_read_conn(|conn| {
-            conn.query_row(
-                "SELECT COUNT(*) FROM user_roles WHERE role = 'admin'",
-                [],
-                |row| row.get(0),
-            )
-        })
+        self.with_conn(|conn| super::owner::write_role_in(conn, public_key, role))
     }
 
     /// Check if a public key is banned.
@@ -604,6 +589,9 @@ impl Storage {
     pub fn ban_user(&self, public_key: &str, name: &str) -> Result<(), rusqlite::Error> {
         if public_key.is_empty() {
             return Ok(()); // can't key-ban a keyless registration
+        }
+        if self.is_owner(public_key) {
+            return Err(super::owner::owner_protected()); // the owner is never banned (storage/owner.rs)
         }
         self.with_conn(|conn| {
             conn.execute(
@@ -692,6 +680,9 @@ impl Storage {
     pub fn mute_user(&self, public_key: &str, name: &str) -> Result<(), rusqlite::Error> {
         if public_key.is_empty() {
             return Ok(());
+        }
+        if self.is_owner(public_key) {
+            return Err(super::owner::owner_protected()); // the owner is never muted (storage/owner.rs)
         }
         self.with_conn(|conn| {
             conn.execute(
@@ -1346,18 +1337,4 @@ mod channel_message_tests {
         assert!(db.load_channel_messages("global", 50).unwrap().is_empty());
     }
 
-    /// The first-admin claim-code bootstrap gates on admin_count: a fresh DB
-    /// must report zero (so the code generates), and promoting a key must
-    /// flip it (so the code never regenerates for an owned server).
-    #[test]
-    fn admin_count_tracks_promotions() {
-        let db = fresh_db();
-        assert_eq!(db.admin_count().unwrap(), 0, "fresh server has no admins");
-        db.set_role("owner_key_hex", "admin").unwrap();
-        assert_eq!(db.admin_count().unwrap(), 1);
-        db.set_role("mod_key_hex", "mod").unwrap();
-        assert_eq!(db.admin_count().unwrap(), 1, "mods are not admins");
-        db.set_role("owner_key_hex", "user").unwrap();
-        assert_eq!(db.admin_count().unwrap(), 0, "demotion counts down");
-    }
 }

@@ -97,7 +97,7 @@ pub async fn handle_stream_stop(
     let mut stream_lock = state.active_stream.write().await;
     if let Some(ref stream) = *stream_lock {
         let role = state.db.get_role(my_key).unwrap_or_default();
-        if stream.streamer_key == my_key || role == "admin" {
+        if stream.streamer_key == my_key || is_admin_role(&role) {
             // The tracked high-water mark, not the live count at stop time --
             // by the time a stream ends most viewers have often already left,
             // so `viewer_keys.len()` here is frequently 0 or far below the
@@ -306,7 +306,7 @@ pub async fn handle_stream_set_external(
     urls: Vec<StreamExternalUrl>,
 ) {
     let role = state.db.get_role(my_key).unwrap_or_default();
-    if role == "admin" {
+    if is_admin_role(&role) {
         let mut stream_lock = state.active_stream.write().await;
         if let Some(ref mut stream) = *stream_lock {
             stream.external_urls = urls;
@@ -433,5 +433,26 @@ mod stream_tests {
         }
         assert!(saw_refusal, "expected a server-wide-disabled refusal message");
         assert_eq!(st.db.get_recent_streams(10).unwrap().len(), 0, "no stream row should be created");
+    }
+
+    /// The server's owner counts as an admin (BUG-332's sweep): the owner sets the links of someone
+    /// else's stream and stops it, and starts their own (the role reads as the Admin row, which may
+    /// stream). Seen red 2026-11-20 against `role == "admin"` here and role_def's default-deny row
+    /// for "owner": "the owner sets the links of another person's stream" (none were set), then
+    /// "the owner stops another person's stream" (it was still live).
+    #[test]
+    fn the_owner_sets_links_on_and_stops_anyones_stream_and_streams_herself() {
+        let st = fresh_state();
+        allow_streaming(&st, "streamer_key");
+        assert!(st.db.claim_owner("owner_key", 0).unwrap());
+        block(handle_stream_start(&st, "streamer_key", "Theirs".to_string(), "testing".to_string()));
+        let url = StreamExternalUrl { platform: "other".into(), url: "https://example.com/live".into() };
+        block(handle_stream_set_external(&st, "owner_key", vec![url]));
+        let links = block(st.active_stream.read()).as_ref().map(|s| s.external_urls.len()).unwrap_or(0);
+        assert_eq!(links, 1, "the owner sets the links of another person's stream");
+        block(handle_stream_stop(&st, "owner_key"));
+        assert!(block(st.active_stream.read()).is_none(), "the owner stops another person's stream");
+        block(handle_stream_start(&st, "owner_key", "Hers".to_string(), "testing".to_string()));
+        assert!(block(st.active_stream.read()).is_some(), "the owner starts a stream, as an admin may");
     }
 }

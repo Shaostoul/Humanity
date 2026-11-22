@@ -25,7 +25,7 @@
   function gameAdminAmAdmin() {
     var r = (typeof peerData !== 'undefined' && peerData[myKey] && peerData[myKey].role) ||
             window.myPeerRole || '';
-    return r === 'admin' || r === 'owner';
+    return HosRoles.isAdminRole(r);
   }
 
   // Build the overlay DOM once, on first open. Static structure only (no user
@@ -511,11 +511,17 @@
     });
   }
 
+  // The relay's game_admin_error and game_admin_notice words, marked as the server's on every route:
+  // in this window's status line and in the chat alike, never the app's own voice (the owner
+  // branch's seventh review, H1 (c): a system frame "__game__:{game_admin_error}" drew the relay's
+  // text unmarked for anyone, admin or not). Nothing is drawn for an empty message.
   function showGameAdminError(msg) {
+    var words = String(msg == null ? '' : msg).replace(/\s+/g, ' ').trim();
+    if (!words) { console.warn('game admin frame with no words'); return; }
     var el = document.getElementById('gameadmin-status');
-    if (el) { el.textContent = msg || 'Game admin error.'; }
-    else if (typeof addSystemMessage === 'function') { addSystemMessage(msg || 'Game admin error.'); }
-    else { console.warn('game_admin_error:', msg); }
+    if (el) { el.textContent = i18n.t('chat.from_server', { text: words }); }
+    else if (typeof addServerMessage === 'function') { addServerMessage(words); }
+    else { console.warn('game_admin_error:', words); }
   }
 
   function openGameAdminModal() {

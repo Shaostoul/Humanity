@@ -98,3 +98,42 @@ fn a_preview_never_holds_a_file_key_and_is_cut_between_characters() {
     assert_eq!(cut("short", 60), "short", "nothing to cut");
     assert_eq!(cut(&"🙂".repeat(61), 60), format!("{}…", "🙂".repeat(60)));
 }
+
+/// A TYPED `/claim` NEVER REACHES A PERSON, HOWEVER IT IS SPELLED (the owner review's finding 6;
+/// the second review's W5): with a DM, a P2P group or a room open, a `/claim <code>` line in any
+/// letter case, with a zero-width space in front, a colon after the word, or the code right after
+/// it, goes to the server alone as an `owner_claim` frame, and no chat frame, DM or group send
+/// carries the code; a line that starts with /claim but is not a well-formed claim goes nowhere and
+/// shows the claim help; a line that is not a claim is a message.
+/// Every channel and spelling is tried before anything is asserted, so a failure names what each did.
+/// Seen red 2026-11-20 with the interception taken out of `send_composed_content`: "global: draft
+/// cleared true, the server's claim None, the code in ["chat"], a local copy true"; and with the
+/// branch's `typed_claim` (the first word must equal /claim): "global /claim:0123...: the code in
+/// ["chat"]" (the near misses went to the room); that second break re-run 2026-11-21 by mutation:
+/// red at reply_tests.rs:136, "the code in".
+#[test]
+fn a_typed_claim_goes_to_the_server_alone() {
+    let mut wrong = Vec::new();
+    let lines = ["  /CLAIM 0123ABCD4567EF89 ", "\u{200B}/claim 0123ABCD4567EF89", "/claim:0123ABCD4567EF89", "/claim0123ABCD4567EF89"];
+    for channel in ["dm:ann", "p2pgroup:g1", "global"] {
+        for line in lines {
+            let (mut gs, sent) = app(channel);
+            let cleared = super::super::send_composed_content(&mut gs, line);
+            let frames: Vec<serde_json::Value> = sent.try_iter().map(|f| serde_json::from_str(&f).unwrap()).collect();
+            let claim = frames.iter().find(|f| f["type"] == "owner_claim").map(|c| (c["code"].as_str().map(str::to_string), c["typed"].as_bool()));
+            let leaked: Vec<String> = frames.iter().filter(|f| f["type"] != "owner_claim" && f.to_string().contains("0123ABCD")).map(|f| f["type"].to_string()).collect();
+            let local = gs.chat_messages.iter().any(|m| m.content.contains("0123ABCD"));
+            if !cleared || claim != Some((Some("0123ABCD4567EF89".to_string()), Some(true))) || !leaked.is_empty() || local {
+                wrong.push(format!("{channel} {line:?}: draft cleared {cleared}, the server's claim {claim:?}, the code in {leaked:?}, a local copy {local}"));
+            }
+        }
+        let (mut gs, sent) = app(channel);
+        assert!(super::super::send_composed_content(&mut gs, "/claim 0123ABCD4567EF89 please"), "{channel}: the help line clears the draft");
+        let frames: Vec<String> = sent.try_iter().collect();
+        if !frames.is_empty() || !gs.chat_messages.iter().any(|m| m.content == humanity_core::i18n::t("owner.claim_help")) {
+            wrong.push(format!("{channel}: a malformed claim sent {frames:?} or showed no help"));
+        }
+    }
+    assert!(wrong.is_empty(), "a typed /claim must go to the server alone, and nowhere else: {wrong:#?}");
+    assert_eq!(crate::net::owner::typed_claim("hello /claim 1"), None, "a line that is not a claim");
+}

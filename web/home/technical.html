@@ -752,7 +752,7 @@ BIND_ADDRESS=0.0.0.0           <span class="t-note"># optional; 127.0.0.1 = this
         </li>
         <li><b>On a LAN it is finished right there.</b> No domain, no certificate, no port forwarding. Everyone on the same network connects to your local address.</li>
         <li><b>For a public node,</b> put your domain in <code>node.env</code> and run <code>scripts/provision-vps.sh</code> on a bare Debian 12 install. It fetches the prebuilt relay and sets up nginx, TLS, the firewall and the browser origins (<code>ALLOWED_ORIGINS</code>) for your domain. The floor is 1 GB RAM, 1 core and 20 GB of disk.</li>
-        <li><b>Become the first admin</b> by typing <code>/claim &lt;code&gt;</code> with the one-time code the relay prints on first start. From then on, administration happens inside the app; its Admin map lists every action and where it lives.</li>
+        <li><b>Become its owner</b> by pasting the one-time claim code the relay prints on first start (also in <code>data/owner-claim-code.txt</code>) into Claim ownership in Server Settings. From then on, administration happens inside the app; its Admin map lists every action and where it lives.</li>
         <li><b>Calls and big files:</b> add <code>HUMANITY_OPEN_CALL_PORT=1</code> to <code>node.env</code> and run the provision script again to open UDP 3478.</li>
         <li><b>Stay current:</b> install the release follower's systemd timer, and the node updates itself, with a roll back if a release does not come up healthy.</li>
         <li><b>Your own front door:</b> copy a homepage flavour to <code>/var/www/humanity-site/index.html</code>. This page is one of them.</li>

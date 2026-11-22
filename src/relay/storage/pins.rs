@@ -355,7 +355,8 @@ impl Storage {
             // Group by name, take highest role and first key.
             let mut users: std::collections::BTreeMap<String, (String, String, usize)> = std::collections::BTreeMap::new();
             let role_priority = |r: &str| -> u8 {
-                match r { "admin" => 4, "mod" => 3, "donor" => 2, "verified" => 1, _ => 0 }
+                // The owner ranks first (the owner's linked devices are admins), and both spellings of moderator count.
+                match r { "owner" => 5, "admin" => 4, "mod" | "moderator" => 3, "donor" => 2, "verified" => 1, _ => 0 }
             };
             for (name, key, role) in &rows {
                 let lower_name = name.to_lowercase();

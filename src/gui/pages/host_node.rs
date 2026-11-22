@@ -1160,14 +1160,9 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
     });
 
     ui.add_space(theme.spacing_sm);
-    ui.label(
-        RichText::new(
-            "To choose what this node offers, connect to it and open Server Settings. \
-             The first person to claim it becomes its admin.",
-        )
-        .size(theme.font_size_small)
-        .color(theme.text_muted()),
-    );
+    // The owner review's finding 8: the first-admin claim is gone; whoever holds the claim code
+    // from this node's own log becomes its owner.
+    ui.label(RichText::new(humanity_core::i18n::t("owner.node_claim_hint")).size(theme.font_size_small).color(theme.text_muted()));
 }
 
 /// Test-only: drive the singleton into a serving state so the snapshot harness

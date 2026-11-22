@@ -894,6 +894,24 @@ pub struct ChatMessage {
     pub group_object_id: String,
     /// Mine: "Sending..." until the server's copy comes back, or "Not sent" (pages/chat/line_limit.rs).
     pub send_state: crate::gui::pages::chat::line_limit::LineSend,
+    /// Who wrote the line. Set ONLY by local code (engine/friend_code.rs `system_line` and
+    /// `server_line`), never by a frame decoder: every row built from a frame keeps the default,
+    /// `Network`, and is drawn as someone's words whatever name it claims (the owner branch's
+    /// seventh review, H1 (a): a chat frame named "System" drew exactly like the app's own line).
+    pub origin: LineOrigin,
+}
+
+/// Who wrote a chat line ([`ChatMessage::origin`]).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LineOrigin {
+    /// From the network: a member's words, drawn under the name the frame gave, never as the app.
+    #[default]
+    Network,
+    /// The app's own voice: drawn with the app's mark (widgets/app_line.rs), never a sender name.
+    App,
+    /// The server's own words (a `system` frame), drawn under "From this server".
+    Server,
 }
 
 /// Cached parent-message context for a thread reply.

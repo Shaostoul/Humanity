@@ -196,13 +196,17 @@ impl Storage {
     }
 
     /// `/reports-clear`: delete every decided report now. Open reports stay until someone decides
-    /// them, and a report whose post is held stays as long as it is (hide and keep, 2026-11-20).
-    /// Returns how many went.
-    pub fn reports_clear_decided(&self) -> Result<usize, rusqlite::Error> {
+    /// them, a report whose post is held stays as long as it is (hide and keep, 2026-11-20), and so
+    /// does each report in `waiting`, whose hide waits for its sealed copy (storage/held.rs
+    /// `held_waiting_reports_in`; the fourth review's finding 5c: cleared, the held item it becomes
+    /// would name a report that is gone). Returns how many went.
+    pub fn reports_clear_decided(&self, waiting: &[i64]) -> Result<usize, rusqlite::Error> {
+        let keep = serde_json::to_string(waiting).unwrap_or_else(|_| "[]".into());
         self.with_conn(|conn| {
             conn.execute(
-                "DELETE FROM reports_v2 WHERE state = 'decided' AND NOT EXISTS (SELECT 1 FROM held_items h WHERE h.report_id = reports_v2.id)",
-                [],
+                "DELETE FROM reports_v2 WHERE state = 'decided' AND NOT EXISTS (SELECT 1 FROM held_items h WHERE h.report_id = reports_v2.id)
+                   AND id NOT IN (SELECT value FROM json_each(?1))",
+                params![keep],
             )
         })
     }

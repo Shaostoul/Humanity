@@ -37,7 +37,24 @@ use ciborium::Value;
 pub const MOD_ACTIONS: &[&str] = &[
     "ban", "unban", "mute", "unmute", "hide", "unhide", "grant_role", "revoke_role", "revoke",
     "hide_and_keep", "held_restore", "held_export", "held_legal_hold", "held_destroy",
+    "owner_handover", "owner_successor", "owner_successor_remove", "owner_change_accept",
 ];
+
+/// A recipient's acceptance of an owner change (2026-11-20, the owner review's finding 5): the new
+/// owner (or the successor being named, or the owner whose own copy is re-sealed) signs it once
+/// their device has opened every re-sealed part and checked it against the package's list of files.
+/// It names the change's signed action by its object id (`target_kind` `object`), carries no end
+/// date, and its reason is `checked <digest>` (core `held_seal::acceptance_digest`). Carried only by
+/// its own path (src/relay/handlers/owner.rs), like the owner's actions.
+pub const OWNER_ACCEPT: &str = "owner_change_accept";
+
+/// The server owner's own actions (2026-11-20, docs/design/hide-and-keep.md, "How the owner role
+/// is set"), each naming a member (`target_kind` `identity`, their key): `owner_handover` hands
+/// them the role while the owner is alive; `owner_successor` names them the successor every held
+/// copy is also sealed to; `owner_successor_remove` names the successor being removed. Like the
+/// held actions they are carried only through their own path (src/relay/handlers/owner.rs), never
+/// from the public signed-object store or from a linked server, and carry no end date.
+pub const OWNER_ACTIONS: &[&str] = &["owner_handover", "owner_successor", "owner_successor_remove"];
 
 /// What a `target` names: a person (`identity`), a signed object (`object`), a report on this
 /// server by its number (`report`, for `hide_and_keep`) or a held item by its number (`held`).
@@ -93,8 +110,8 @@ impl std::fmt::Display for ModError {
             ModError::RoleUnexpected => {
                 write!(f, "role is only meaningful for grant_role and revoke_role")
             }
-            ModError::TargetKindMismatch => write!(f, "hide_and_keep names a report, the other held actions a held item, and nothing else names either"),
-            ModError::ExpiryUnexpected => write!(f, "of the held actions only held_legal_hold carries an end date"),
+            ModError::TargetKindMismatch => write!(f, "hide_and_keep names a report, the other held actions a held item, the owner's actions a person, and nothing else names a report or a held item"),
+            ModError::ExpiryUnexpected => write!(f, "of the held and owner actions only held_legal_hold carries an end date"),
             ModError::Encode(e) => write!(f, "encode failed: {e}"),
         }
     }
@@ -147,6 +164,22 @@ pub fn mod_action_payload(a: &ModAction<'_>) -> Result<Value, ModError> {
         None if matches!(a.target_kind, "report" | "held") => return Err(ModError::TargetKindMismatch),
         Some(_) if a.action != "held_legal_hold" && a.expires_at != 0 => return Err(ModError::ExpiryUnexpected),
         _ => {}
+    }
+    if OWNER_ACTIONS.contains(&a.action) {
+        if a.target_kind != "identity" {
+            return Err(ModError::TargetKindMismatch);
+        }
+        if a.expires_at != 0 {
+            return Err(ModError::ExpiryUnexpected);
+        }
+    }
+    if a.action == OWNER_ACCEPT {
+        if a.target_kind != "object" {
+            return Err(ModError::TargetKindMismatch);
+        }
+        if a.expires_at != 0 {
+            return Err(ModError::ExpiryUnexpected);
+        }
     }
     Ok(cbor_map(vec![
         ("action", cbor_text(a.action)),
@@ -262,6 +295,46 @@ mod tests {
             expires_at: 1_751_328_000_000,
             role: "",
         }
+    }
+
+    /// The owner's handover (2026-11-20) names a person and carries no end date. Seen red
+    /// 2026-11-20 with owner_handover left out of MOD_ACTIONS: "a handover to a person builds"
+    /// failed (the payload was refused as an unknown action).
+    #[test]
+    fn an_owner_handover_names_a_person_and_no_end_date() {
+        let mut a = action();
+        a.expires_at = 0;
+        for owner_action in ["owner_successor", "owner_successor_remove"] {
+            a.action = owner_action;
+            assert!(mod_action_payload(&a).is_ok(), "{owner_action} names a person");
+        }
+        a.action = "owner_handover";
+        assert!(mod_action_payload(&a).is_ok(), "a handover to a person builds");
+        a.target_kind = "held";
+        assert_eq!(mod_action_payload(&a).unwrap_err(), ModError::TargetKindMismatch);
+        a.target_kind = "object";
+        assert_eq!(mod_action_payload(&a).unwrap_err(), ModError::TargetKindMismatch);
+        a.target_kind = "identity";
+        a.expires_at = 5;
+        assert_eq!(mod_action_payload(&a).unwrap_err(), ModError::ExpiryUnexpected);
+        assert!(held_target_kind("owner_handover").is_none(), "it is not a held action");
+    }
+
+    /// A recipient's acceptance of an owner change (2026-11-20, the owner review's finding 5) names
+    /// the change's signed object and carries no end date. Seen red 2026-11-20 before
+    /// `owner_change_accept` joined MOD_ACTIONS: "an acceptance naming an object builds" failed.
+    #[test]
+    fn an_owner_acceptance_names_an_object_and_no_end_date() {
+        let mut a = action();
+        a.action = OWNER_ACCEPT;
+        a.target_kind = "object";
+        a.expires_at = 0;
+        assert!(mod_action_payload(&a).is_ok(), "an acceptance naming an object builds");
+        a.target_kind = "identity";
+        assert_eq!(mod_action_payload(&a).unwrap_err(), ModError::TargetKindMismatch);
+        a.target_kind = "object";
+        a.expires_at = 5;
+        assert_eq!(mod_action_payload(&a).unwrap_err(), ModError::ExpiryUnexpected);
     }
 
     #[test]

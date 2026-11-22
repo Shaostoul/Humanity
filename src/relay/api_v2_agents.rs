@@ -144,7 +144,7 @@ pub async fn set_agent_override(
         )
             .into_response();
     }
-    if state.db.get_role(&req.key).unwrap_or_default() != "admin" {
+    if !crate::relay::handlers::msg_handlers::is_admin_role(&state.db.get_role(&req.key).unwrap_or_default()) {
         return (
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({"error": "Admin role required."})),

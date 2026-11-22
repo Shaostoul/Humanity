@@ -234,7 +234,7 @@ impl Storage {
     /// Redeem a link code: if valid, register the new key under the name.
     /// Returns Ok(Some(name)) on success, Ok(None) if code is invalid/expired.
     pub fn redeem_link_code(&self, code: &str, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
-        self.with_conn(|conn| redeem_link_code_on(conn, code, public_key))
+        self.with_conn(|conn| if owner_key_on(conn, public_key)? { Ok(None) } else { redeem_link_code_on(conn, code, public_key) })
     }
 
     /// Store a federated chat message with origin server tag.
@@ -266,6 +266,17 @@ impl Storage {
             conn.execute_batch("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")?;
             Ok(())
         })
+    }
+}
+
+/// Whether `public_key` holds the owner role (the second review, R5): such a key is never bound under
+/// a name a link code carries, since the name it is bound under would then rank as the owner and
+/// refuse every admin action on it. Its redeem is refused, the code left unused.
+pub(super) fn owner_key_on(conn: &rusqlite::Connection, public_key: &str) -> Result<bool, rusqlite::Error> {
+    match conn.query_row("SELECT role FROM user_roles WHERE public_key = ?1", params![public_key], |r| r.get::<_, String>(0)) {
+        Ok(role) => Ok(role == super::owner::OWNER_ROLE),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+        Err(e) => Err(e),
     }
 }
 
@@ -330,12 +341,22 @@ pub(super) fn redeem_link_code_on(conn: &rusqlite::Connection, code: &str, publi
                 Err(rusqlite::Error::QueryReturnedNoRows) => String::new(),
                 Err(e) => return Err(e),
             };
+            // The owner's linked device is an admin, never a second owner: held copies are sealed
+            // to the owner's own key card alone, and two keys holding the role stop hide and keep
+            // (storage/owner.rs; BUG-345).
+            let creator_role = if super::owner::canonical_role(&creator_role) == super::owner::OWNER_ROLE { "admin".to_string() } else { creator_role };
+            // Through the one guarded role write (storage/owner.rs `write_role_in`, the owner review's
+            // finding 3): a code redeemed BY the owner's own key (a browser that keeps its key and
+            // links with someone's code) never changes the owner's role. The device is still linked
+            // to the name; only the role is left as it was.
             if !creator_role.is_empty() {
-                conn.execute(
-                    "INSERT INTO user_roles (public_key, role) VALUES (?1, ?2)
-                     ON CONFLICT(public_key) DO UPDATE SET role = ?2",
-                    params![public_key, creator_role],
-                )?;
+                match super::owner::write_role_in(conn, &public_key, &creator_role) {
+                    Ok(()) => {}
+                    Err(e) if super::owner::is_owner_protected(&e) => {
+                        tracing::warn!("Link code: redeemed by the server owner's key; the owner's role is kept as it was");
+                    }
+                    Err(e) => return Err(e),
+                }
             }
             Ok(Some(name))
         }

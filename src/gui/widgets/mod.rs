@@ -6,6 +6,8 @@
 
 pub mod button;
 pub mod row;
+// The app's own voice in the chat: its mark, which no network row can carry (2026-11-21).
+pub mod app_line;
 // Characters past a field's limit in red on dark red, and its count (2026-10-24).
 pub mod over_limit;
 pub mod icons;

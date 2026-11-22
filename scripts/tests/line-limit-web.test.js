@@ -25,6 +25,7 @@ function limits(role) {
   assert.ok(a >= 0 && b > a, 'the limit functions are where the test expects them');
   const ctx = vm.createContext({
     peerData: { me: { role } }, myKey: 'me', Number,
+    HosRoles: require(path.join(__dirname, '..', '..', 'web', 'shared', 'roles.js')), // as web/chat/index.html loads it (BUG-332)
     document: { getElementById: () => null },
   });
   vm.runInContext(src.slice(a, b).replace('let myMaxChars', 'var myMaxChars') + ';globalThis.__l = { setMyMaxChars, getMaxMsgLength };', ctx);

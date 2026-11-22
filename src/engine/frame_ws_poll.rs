@@ -575,24 +575,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             {
                                 continue;
                             }
-                            // Add as a system message in current channel
-                            let now_ms = std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64;
-                            state.gui_state.chat_messages.push(
-                                crate::gui::ChatMessage {
-                                    sender_name: "System".to_string(),
-                                    sender_key: String::new(),
-                                    content: msg.to_string(),
-                                    timestamp: crate::gui::pages::chat::format_timestamp(now_ms),
-                                    timestamp_ms: now_ms,
-                                    // Don't leak into an open P2P group / DM (it'd vanish on reload).
-                                    channel: crate::gui::pages::chat::notice_channel(&state.gui_state.chat_active_channel),
-                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                    ..Default::default()
-                                },
-                            );
+                            // The server's words, under the sender "From this server", never the
+                            // app's own "System" voice (the owner branch's sixth review, H1 (d)).
+                            crate::engine::friend_code::server_line(&mut state.gui_state, msg);
                         }
                     }
                     Some("full_user_list") => {
@@ -637,6 +622,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             // store holds the sets; chat_users supplies rows).
                             crate::engine::dm::refresh_social_mirrors(&mut state.gui_state);
                             crate::engine::dm::sweep_friend_passes(&mut state.gui_state); // passes owed, withdrawals unconfirmed
+                            crate::engine::owner::on_users(&mut state.gui_state); // a check that waited to know the owner
                         }
                     }
                     Some("cert_revoked") => crate::engine::dm::withdrawal_confirmed(&mut state.gui_state, &val),
@@ -1464,24 +1450,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 || msg.starts_with("__sync_data__")
                                 || msg == "sync_ack";
                             if !is_profile_noise {
-                                // Show as system message in chat
-                                let now_ms = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_millis() as u64;
-                                state.gui_state.chat_messages.push(
-                                    crate::gui::ChatMessage {
-                                        sender_name: "System".to_string(),
-                                        sender_key: String::new(),
-                                        content: msg.to_string(),
-                                        timestamp: crate::gui::pages::chat::format_timestamp(now_ms),
-                                        timestamp_ms: now_ms,
-                                        // Don't leak into an open P2P group / DM (it'd vanish on reload).
-                                        channel: crate::gui::pages::chat::notice_channel(&state.gui_state.chat_active_channel),
-                                        server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                        ..Default::default()
-                                    },
-                                );
+                                // The server's words, marked as the server's (sixth review, H1 (d)).
+                                crate::engine::friend_code::server_line(&mut state.gui_state, msg);
                             }
                         }
                     }

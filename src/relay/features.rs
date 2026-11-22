@@ -471,6 +471,15 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // Hide and keep (2026-11-20, handlers/held.rs): the owner keeping what was reported for the
     // hotline is administering their own server, like reviewing reports.
     "held_list", "held_items", "held_act",
+    // The server's owner (2026-11-20, handlers/owner.rs): the claim with the code from the server
+    // machine, the owner's handover and successor, and the server's answers. Claiming your own
+    // server and handing it on are the owner administering their own server.
+    "owner_claim", "owner_change_begin", "owner_change_finish", "owner_change_cancel",
+    "owner_state", "owner_reply", "owner_change_ready",
+    // An owner change's second phase (the owner review's finding 5, handlers/owner_accept.rs): the
+    // relay asks each recipient to check their own place in each copy's new lock, and their acceptance or decline. A
+    // change waits on these and rolls back without them, so no choice of features may take them away.
+    "owner_change_check", "owner_change_accept", "owner_change_decline",
     // A user's data sovereignty (2026-08-23): exporting and erasing your
     // own data must work regardless of which features the owner offers.
     // (account_export/account_export_data moved to POST /api/account/export on
@@ -1019,7 +1028,7 @@ mod tests {
         assert!(tokens_of(key.clone()).await.is_empty(), "no token of theirs is left");
     }
 
-    /// W9 (2026-10-11). THE "NO ADMIN YET" NOTICE GOES TO THE SOCKET THAT SIGNED IN, ONLY: on a
+    /// W9 (2026-10-11). THE "NO OWNER YET" NOTICE GOES TO THE SOCKET THAT SIGNED IN, ONLY: on a
     /// server nobody has claimed, a second socket of the same person (a standalone page, or a
     /// reconnect) is told, and the first socket is not told again.
     ///
@@ -1037,7 +1046,7 @@ mod tests {
             let _ = tokio::time::timeout(std::time::Duration::from_millis(800), async {
                 while let Some(Ok(msg)) = sock.next().await {
                     if let Ok(text) = msg.into_text() {
-                        if text.contains("has no admin yet") {
+                        if text.contains("has no owner yet") {
                             heard.push(text.to_string());
                         }
                     }
@@ -3481,7 +3490,7 @@ mod tests {
         state.db.register_name("OtherAdmin", "0a0a").unwrap();
         state.db.set_role("0a0a", "admin").unwrap();
         state.db.register_name("TheOwner", "0b0b").unwrap();
-        state.db.set_role("0b0b", "owner").unwrap();
+        state.db.claim_owner("0b0b", 0).unwrap();
         for sock in [&mut admin, &mut moderator, &mut target] {
             frames_until_quiet(sock, 300).await;
         }
@@ -3498,7 +3507,8 @@ mod tests {
         expect("themselves", admin_erase_from(&mut admin, &admin_key, "RefusingAdmin").await, Refused::Yourself);
         expect("an unknown key", admin_erase_from(&mut admin, "0c0c", "Nobody").await, Refused::NoAccount);
         expect("an admin", admin_erase_from(&mut admin, "0a0a", "OtherAdmin").await, Refused::AnAdmin);
-        expect("the owner", admin_erase_from(&mut admin, "0b0b", "TheOwner").await, Refused::AnAdmin);
+        // The owner has their own refusal since 2026-11-20 (nobody can erase the owner).
+        expect("the owner", admin_erase_from(&mut admin, "0b0b", "TheOwner").await, Refused::TheOwner);
         expect("a name in other letters", admin_erase_from(&mut admin, &target_key, "stayshere").await, Refused::WrongName);
         expect("a different name", admin_erase_from(&mut admin, &target_key, "Stays Here").await, Refused::WrongName);
         let erased_target = state.db.name_for_key(&target_key).unwrap().is_none() || !state.db.is_member(&target_key);
@@ -4951,7 +4961,7 @@ mod tests {
         for (n, name, role, can_edit_ship, take_down_any) in cases {
             let (mut sock, key) = bind_socket_from(&state, port, [n; 32], Some(name), 1, Some(&format!("10.55.0.{n}"))).await;
             if let Some(role) = role {
-                state.db.set_role(&key, role).expect("a role");
+                if role == "owner" { state.db.claim_owner(&key, 0).expect("the owner"); } else { state.db.set_role(&key, role).expect("a role"); }
             }
             let w = welcome_after_join(&mut sock, name).await;
             let want = serde_json::json!({ "can_edit_ship": can_edit_ship, "take_down_any": take_down_any });
@@ -5677,9 +5687,9 @@ mod tests {
         let mut scratch = Scratch(vec![rel.clone()]);
         // A fresh server's claim code, written the way run_relay writes it, unless this checkout's
         // data/ already holds one from a relay run here: then that one, left as it is.
-        let claim = crate::relay::CLAIM_CODE_FILE;
+        let claim = crate::relay::handlers::owner::CLAIM_CODE_FILE;
         if !std::path::Path::new(claim).exists() {
-            crate::relay::write_claim_code_file("0123456789ABCDEF").unwrap();
+            crate::relay::handlers::owner::write_claim_code_file("0123456789ABCDEF").unwrap();
             scratch.0.push(claim.to_string());
         }
         let claim_text = std::fs::read_to_string(claim).unwrap();
@@ -5731,5 +5741,13 @@ mod tests {
         let read: serde_json::Value = serde_json::from_str(&read_body).unwrap();
         assert_eq!(read["content"], content);
         assert_eq!(again.status().as_u16(), 401, "a signed request is used once");
+        // BUG-346 (2026-11-20): the claim code makes its reader the server's OWNER, so not even an
+        // admin reads it or sees it listed here. Seen red the same day with the data-file routes'
+        // refusal left out: the admin read the file (200, the code in the answer).
+        assert!(!listed.contains("owner-claim-code"), "an admin does not see the claim code listed");
+        let ts = now() + 5;
+        let (claim_status, claim_body) = body_of(post(&read_url, serde_json::json!({ "path": claim, "key": key, "timestamp": ts, "sig": sign(crate::relay::api::read_purpose(claim), ts) })).await.unwrap()).await;
+        assert_ne!(claim_status, 200, "not even an admin reads the claim code: {claim_body}");
+        assert!(!claim_body.contains(&code), "and its code is nowhere in the answer");
     }
 }

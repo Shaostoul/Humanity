@@ -245,7 +245,7 @@ async fn only_an_admin_can_decide() {
     let d = dirs("takedown_admin_only");
     state.db.join_server("member_key", "Member").unwrap();
     state.db.set_role("mod_key", "mod").unwrap();
-    state.db.set_role("owner_key", "owner").unwrap();
+    state.db.claim_owner("owner_key", 0).unwrap();
     state.db.set_role(OPERATOR, "admin").unwrap();
     let item = published(&state, &d, ANN, "1_dusk.png", "Dusk", "public");
     for n in 0..2 {
@@ -312,7 +312,7 @@ async fn the_admins_signed_in_now_are_told() {
     let state = relay("takedown_told");
     let d = dirs("takedown_told");
     state.db.set_role(OPERATOR, "admin").unwrap();
-    state.db.set_role("owner_key", "owner").unwrap();
+    state.db.claim_owner("owner_key", 0).unwrap();
     state.db.set_role("mod_key", "mod").unwrap();
     state.db.join_server("member_key", "Member").unwrap();
     let item = published(&state, &d, ANN, "1_dusk.png", "Dusk", "public");

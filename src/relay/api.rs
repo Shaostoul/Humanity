@@ -22,9 +22,12 @@ use std::sync::Arc;
 use rand::Rng;
 use sha2::{Sha256, Digest};
 use crate::relay::relay::{RelayMessage, RelayState, Peer, PeerInfo, SearchResultData};
+// The owner counts as an admin, and "moderator" as "mod", in every role check (BUG-332).
+use crate::relay::handlers::msg_handlers::{is_admin_role, is_staff_role};
 
-/// Constant-time byte comparison (M-2: prevent timing attacks on HMAC).
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+/// Constant-time byte comparison (M-2: prevent timing attacks on HMAC; the owner claim code too,
+/// handlers/owner.rs).
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() { return false; }
     let mut diff = 0u8;
     for (x, y) in a.iter().zip(b.iter()) {
@@ -107,6 +110,13 @@ pub async fn send_message(
 
     // Bot API is authenticated with API_SECRET, so it's trusted — skip read-only check.
     // This allows bots (e.g., Heron) to post to read-only channels like #todo.
+
+    // The app's and the server's own names are nobody's, a bot's included (the owner branch's
+    // seventh review, H1 (b)): checked on the letters a name could fold to.
+    let letters: String = req.from_name.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
+    if humanity_protocol::key_card::reserved_name(&letters) {
+        return Err((StatusCode::BAD_REQUEST, crate::relay::handlers::live_conns::RESERVED_NAME_REFUSED.to_string()));
+    }
 
     // Strip emoji/special chars from bot key generation (name stays as-is for display).
     let clean_name: String = req.from_name.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-' || *c == ' ').collect();
@@ -278,7 +288,7 @@ pub async fn delete_shared_upload(
         return Err((StatusCode::BAD_REQUEST, "Bad filename.".into()));
     }
 
-    let is_admin = state.db.get_role(&body.key).unwrap_or_default() == "admin";
+    let is_admin = is_admin_role(&state.db.get_role(&body.key).unwrap_or_default());
     match state.db.delete_shared_upload(filename, &body.key, is_admin) {
         Ok(Some(fname)) => {
             // Unlink the on-disk file (best-effort; the row is already gone) from whichever folder
@@ -1686,10 +1696,7 @@ pub async fn delete_asset(
         return Err((StatusCode::BAD_REQUEST, "Missing token.".into()));
     };
 
-    let is_admin = {
-        let role = state.db.get_role(&public_key).unwrap_or_default();
-        role == "admin" || role == "mod"
-    };
+    let is_admin = is_staff_role(&state.db.get_role(&public_key).unwrap_or_default());
 
     match state.db.delete_asset(&asset_id, &public_key, is_admin) {
         Ok(true) => Ok(Json(serde_json::json!({ "status": "deleted" }))),
@@ -2436,7 +2443,7 @@ async fn data_files_admin(state: &RelayState, key: &str, timestamp: u64, sig: &s
     if !state.auth_nonce_fresh(key, tag, timestamp) {
         return Err(refuse(StatusCode::UNAUTHORIZED, "That request was already used: try again."));
     }
-    if state.db.get_role(key).unwrap_or_default() != "admin" {
+    if !crate::relay::handlers::msg_handlers::is_admin_role(&state.db.get_role(key).unwrap_or_default()) {
         return Err(refuse(StatusCode::FORBIDDEN, "Only this server's admins can open or change its data folder."));
     }
     Ok(())
@@ -2711,9 +2718,9 @@ async fn admin_stats_inner(
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
 
-    // Check admin role.
+    // Check admin role (the owner's too).
     let role = state.db.get_role(&q.key).unwrap_or_default();
-    if role != "admin" {
+    if !is_admin_role(&role) {
         return Err((StatusCode::FORBIDDEN, "Admin role required.".into()));
     }
 
@@ -2875,7 +2882,8 @@ pub async fn post_admin_federation(
     if !sig_ok {
         return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
     }
-    if state.db.get_role(&req.key).unwrap_or_default() != "admin" {
+    let role = state.db.get_role(&req.key).unwrap_or_default();
+    if !is_admin_role(&role) {
         return Err((StatusCode::FORBIDDEN, "Admin role required.".into()));
     }
 
@@ -2894,7 +2902,7 @@ pub async fn post_admin_federation(
     put("server_id", req.server_id.clone());
     put("key", req.public_key.clone());
     put("tier", req.trust_tier.map(|t| t.to_string()));
-    let (caller, inputs) = (Caller { key: req.key.clone(), role: "admin".into() }, Inputs(inputs));
+    let (caller, inputs) = (Caller { key: req.key.clone(), role }, Inputs(inputs));
     let st = state.clone();
     let ran = match req.action.as_str() {
         "list" => Ok(crate::relay::admin::Ran::said("Peer list.")),
@@ -3369,8 +3377,7 @@ pub async fn bug_details(
     Json(req): Json<BugDetailsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     verify_signed_actor(&req.key, req.timestamp, &req.sig, BUG_DETAILS_PURPOSE).await?;
-    let role = state.db.get_role(&req.key).unwrap_or_default();
-    if role != "admin" && role != "mod" && role != "moderator" {
+    if !is_staff_role(&state.db.get_role(&req.key).unwrap_or_default()) {
         return Err((StatusCode::FORBIDDEN, "Only the admins and moderators see who sent each report.".into()));
     }
     Ok(Json(bugs_list(&state, &req.filters, true)))
@@ -3445,11 +3452,9 @@ pub async fn update_bug_status(
     // Prove the caller holds the key before believing anything about its role.
     verify_signed_actor(&req.key, req.timestamp, &req.sig, "bug_status").await?;
 
-    // "moderator" is checked alongside "mod" because both strings exist in this
-    // codebase and only one of them is ever written; accepting both is what the
-    // sibling gates do, and dropping the unwritten one silently narrows access.
-    let role = state.db.get_role(&req.key).unwrap_or_default();
-    if role != "admin" && role != "mod" && role != "moderator" {
+    // An admin, the owner or a moderator: "moderator" counts beside "mod" because both strings
+    // exist in this codebase and only one of them is ever written (is_staff_role).
+    if !is_staff_role(&state.db.get_role(&req.key).unwrap_or_default()) {
         return Err((StatusCode::FORBIDDEN, "Admin or moderator role required.".into()));
     }
 

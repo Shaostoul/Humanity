@@ -1626,7 +1626,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     }
                     let is_server_admin = {
                         let vr = viewer_role(state);
-                        vr == "admin" || vr == "moderator" || vr == "mod"
+                        crate::net::roles::is_staff_role(&vr) // the owner too (BUG-332)
                     };
                     egui::popup_below_widget(ui, menu_id, &cog_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
                         svr_disconnect |= active_server_menu(ui, theme, state, &svr_name, is_server_admin);

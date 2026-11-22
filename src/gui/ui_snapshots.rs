@@ -1498,6 +1498,27 @@ fn snapshot_chat_protected() {
     });
 }
 
+/// GPU snapshot (tests/snapshots/chat_app_voice.png): an app line with the app's mark, the server's
+/// own line under "From this server", a frame that calls itself "System" drawn as a member's row,
+/// and an ordinary member, in one room (the owner branch's seventh review, H1 (a); its headless twin
+/// is src/gui/pages/chat/app_voice_tests.rs).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_app_voice() {
+    crate::gui::ui_snapshots::render_page_png("chat_app_voice", 1280, 600, |ctx, theme, state| {
+        if !state.chat_messages.iter().any(|m| m.origin == crate::gui::LineOrigin::App) {
+            state.chat_messages.retain(|m| m.channel != "global");
+            let at = |name: &str, key: &str, text: &str, min: u64, origin: crate::gui::LineOrigin| ChatMessage { sender_name: name.into(), sender_key: key.into(), content: text.into(), timestamp: format!("09:{min:02}"), timestamp_ms: 1_791_481_200_000 + min * 60_000, channel: "global".into(), origin, ..Default::default() };
+            state.chat_messages.push(at("Ada", "ada0", "Morning, everyone.", 20, crate::gui::LineOrigin::Network));
+            state.chat_messages.push(at("System", "", "Your friend code was copied. It works once, for 24 hours.", 21, crate::gui::LineOrigin::App));
+            state.chat_messages.push(at(humanity_core::i18n::t("chat.from_server_sender"), "", "Welcome to this server. Be kind.", 22, crate::gui::LineOrigin::Server));
+            state.chat_messages.push(at("System", "", "Your key's fingerprint: 3fa2 91c0 77de 0b14 c2a9 5e61. Read the groups the owner asks for from here.", 23, crate::gui::LineOrigin::Network));
+            state.chat_active_channel = "global".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
 /// A picture from another website in a public room, with the protected setup off (BUG-173, seen
 /// rendered 2026-10-10): nothing is fetched, and the placeholder says whose picture it is and
 /// that loading it shows that website the reader's network address.
@@ -2136,6 +2157,27 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
                     { "kind": "dm", "from": "dana0000000000000000", "to": "me", "ts": 1_791_503_600_000u64,
                       "text": "I know which building you live in.", "checked": false } ] }
             ]}));
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::server_settings::reports::draw(ui, theme, state, true)
+        });
+    });
+}
+
+// Server Settings > Reports after a hide and keep decided while an owner change was in flight (the
+// owner branch's third review, S3, 2026-11-21): the relay's answer, shown on the page where the
+// decision was made, says the sealed copy WAITS for the change. The words are the relay's own
+// (src/relay/handlers/held.rs `hide_and_keep_in`), written here as it writes them. Built in memory;
+// nothing is sent.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_reports_hold_waiting() {
+    render_page_png("reports_hold_waiting", 960, 500, |ctx, theme, state| {
+        if state.reports.status.is_empty() {
+            state.profile_public_key = "me".to_string();
+            state.reports.reasons = snapshot_report_reasons();
+            state.reports.requested = true;
+            crate::engine::held::on_private(state, "Report #12 decided: hide_and_keep. 1 post(s) and 1 file(s) taken out of view. Their sealed copy WAITS for the owner change in progress: it is made as soon as that change is carried out or rolled back, sealed to whoever then holds the role, and kept 365 days from now unless the owner places a legal hold. Until then it waits on the server unsealed, out of every view.");
         }
         settings_panel(ctx, theme, state, |ui, theme, state| {
             crate::gui::pages::server_settings::reports::draw(ui, theme, state, true)
@@ -7096,16 +7138,222 @@ fn snapshot_held_copies() {
                 "type": "held_items", "can_keep": false, "i_am_owner": true,
                 "cannot_keep_why": "The key card held for this server's owner does not check out, so a copy could not be kept sealed. Nothing was kept.",
                 "items": [{ "id": 3, "report_id": 12, "file_count": 2, "parts": 4, "sealed_bytes": 2_480_000, "held_at": 1_763_600_000_000i64, "held_by_name": "Ada",
-                            "delete_after": 1_795_136_000_000i64, "legal_hold_until": 0, "deleted_at": 1_795_136_000_000i64, "exported_count": 1, "sealed_to_owner": true, "package": "x" }],
+                            "delete_after": 1_795_136_000_000i64, "legal_hold_until": 0, "deleted_at": 1_795_136_000_000i64, "exported_count": 1, "sealed_to_owner": true, "sealed_to_successor": true, "package": "x",
+                            "author": "kt", "author_name": "Tom", "stamp": 1_763_590_000_000i64 }],
                 "actions": [
                     { "action": "held_export", "target": 3, "signer_name": "Sam", "reason": "CyberTipline report", "until": 0, "signed_at": 1_763_700_000_000i64 },
                     { "action": "hide_and_keep", "target": 12, "signer_name": "Ada", "reason": "Report 12: A child may be in danger", "until": 0, "signed_at": 1_763_600_000_000i64 }
                 ],
-                "counts": { "held": 1, "exported": 1, "legal_holds": 0, "destroyed": 0, "restored": 0 },
+                // One hide waiting for an owner change, and one folder a stop left unnamed (the fourth
+                // review's finding 5a: told in words, never silent).
+                "counts": { "held": 1, "exported": 1, "legal_holds": 0, "destroyed": 0, "restored": 0, "waiting": 1, "unidentified": 1 },
+                // The successor the owner named and the owner log (2026-11-20, server_settings/owner.rs).
+                "successor": { "key": "kc", "name": "Cy" },
+                "owner_log": [
+                    { "kind": "owner_successor", "old_name": "Sam", "new_name": "Cy", "reason": "In case I cannot carry on", "at": 1_763_650_000_000i64, "object": "{}" },
+                    { "kind": "claim", "old_name": "", "new_name": "Sam", "reason": "", "at": 1_763_500_000_000i64, "object": "" }
+                ],
             }));
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::server_settings::held::draw(ui, theme, state));
         });
     });
+}
+
+/// A frame check for the owner's snapshots: the picture is written only when `words` were drawn,
+/// so it can never stand in for a control that went missing.
+fn drawn_check(words: &'static str) -> impl Fn(&egui::Context, &egui::FullOutput) -> Result<(), String> {
+    move |_, out| crate::gui::screen_surface::find_text_in_shapes(&out.shapes, words).map(|_| ()).ok_or_else(|| format!("{words:?} was not drawn"))
+}
+
+/// The members, the owner's held list (successor Cy named) and Bea chosen with her key card
+/// checked, for the owner's snapshots.
+fn owner_snapshot_state(state: &mut GuiState) {
+    if state.reports.held.list.is_some() {
+        return;
+    }
+    // Keys in hex, as Dilithium3 keys are. No member's fingerprint is drawn on the owner's page
+    // (the fifth review's H1): the person reads their own groups from their own screen.
+    let key = |byte: &str| byte.repeat(1952);
+    state.profile_public_key = key("5a");
+    let user = |name: &str, key: String, role: &str| crate::gui::ChatUser { name: name.into(), public_key: key, role: role.into(), status: "online".into() };
+    state.chat_users = vec![user("Sam", key("5a"), "owner"), user("Bea", key("b0"), "member"), user("Bea", key("b1"), "member"), user("Cy", key("c0"), "admin"), user("Dee", key("d0"), "member")];
+    state.reports.held.requested = true;
+    state.reports.held.list = crate::net::held::parse_list(&serde_json::json!({
+        "type": "held_items", "can_keep": true, "cannot_keep_why": "", "i_am_owner": true, "items": [], "actions": [], "counts": {},
+        "successor": { "key": key("c0"), "name": "Cy" }, "owner_log": [],
+    }));
+    state.reports.owner.picked = Some((key("b0"), "Bea".into()));
+    // Every handover asks (no key is exempt): the page names groups 2, 3, 5 and 6 (drawn at random
+    // in the app; fixed here for the picture) for the owner to ask Bea for; nothing typed yet.
+    state.reports.owner.asked = Some([1, 2, 4, 5]);
+    state.reports.owner.card = Some(crate::net::owner::CardCheck::Good { at: 1_763_600_000_000, kyber: vec![0; 4] });
+    state.reports.owner.confirm = "Bea".into();
+    state.reports.owner.reason = "Stepping back from running the server".into();
+}
+
+/// Server Settings > Claim ownership (2026-11-20), as anyone signed in sees it while the server
+/// says it has no owner: where the code comes from, the field and Claim, and the server's answer
+/// to a wrong code.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_owner_claim() {
+    let frame = |ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState| {
+        state.ws_identified = true;
+        state.reports.owner.has_owner = Some(false);
+        if state.reports.owner.code.is_empty() {
+            state.reports.owner.code = "3F9A00C2".into();
+            state.reports.owner.claim_words = "Wrong claim code. Copy it exactly as the server's log (or data/owner-claim-code.txt) shows it.".into();
+        }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::server_settings::owner::draw_claim(ui, theme, state));
+        });
+    };
+    render_page_png_checked("owner_claim", 1100, 520, crate::gui::font_size::DEFAULT_PERCENT, frame, drawn_check(humanity_core::i18n::t("owner.claim_button")));
+}
+
+/// Server Settings > Ownership (2026-11-20; positions only since the fifth review's H1, 2026-11-21),
+/// as the owner sees it: the successor named (Cy), the member picker by name (two members named
+/// Bea), Bea chosen, the four POSITIONS to ask her for from her own screen, the field and Check
+/// these groups, her key card checked on this device, the confirmation and the reason, the warning
+/// that a handover cannot be undone, and Hand over ownership, Name as successor and Remove
+/// successor. The frame check refuses the picture unless the words naming the positions are drawn
+/// and no group of Bea's fingerprint is.
+/// Seen red 2026-11-21 (scratchpad ownfix8-red-m2.log) with round 5's line drawing the chosen key's
+/// whole fingerprint put back: "a group of the chosen key's fingerprint was drawn".
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_owner_panel() {
+    let frame = |ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState| {
+        owner_snapshot_state(state);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::server_settings::owner::draw_owner(ui, theme, state));
+        });
+    };
+    let positions_only = |ctx: &egui::Context, out: &egui::FullOutput| -> Result<(), String> {
+        drawn_check(humanity_core::i18n::t("owner.handover"))(ctx, out)?;
+        let asked = humanity_core::i18n::tf("owner.fp_compare", &[("name", &"Bea"), ("a", &2), ("b", &3), ("c", &5), ("d", &6)]);
+        crate::gui::screen_surface::find_text_in_shapes(&out.shapes, &asked).ok_or("the words naming the four positions were not drawn")?;
+        let words = crate::gui::pages::settings::own_fingerprint::texts(out);
+        let fp = humanity_protocol::key_card::fingerprint(&"b0".repeat(1952));
+        match fp.split(' ').find(|g| words.iter().any(|w| w.split(|c: char| !c.is_ascii_hexdigit()).any(|tok| tok == *g))) {
+            Some(g) => Err(format!("a group of the chosen key's fingerprint was drawn: {g}")),
+            None => Ok(()),
+        }
+    };
+    render_page_png_checked("owner_panel", 1100, 900, crate::gui::font_size::DEFAULT_PERCENT, frame, positions_only);
+}
+
+/// Server Settings > Ownership after the groups Bea read from her own screen did not match the key
+/// the server lists as "Bea" (the fifth review's H1 (c)): the warning in words beside her, that the
+/// key will not be confirmed again until the app restarts, and no field to try again.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_owner_mismatch() {
+    let frame = |ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState| {
+        owner_snapshot_state(state);
+        if let Some((key, name)) = state.reports.owner.picked.clone() {
+            let server = crate::gui::pages::chat::norm_server_url(&state.server_url);
+            state.reports.owner.refused.insert(&server, &key);
+            state.reports.owner.asked = None;
+            state.reports.owner.status = crate::engine::owner::mismatch_words(&name);
+        }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::server_settings::owner::draw_owner(ui, theme, state));
+        });
+    };
+    let warned = |ctx: &egui::Context, out: &egui::FullOutput| -> Result<(), String> {
+        let words = crate::engine::owner::mismatch_words("Bea");
+        crate::gui::screen_surface::find_text_in_shapes(&out.shapes, &words).map(|_| ()).ok_or_else(|| format!("the warning was not drawn: {words}"))?;
+        match crate::gui::screen_surface::find_text_in_shapes(&out.shapes, humanity_core::i18n::t("owner.fp_check")) {
+            Some(f) if f.text == humanity_core::i18n::t("owner.fp_check") => Err("the field to try again is still drawn".into()),
+            _ => drawn_check(humanity_core::i18n::t("owner.handover"))(ctx, out),
+        }
+    };
+    render_page_png_checked("owner_mismatch", 1100, 900, crate::gui::font_size::DEFAULT_PERCENT, frame, warned);
+}
+
+/// Settings > Account's "Your key's fingerprint" (the fifth review's H1 (a)): the six groups of the
+/// person's own key, why they are there (the groups an owner who names them asks them to read), and
+/// that they are shown only here, never to be read out from a chat line, a message or a prompt (the
+/// sixth review's H1 (b)).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_own_fingerprint() {
+    let frame = |ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState| {
+        // Always this key (the snapshot's demo state holds a key of its own).
+        state.profile_public_key = "b0".repeat(1952);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::settings::own_fingerprint::draw(ui, theme, state));
+        });
+    };
+    let mine = humanity_core::i18n::tf("owner.my_fp", &[("fp", &humanity_protocol::key_card::fingerprint(&"b0".repeat(1952)))]);
+    let only = humanity_core::i18n::t("owner.my_fp_only_here");
+    let shown = move |_: &egui::Context, out: &egui::FullOutput| -> Result<(), String> {
+        crate::gui::screen_surface::find_text_in_shapes(&out.shapes, &mine).map(|_| ()).ok_or_else(|| format!("{mine:?} was not drawn"))?;
+        crate::gui::screen_surface::find_text_in_shapes(&out.shapes, only).map(|_| ()).ok_or_else(|| format!("{only:?} was not drawn"))
+    };
+    render_page_png_checked("settings_own_fingerprint", 900, 320, crate::gui::font_size::DEFAULT_PERCENT, frame, shown);
+}
+
+/// Server Settings > Ownership while this device re-wraps the lock of every held copy for a change
+/// of successor (2026-11-20, format v4: headers alone): how far it has come in items and parts, and
+/// Cancel.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_owner_rewrapping() {
+    let frame = |ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState| {
+        owner_snapshot_state(state);
+        if state.reports.owner.pending.is_none() {
+            let p = crate::net::owner::Progress { items_done: 1, items: 3, parts_done: 4, parts: 9 };
+            state.reports.owner.progress = Some(p);
+            state.reports.owner.status = humanity_core::i18n::tf("owner.sealing", &[("items_done", &p.items_done), ("items", &p.items), ("parts_done", &p.parts_done), ("parts", &p.parts)]);
+            state.reports.owner.pending = Some(crate::net::owner::PendingChange {
+                change: crate::net::owner::Change::Successor,
+                target: "kb".into(),
+                target_name: "Bea".into(),
+                grant: "g".into(),
+                sent_at_ms: i64::MAX / 2,
+                started: true,
+            });
+        }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::server_settings::owner::draw_owner(ui, theme, state));
+        });
+    };
+    render_page_png_checked("owner_rewrapping", 1100, 520, crate::gui::font_size::DEFAULT_PERCENT, frame, drawn_check(humanity_core::i18n::t("owner.cancel")));
+}
+
+/// Server Settings > Overview's Check the held copies (2026-11-20, the owner review's finding 5), as
+/// the member an owner is handing the role to sees it: who asks and what it means, where to read
+/// their own fingerprint from (Settings > Account on their own device: no fingerprint is drawn on
+/// the prompt, the sixth review's H1), Check and accept and Decline. Nothing changes until their
+/// device has checked its own place in every copy's new lock (format v4: a header alone, never a
+/// body). The check is put in place directly; the app draws one only once its signed action
+/// verified (engine/owner.rs `on_check`).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_owner_check() {
+    let frame = |ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState| {
+        if state.reports.owner.check.is_none() {
+            state.profile_public_key = "b0".repeat(1952);
+            state.reports.owner.check = Some(crate::net::owner::Check {
+                grant: "e7".repeat(32),
+                round: "r1".into(),
+                action: "owner_handover".into(),
+                object: serde_json::Value::Null,
+                owner: "ka".into(),
+                owner_name: "Ola".into(),
+                target: "kb".into(),
+                target_name: "Bea".into(),
+                items: vec![crate::net::owner::ReadyItem { id: 1, package: "a1".repeat(16), parts: 2 }, crate::net::owner::ReadyItem { id: 2, package: "c2".repeat(16), parts: 1 }],
+                until: i64::MAX / 2,
+            });
+        }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::server_settings::owner::draw_check(ui, theme, state));
+        });
+    };
+    render_page_png_checked("owner_check", 1100, 420, crate::gui::font_size::DEFAULT_PERCENT, frame, drawn_check(humanity_core::i18n::t("owner.check_where_fp")));
 }

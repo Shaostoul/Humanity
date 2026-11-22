@@ -1544,7 +1544,58 @@ files sealed to the server owner's key card (`crates/humanity-protocol/src/held_
 checked card; deleted after a year unless the owner places a legal hold, or at once on destroy now;
 every action a signed `mod_action_v1` recorded for all admins (`src/relay/storage/held.rs`,
 `src/relay/storage/moderation_held.rs`, `src/relay/handlers/held.rs`); the owner's export fetches
-only ciphertext (`GET /api/held/{id}/{part}`); public counts at `GET /api/held-count`. **Calls through the
+only ciphertext (`GET /api/held/{id}/{part}`); public counts at `GET /api/held-count`. **The
+server's owner, set in the app** (2026-11-20, `docs/design/hide-and-keep.md` Built): while no key
+holds the role the relay prints a one-time claim code to its log and writes
+`data/owner-claim-code.txt` (never sent to a client; the data-file routes refuse it even to admins);
+**Claim ownership** takes it (desktop: Server Settings > Overview, `src/gui/pages/server_settings/owner.rs`;
+website: the chat line, `/claim` alone and the palette's "Claim ownership", `web/chat/chat-owner.js`;
+`/claim <code>` in chat on both, sent to the server alone), always compared in constant time, the
+right code never locked out by wrong guesses (counted per key and logged), the claimer's key card
+required (`src/relay/handlers/owner.rs`, `src/relay/storage/owner.rs`). For the owner,
+**Ownership** (the desktop app only: Server Settings > Moderator under Held copies; the website's
+Held copies shows who the owner and the successor are and the owner log, read only, and says in
+words why owner changes happen in the desktop app: the page comes from the server it would be
+checking, the seventh review's M2): **Hand over ownership** and **Name or Remove a successor**, each signed
+(`owner_handover`, `owner_successor`, `owner_successor_remove`), the person picked told apart by
+their key (a name an honest relay could not list shown as a refused name, and neither handed the
+role nor named successor; EVERY handover and naming confirmed by four of the person's fingerprint
+groups at positions drawn at random each time, read out by the person FROM THEIR OWN SCREEN, which
+the owner types: the owner's page shows only the positions, a mismatch is a warning that refuses
+the key on that server (until the desktop app restarts; 24 hours in every browser tab), whoever the
+person, no friend or pinned card exempt, the 2026-11-21 third to sixth reviews; every person's own
+fingerprint ONLY in Settings > Account in both apps and the website chat's Account and Identity
+menu, from the device's own key at startup, with the words that it is shown only there,
+`src/gui/pages/settings/own_fingerprint.rs`, web `own-fingerprint.js`; a check prompt drawn only
+once its signed action verifies and its signer is the owner the member list shows, and every line
+the relay writes into the chat marked as the server's, the sixth review's H1; core `key_card::fingerprint`, `confirm_positions`, `judge_at`,
+`honest_name`, web `key-card.js`), the owner's device
+RE-WRAPPING every held copy for the new recipients' checked key cards, headers alone, never a body
+(held seal format v4, key commitment; `src/net/owner.rs` and `src/engine/owner.rs`, core
+`held_seal::rewrap_header`; web `rewrapHeader`), the relay taking only a header with the old
+commitment and copying every body byte for byte, then waiting for every recipient's own device to
+check its own slot of each new header and sign an acceptance bound to the change's round (**Check
+and accept**, the desktop app only: Server Settings > Overview; the website draws a line saying the
+desktop app does the check, with none of the frame's text, `web/chat/chat-owner.js`;
+`src/relay/handlers/owner_accept.rs`, core `held_seal::check_header`) before swapping roles and
+folders in one step or none, rollback and carry-out excluding each other
+(`src/relay/storage/owner_handover.rs`); every held part route proves its caller by a signature
+with its own domain line, in both apps (desktop `src/net/held.rs` `Caller`, website
+`web/chat/chat-held.js` `callerHeaders`). A post hidden while a change runs leaves every view at
+once, and its sealed copy waits until the change is carried out or rolled back, then is sealed to
+the recipients then (`data/held/.waiting-*`, `Storage::held_seal_waiting_in`, the moderator told so
+in words; written note first, finished after a stop, idempotent by hide id, sealed at the latest
+`WAITING_CAP_MS` after the hide, and counted for every admin in Held copies). Export and Restore
+refuse a copy that is not the item chosen, a sibling post of one report included: each item shows
+its post's author and time (`held_seal::manifest_is`, `Chosen`).
+Held copies are sealed to the owner and the named
+successor, who has no powers until they hold the role (no route serves them a copy's bytes);
+every admin sees the successor and the owner log. Nobody can kick, ban, mute, demote, game-ban or
+erase the owner, nor verify, unverify, mark as donor or release the owner's name
+(`refuse_if_owner`, `src/relay/handlers/role_commands.rs`, and the one guarded role write
+`write_role_in` under `set_role` and the link redeem). The owner counts as an admin
+in every role check (BUG-332's sweep: relay helpers `is_admin_role`/`is_staff_role`, the website's
+`web/shared/roles.js`, the desktop's `src/net/roles.rs`, held by `tests/role_gate_lint.rs`). **Calls through the
 server** (v0.1470): our own STUN and a room-scoped forwarder on UDP 3478, so nobody in a call sees
 another's address. **How my calls connect** (10p, 2026-10-22): a per-person choice in Settings >
 Privacy (desktop) and Settings > Safety (web), words from `data/net/call_connection.json`: Private

@@ -89,7 +89,7 @@ fn payload_text_bytes(payload: &[u8], key: &str) -> Option<String> {
     None
 }
 
-fn payload_text(object: &Object, key: &str) -> Option<String> {
+pub(crate) fn payload_text(object: &Object, key: &str) -> Option<String> {
     payload_text_bytes(&object.payload, key)
 }
 
@@ -199,7 +199,7 @@ impl Storage {
             // not delete this as redundant without checking that the SQL filter is
             // still there, and vice versa.
             let owner_role = self.get_role(&owner).unwrap_or_default();
-            if owner_role != "admin" && owner_role != "owner" {
+            if !crate::relay::handlers::msg_handlers::is_admin_role(&owner_role) {
                 continue;
             }
             let mods = {
@@ -269,7 +269,7 @@ impl Storage {
             None => {
                 let role = self.get_role(&signer_hex).unwrap_or_default();
                 (
-                    role == "admin" || role == "mod" || role == "moderator" || role == "owner",
+                    crate::relay::handlers::msg_handlers::is_staff_role(&role),
                     ModAuthority::ServerRole,
                 )
             }
@@ -281,7 +281,7 @@ impl Storage {
             Some((owner, _)) => *owner == signer_hex,
             None => {
                 let r = self.get_role(&signer_hex).unwrap_or_default();
-                r == "admin" || r == "owner"
+                crate::relay::handlers::msg_handlers::is_admin_role(&r)
             }
         };
 
@@ -334,13 +334,15 @@ impl Storage {
             return Ok(ModOutcome::SelfTarget);
         }
         if !signer_is_admin {
-            let touches_protected = target_keys.iter().any(|k| {
-                let r = self.get_role(k).unwrap_or_default();
-                r == "admin" || r == "owner"
-            });
+            let touches_protected = target_keys.iter().any(|k| crate::relay::handlers::msg_handlers::is_admin_role(&self.get_role(k).unwrap_or_default()));
             if touches_protected {
                 return Ok(ModOutcome::ProtectedTarget);
             }
+        }
+        // Nobody bans, mutes or changes the role of the server's owner, admins included: the role
+        // moves only by a claim or a handover (storage/owner.rs).
+        if matches!(action.as_str(), "ban" | "mute" | "grant_role" | "revoke_role") && target_keys.iter().any(|k| self.is_owner(k)) {
+            return Ok(ModOutcome::Unsupported("nobody can ban, mute or change the role of this server's owner; only the owner can hand the role to someone else".into()));
         }
 
         // ── apply ──
