@@ -156,6 +156,8 @@ async function loadPage({ role, me, peers, host }) {
   // `import('/shared/...')` is pointed at the same file through a function of the page's.
   ctx.__import = (spec) => import(pathToFileURL(path.join(REPO, 'web', spec.replace(/^\//, ''))).href);
   vm.createContext(ctx);
+  // The real `appLine` (the one way to the app's mark) and its helpers, cut out of app.js.
+  vm.runInContext(require('./app-line-real.js').appVoiceSource(WEB), ctx, { filename: 'chat/app.js (app voice)' });
   vm.runInContext(fs.readFileSync(path.join(WEB, 'shared', 'own-fingerprint.js'), 'utf8'), ctx, { filename: 'shared/own-fingerprint.js' });
   for (const file of ['chat-held.js', 'chat-owner.js']) {
     const src = fs.readFileSync(path.join(WEB, 'chat', file), 'utf8');

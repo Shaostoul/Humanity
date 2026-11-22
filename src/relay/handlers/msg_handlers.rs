@@ -2221,6 +2221,14 @@ pub async fn handle_federated_chat(
         tracing::warn!("Federation: rejected chat from {}: dated ahead, or no author key", crate::relay::handlers::federation::key_in_log(&server_id));
         return;
     }
+    // The author's name is held to the rule this server holds its own members' to (honest_name):
+    // an honest origin never lists another, so a line naming its author "System" or a sentence came
+    // from a server not following the rules (the owner branch's eighth review: a federated
+    // from_name was never checked).
+    if !humanity_protocol::key_card::honest_name(&from_name) {
+        tracing::warn!("Federation: rejected chat from {}: its author's name is one an honest server never lists", crate::relay::handlers::federation::key_in_log(&server_id));
+        return;
+    }
 
     // In a FederatedChat the server_id field IS the sender's public key
     // (forward_to_federation sets it from the keypair), while /server-add

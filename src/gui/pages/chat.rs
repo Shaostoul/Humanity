@@ -1278,7 +1278,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
 /// the content was sent (or locally echoed for the scratchpad); false when
 /// the send was aborted (unencryptable DM stashed for the confirm modal, or
 /// a failed P2P-group send) -- the composer keeps its input in that case.
-fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
+pub(crate) fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     // A line starting with `/claim` (zero-width characters ignored, any case, a space, a colon or
     // the code right after, or nothing) goes to the server alone or shows the claim help, before any
     // routing: never to the people of an open DM or group (the owner review's finding 6 and the
@@ -1293,7 +1293,9 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         return false; // nothing leaves; the draft stays so the phrase can be removed
     }
     // A typed /friend-code or /redeem: the one answer it asks for is taken (engine/friend_code.rs).
-    if channel != "scratchpad" {
+    // Only where the line reaches the server as a command: in a DM or a group it is sealed for the
+    // people there, so the server never sees it and no answer is owed (the eighth review).
+    if channel != "scratchpad" && !channel.starts_with("dm:") && !channel.starts_with("p2pgroup:") {
         crate::engine::friend_code::note_sent(state, content);
     }
     // Single timestamp for both the WS send and the local echo so
@@ -1369,18 +1371,10 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
             Err(reason) => {
                 let human = key_change::why_not_sent(state, reason, &partner_key); // in plain words
                 // Surface the reason INSIDE the conversation so it can't
-                // be missed, and keep the draft in the composer.
-                state.chat_messages.push(ChatMessage {
-                    sender_name: "System".to_string(),
-                    sender_key: String::new(),
-                    content: human.to_string(),
-                    timestamp: chrono_now_str(),
-                    timestamp_ms: ts,
-                    channel: channel.clone(),
-                    server: norm_server_url(&state.server_url),
-                    origin: crate::gui::LineOrigin::App, // the app's own voice (seventh review, H1 (a))
-                    ..Default::default()
-                });
+                // be missed, and keep the draft in the composer. The app's own voice, built only
+                // from its words and typed arguments (state_types/app_voice.rs, the eighth review).
+                let server = norm_server_url(&state.server_url);
+                state.chat_messages.push(crate::gui::app_row(human, channel.clone(), server, ts));
                 log::warn!("DM not sent ({reason}); fail closed, no plaintext path exists.");
                 return false;
             }

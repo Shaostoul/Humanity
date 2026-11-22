@@ -32,12 +32,15 @@ pub(super) fn draw_key_change_notice(ui: &mut egui::Ui, theme: &Theme, state: &m
 /// Why a DM to `partner` was not sent, in plain words, for a `build_dm_puts` failure `reason`.
 /// With no key from a checked key card (`missing_peer_key`), which of the three it is: none on the
 /// server, still on its way, or changed and not yet accepted (engine/key_cards.rs `refusal_text`).
-pub(super) fn why_not_sent(state: &mut GuiState, reason: &str, partner: &str) -> String {
+/// In the app's own voice ([`crate::gui::AppVoice`]): the person's name, which a relay listed, goes
+/// in only through `honest_name` (the owner branch's eighth review, H2: a name of the relay's
+/// choosing wrote a sentence into the app's "not sent" line).
+pub(super) fn why_not_sent(state: &mut GuiState, reason: &str, partner: &str) -> crate::gui::AppVoice {
+    use crate::gui::AppVoice;
     match reason {
-        "no_own_key" => "Can't send: your account isn't unlocked on this device. Restore it from your recovery phrase first.".to_string(),
-        "missing_peer_key" => crate::engine::key_cards::refusal_text(state, partner)
-            .unwrap_or_else(|| "Nothing was sent: there is no checked key for this person yet.".to_string()),
-        "bad_own_key" => "Can't send: your encryption key could not be derived. Try Identity → Recover.".to_string(),
-        _ => "Can't send: encrypting the message failed.".to_string(),
+        "no_own_key" => AppVoice::say("chat.dm_not_sent_no_own_key", &[]),
+        "missing_peer_key" => crate::engine::key_cards::refusal_voice(state, partner).unwrap_or_else(|| AppVoice::say("chat.dm_not_sent_no_checked_key", &[])),
+        "bad_own_key" => AppVoice::say("chat.dm_not_sent_bad_own_key", &[]),
+        _ => AppVoice::say("chat.dm_not_sent_failed", &[]),
     }
 }

@@ -914,15 +914,32 @@ function submitAdminEraseDialog() {
   }
   ws.send(JSON.stringify(frame));
   closeAdminEraseDialog();
-  addSystemMessage('Asked the server to erase ' + st.name + "'s data. Its receipt appears when it is done.");
+  adminEraseAsked = { at: Date.now() };
+  addSystemMessage('Asked the server to erase ' + shownName(st.name) + "'s data. Its receipt appears when it is done.");
   return true;
 }
 
-/** `admin_erase_done`: the receipt, in the chat and in a dialog. */
+/** The erase this admin asked for and has no receipt for yet ({ at }), or null: one receipt per ask. */
+let adminEraseAsked = null;
+/** How long an ask waits for its receipt (ms): the relay answers in seconds. */
+const ADMIN_ERASE_RECEIPT_WAIT_MS = 10 * 60 * 1000;
+
+/**
+ * `admin_erase_done`: the receipt, in the chat and in a dialog, ONLY for an erase this admin asked
+ * for (one receipt per ask), and as the SERVER'S words, marked "From this server:", with its name
+ * shown only when honest and its labels only when they are a table's name (the owner branch's
+ * eighth review, H1: a relay's unasked frame drew its own sentence in the app's voice and a dialog).
+ */
 function showAdminEraseReceipt(msg) {
   if (typeof adminEraseReceiptText !== 'function') return;
-  const text = adminEraseReceiptText(msg);
-  addSystemMessage(text);
+  const asked = adminEraseAsked;
+  if (!asked || Date.now() - asked.at > ADMIN_ERASE_RECEIPT_WAIT_MS) {
+    console.warn('admin_erase_done: dropped, no erase was asked for from this page.');
+    return;
+  }
+  adminEraseAsked = null;
+  const text = i18n.t('chat.from_server', { text: serverWords(adminEraseReceiptText(msg)) });
+  addServerMessage(adminEraseReceiptText(msg));
   adminEraseDialog = null;
   const card = adminEraseCard(adminErasePartial(msg) ? 'Erase not finished' : 'Data erased');
   const p = document.createElement('p');

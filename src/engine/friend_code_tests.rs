@@ -128,7 +128,7 @@ fn a_line_the_server_wrote_is_marked_as_the_servers() {
     let mut gs = GuiState::default();
     let forged = "Your key's fingerprint: 3fa2 91c0 77de 0b14 c2a9 5e61. Read them from here.";
     server_line(&mut gs, forged);
-    system_line(&mut gs, "an app line");
+    system_line(&mut gs, crate::gui::AppVoice::say("owner.claim_help", &[]));
     let [server, app] = &gs.chat_messages[..] else { panic!("two lines: {:?}", gs.chat_messages.len()) };
     assert_eq!(server.sender_name, humanity_core::i18n::t("chat.from_server_sender"), "under the sender From this server");
     assert_eq!(server.content, forged, "the server's words as sent, marked as its own");
@@ -167,5 +167,32 @@ fn a_friend_code_answer_nobody_asked_for_is_dropped() {
     let before = gs.chat_messages.len();
     on_frame(&mut gs, &serde_json::json!({ "type": "friend_code_response", "code": "Q7RT (Your key's fingerprint: 3fa2 91c0)" }));
     assert_eq!(gs.chat_messages.len(), before, "a code with words in it is dropped");
+    tidy(&gs);
+}
+
+/// TWO REDEEMS ARE TWO ASKS (the owner branch's eighth review, a low finding): each redeem waits
+/// for its own answer, so two inside two minutes take two answers, and a third is still dropped.
+/// Seen red 2026-11-22 against the one-slot ask (as before): "the second redeem's answer is taken"
+/// failed (the second redeem had overwritten the first's slot, which the first answer used up).
+#[test]
+fn two_redeems_take_two_answers_and_no_more() {
+    crate::config::keep_saves_off_disk();
+    let (seed, me) = identity(194);
+    let (ann_seed, ann) = identity(195);
+    let (bea_seed, bea) = identity(196);
+    let (mut gs, _sent) = app(&me, &seed, "code-two");
+    for (s, k) in [(&ann_seed, &ann), (&bea_seed, &bea)] {
+        gs.peer_kyber_keys.insert(k.clone(), crate::net::dm_pq::DmPqKeypair::from_bip39_seed(s).unwrap().public_base64());
+    }
+    note_sent(&mut gs, "/redeem AB12CD34");
+    note_sent(&mut gs, "/redeem EF56GH78");
+    on_frame(&mut gs, &result(&ann));
+    on_frame(&mut gs, &result(&bea));
+    assert!(gs.dm_store.as_ref().unwrap().is_following(&ann), "the first redeem's answer is taken");
+    assert!(gs.dm_store.as_ref().unwrap().is_following(&bea), "the second redeem's answer is taken");
+    let (cy_seed, cy) = identity(197);
+    gs.peer_kyber_keys.insert(cy.clone(), crate::net::dm_pq::DmPqKeypair::from_bip39_seed(&cy_seed).unwrap().public_base64());
+    on_frame(&mut gs, &result(&cy));
+    assert!(!gs.dm_store.as_ref().unwrap().is_following(&cy), "a third answer, unasked, is dropped");
     tidy(&gs);
 }

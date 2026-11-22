@@ -8,16 +8,20 @@
 //! or "HumanityOS" is drawn as someone's words, never like this. Nothing here is a glyph or a name a
 //! frame could imitate: the mark is geometry.
 //!
-//! The website's twin is the `.message.system.app-line` class (web/chat/messages.css), drawn by
-//! app.js `addSystemMessage`; the server's own lines are `.server-line` there and the sender
-//! "From this server" here.
+//! The website's twin is the `.message.system.app-line` class (web/chat/messages.css), drawn only
+//! by app.js `appLine` (the owner branch's eighth review; `addSystemMessage` draws the plain style);
+//! the server's own lines are `.server-line` there and the sender "From this server" here.
 
 use egui::{Color32, CornerRadius, Sense, Shape, Stroke, Vec2};
 
 use crate::gui::theme::Theme;
+use crate::gui::AppVoice;
 
-/// Draw one app line, `text`, across the available width on `bg`. Returns the row's response.
-pub fn draw(ui: &mut egui::Ui, theme: &Theme, text: &str, bg: Color32) -> egui::Response {
+/// Draw one app line across the available width on `bg`. Returns the row's response. It takes the
+/// [`AppVoice`] itself, never words, so nothing but an app line built from the app's own words
+/// (state_types/app_voice.rs) can be drawn with this mark (the owner branch's eighth review).
+pub fn draw(ui: &mut egui::Ui, theme: &Theme, voice: &AppVoice, bg: Color32) -> egui::Response {
+    let text = voice.text();
     let full_width = ui.available_width();
     let content_left = theme.avatar_size + theme.avatar_gap;
     let content_width = (full_width - content_left - 4.0).max(100.0);

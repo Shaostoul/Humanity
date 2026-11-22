@@ -2038,7 +2038,7 @@ function takeTypedClaim(line) {
   const c = typedClaim(line);
   if (c === null) return false;
   if (c.help) {
-    addSystemMessage(window.i18n ? i18n.t('owner.claim_help') : '');
+    appLine('owner.claim_help');
     return true;
   }
   const code = c.code;
@@ -2047,7 +2047,7 @@ function takeTypedClaim(line) {
     return true;
   }
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'owner_claim', code, typed: true }));
-  else addSystemMessage(window.i18n ? i18n.t('held.not_connected') : '');
+  else appLine('held.not_connected');
   return true;
 }
 
@@ -2172,18 +2172,27 @@ function failChannelAdminCmd(reasonText) {
   if (!channelAdminCmdInFlight) return;
   clearTimeout(channelAdminCmdInFlight.timeout);
   channelAdminCmdInFlight = null;
-  addNotice(reasonText, 'red', 10);
+  if (reasonText) addNotice(reasonText, 'red', 10);
 }
 
+/**
+ * The server's answer to a channel action this page asked for. Its words are the SERVER'S, whatever
+ * they match (`#.+` takes any text the relay puts in a channel's name), so they are drawn marked
+ * "From this server:" (`.server-line`), never in the app's voice (the owner branch's eighth review,
+ * M3: "Channel #<a sentence> created." drew under the app's mark).
+ */
 function handleChannelAdminFeedback(message) {
   if (!message || !channelAdminCmdInFlight) return false;
   const m = String(message);
+  const said = () => i18n.t('chat.from_server', { text: serverWords(m) });
   if (/^Channel #.+ created\.$/i.test(m) || /^Channel #.+ deleted\.$/i.test(m) || /^Channel #.+ renamed to #.+\.$/i.test(m)) {
-    resolveChannelAdminCmd('✅ ' + m);
+    resolveChannelAdminCmd(null);
+    addNotice(said(), 'green', 6, 'server-line');
     return true;
   }
   if (/(Only admins|Only admins and mods|Cannot delete|Cannot rename|not found|Invalid channel name|Unable to rename|Usage: \/channel-)/i.test(m)) {
-    failChannelAdminCmd(m);
+    failChannelAdminCmd(null);
+    addNotice(said(), 'red', 10, 'server-line');
     return true;
   }
   return false;
@@ -2262,7 +2271,8 @@ function handleSkillVerifyResponse(d) {
 function requestSkillEndorsement(peerName, skillId, level) {
   if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected.'); return; }
   ws.send(JSON.stringify({ type: 'skill_verify_request', to_name: peerName, skill_id: skillId, level }));
-  addSystemMessage(`📤 Endorsement request sent to ${peerName} for skill "${skillId}".`);
+  // The name is the relay's to list: shown only when honest (the eighth review's low finding).
+  addSystemMessage(`📤 Endorsement request sent to ${shownName(peerName)} for skill "${skillId}".`);
 }
 
 /**
@@ -2667,15 +2677,70 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 }
 
 /**
- * A line in the APP'S OWN VOICE: words this page wrote, never text the relay sent (the owner
- * branch's seventh review, H1 (a), 2026-11-21). Drawn with the app's mark (the `.app-line` class:
- * an accent bar and a diamond, web/chat/messages.css), which addServerMessage's lines never carry.
- * The desktop app's twin is src/gui/widgets/app_line.rs. Text from the network goes through
- * addServerMessage instead, whatever route it came by.
+ * A system line in the PLAIN style: no mark, so it reads as anyone's words, whatever it says (the
+ * owner branch's eighth review, 2026-11-22). Eight reviews in a row each found one more caller
+ * that put relay text into the app's voice, so the default is flipped: this function never draws
+ * the app's mark, whoever calls it with whatever text. The ONE way to the mark is `appLine` below.
+ * Text the server wrote goes through addServerMessage.
  */
-function addSystemMessage(text) { drawSystemLine(text, 'app-line'); }
+function addSystemMessage(text) { drawSystemLine(text, ''); }
 
-/** One system line, routed as a notice or a line, carrying `kind` ('app-line' or 'server-line'). */
+/**
+ * A line in the APP'S OWN VOICE, the ONLY way to the app's mark (the `.app-line` class: an accent
+ * bar and a diamond, web/chat/messages.css; the desktop app's twin is
+ * src/gui/state_types/app_voice.rs, a type no relay text can reach). The words are i18n `key`'s;
+ * each `{{placeholder}}` is filled from `args` by its type: a number as written, or an `appArg`
+ * (`appArg.name(x)` a name through shownName, `appArg.quote(x)` other relay text as one short
+ * server-marked quotation, `appArg.words(key)` more of the app's words). A plain string argument is
+ * refused (a TypeError, and nothing is drawn): no caller can put a relay's text in the app's voice.
+ * `opts.className` adds classes to the line; `opts.notice` ({ color, seconds }) draws it as a
+ * notice. Returns the drawn element, so a caller can put its own button under the words.
+ */
+function appLine(key, args, opts) {
+  const vars = {};
+  for (const name of Object.keys(args || {})) vars[name] = appArgText(args[name]);
+  const o = opts || {};
+  const marked = !args || !Object.keys(args).length;
+  if (o.notice) return drawNotice(i18n.t(key, vars), o.notice.color, o.notice.seconds, 'app-line');
+  const el = document.createElement('div');
+  el.className = 'message system app-line' + (o.className ? ' ' + o.className : '');
+  const words = document.createElement('span');
+  words.className = 'app-line-words';
+  // Glossary marks ([[term]]) where the words have no arguments to fill.
+  if (marked && typeof i18n.fill === 'function') i18n.fill(words, key);
+  else words.textContent = i18n.t(key, vars);
+  el.appendChild(words);
+  appendMessage(el);
+  return el;
+}
+
+/** The arguments `appLine` takes besides numbers: each made only here, each safe by construction. */
+const appArg = (() => {
+  const made = new WeakSet();
+  const make = (text) => { const a = Object.freeze({ text: String(text) }); made.add(a); return a; };
+  return Object.freeze({
+    /** A name from the network: itself only when honest (shownName), else the refused-name words. */
+    name: (x) => make(shownName(x)),
+    /** Other text from the network: one line, at most 80 characters, its quotation marks plain, marked as the server's. */
+    quote: (x) => {
+      let s = serverWords(x).replace(/["“”„«»]/g, "'");
+      if (s.length > 80) s = s.slice(0, 80) + '…';
+      return make(i18n.t('chat.server_quote', { text: s }));
+    },
+    /** More of the app's own words, by key. */
+    words: (key) => make(i18n.t(key)),
+    _is: (a) => made.has(a),
+  });
+})();
+
+/** One `appLine` argument as text, or a TypeError for anything that is not a number or an appArg. */
+function appArgText(a) {
+  if (typeof a === 'number' && Number.isFinite(a)) return String(a);
+  if (a && typeof a === 'object' && appArg._is(a)) return a.text;
+  throw new TypeError('appLine takes numbers and appArg values only, never plain text');
+}
+
+/** One system line, routed as a notice or a line, carrying `kind` ('' or 'server-line'). */
 function drawSystemLine(text, kind) {
   // Suppress an immediately-repeated identical banner (a reconnect storm against the
   // relay's per-IP rate limit would otherwise print the same line again and again).
@@ -2716,7 +2781,7 @@ function drawSystemLine(text, kind) {
   }
   // Everything else, regular system message
   const el = document.createElement('div');
-  el.className = 'message system ' + kind;
+  el.className = 'message system' + (kind === 'server-line' ? ' server-line' : '');
   el.textContent = `• ${text}`;
   appendMessage(el);
 }
@@ -2765,9 +2830,16 @@ function formatCountdown(secs) {
  * @param {number} seconds - Auto-dismiss after N seconds
  */
 function addNotice(text, color, seconds, kind) {
+  // Plain unless it is the server's (the eighth review: every caller without `kind` used to get the
+  // app's mark, and channel-admin feedback and group errors carried relay text under it). Only
+  // `appLine` draws a notice with the app's mark.
+  return drawNotice(text, color, seconds, kind === 'server-line' ? 'server-line' : '');
+}
+
+/** A notice with its countdown, `cls` its one style class ('', 'server-line', or appLine's mark). */
+function drawNotice(text, color, seconds, cls) {
   const el = document.createElement('div');
-  // The app's own notice carries its mark; the server's (drawSystemLine 'server-line') never does.
-  el.className = `notice notice-${color} ${kind === 'server-line' ? 'server-line' : 'app-line'}`;
+  el.className = `notice notice-${color}` + (cls ? ' ' + cls : '');
   const textSpan = document.createElement('span');
   textSpan.className = 'notice-text';
   textSpan.textContent = text;

@@ -137,6 +137,8 @@ function loadChat(opts = {}) {
   const notices = [];
   ctx.addNotice = (text) => notices.push(String(text));
   ctx.addSystemMessage = (text) => notices.push(String(text));
+  // The app's own lines (app.js appLine, the claim help among them) arrive as drawn elements.
+  ctx.appendMessage = (el) => notices.push(String(el && el.textContent));
   const sent = [];
   const set = (js) => vm.runInContext(js, ctx);
   set("myKey = 'me'; myName = 'Me'; myIdentity = { canSign: true }; myDilithiumSecret = new Uint8Array(4); peerData = { me: { public_key: 'me', role: '' }, bea: { public_key: 'bea', display_name: 'Bea', role: '' } };");

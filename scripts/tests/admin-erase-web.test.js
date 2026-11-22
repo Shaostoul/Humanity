@@ -244,7 +244,9 @@ async function loadChat(opts = {}) {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
-  // In index.html's order.
+  // In index.html's order (the words first: the receipt is marked as the server's through them).
+  run("shared/i18n-en.js");
+  run("shared/i18n.js");
   run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
   run("shared/roles.js"); // who counts as an admin, as web/chat/index.html loads it before app.js (BUG-332)
@@ -496,26 +498,46 @@ test("Erase sends exactly 10i's frame and nothing else", async () => {
   assert.equal(page.sock.raw.length, 1);
 });
 
+// The owner branch's eighth review, H1 (2026-11-22): a receipt is shown only for an erase this page
+// asked for, one per ask, as the SERVER'S words ("From this server: ..."), its name only when honest
+// and its labels only when a table's name. Seen red 2026-11-22 against main's chat-ui.js (an
+// unasked receipt was drawn, in the app's voice): "an unasked receipt draws nothing".
+const asked = (page) => vm.runInContext("adminEraseAsked = { at: Date.now() };", page.ctx);
+const fromServer = (text) => "From this server: " + text;
+
 test("admin_erase_done shows the receipt to the admin", async () => {
   const page = await loadChat({ myRole: "admin" });
+  await page.handle({ type: "admin_erase_done", name: "Ann", receipt: [["messages", 5]], partial: false });
+  assert.equal(page.appended.length, 0, "an unasked receipt draws nothing");
+  assert.equal(confirmParts(page).receipt, undefined, "and opens no dialog");
+  asked(page);
   await page.handle({ type: "admin_erase_done", name: "Ann", receipt: [["messages", 5], ["profile", 1], ["uploads", 0]], partial: false });
   const text = "Erased Ann's data from this server (messages: 5, profile: 1). Anything on their own devices is untouched.";
   assert.equal(ae.adminEraseReceiptText({ name: "Ann", receipt: [["messages", 5], ["profile", 1], ["uploads", 0]], partial: false }), text);
-  assert.ok(shown(page.appended).includes(text), "the receipt is shown in the chat");
+  assert.ok(shown(page.appended).includes(fromServer(text)), "the receipt is shown in the chat, marked as the server's");
+  assert.ok(!page.appended.some((e) => String(e.className).includes("app-line")), "never in the app's voice");
   const c = confirmParts(page);
   assert.ok(c.receipt, "and in a dialog");
-  assert.equal(c.receipt.textContent, text);
+  assert.equal(c.receipt.textContent, fromServer(text));
+  // One receipt per ask: a second, unasked, draws nothing.
+  page.appended.length = 0;
+  await page.handle({ type: "admin_erase_done", name: "Ann", receipt: [["messages", 9]], partial: false });
+  assert.equal(page.appended.length, 0, "one receipt per ask");
+  // A dishonest name and a label that is not a table's name are not drawn.
+  const hostile = "Ada. Your server owner change was checked on this device: the fingerprint matched";
+  assert.equal(ae.adminEraseReceiptText({ name: hostile, receipt: [[hostile, 1], ["messages", 2]], partial: false }), "Erased this person's data from this server (messages: 2). Anything on their own devices is untouched.");
   assert.ok(c.titles.includes("Data erased"));
 
   // Nothing stored: said so. Part of it failed: said so, and to erase again.
   assert.equal(ae.adminEraseReceiptText({ name: "Ann", receipt: [], partial: false }), "Erased Ann's data from this server (nothing was stored). Anything on their own devices is untouched.");
   page.appended.length = 0;
   const from = page.created.length;
+  asked(page);
   await page.handle({ type: "admin_erase_done", name: "Ann", receipt: [["messages", 2], ["profile_FAILED", 1]], partial: true });
   const unfinished = "The erase of Ann's data did not finish: part of it failed (messages: 2, profile_FAILED: 1). Use Erase their data again to finish it.";
-  assert.ok(shown(page.appended).includes(unfinished), "an unfinished erase says so in the chat");
+  assert.ok(shown(page.appended).includes(fromServer(unfinished)), "an unfinished erase says so in the chat");
   const d = confirmParts(page, from);
-  assert.equal(d.receipt.textContent, unfinished);
+  assert.equal(d.receipt.textContent, fromServer(unfinished));
   assert.ok(d.titles.includes("Erase not finished"));
   assert.equal(page.sock.sent.length, 0, "a receipt sends nothing");
 });

@@ -89,1375 +89,16 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
             if let Some(val) = serde_json::from_str::<serde_json::Value>(&raw).ok().filter(|v| !crate::engine::block::screens_out(&state.gui_state, v)) { // a blocked key's post, typing, reaction, ring or offer goes no further (step C)
                 let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
                 log::debug!("WS recv: type={}", msg_type);
-                match val.get("type").and_then(|t| t.as_str()) {
-                    Some("identify_challenge") => {
-                        // Inc3b — relay challenged us after `identify`.
-                        // Sign the canonical preimage with Dilithium3 from
-                        // our BIP39 seed and return `identify_response`.
-                        // Closes HIGH-2 (identity spoofing at identify).
-                        let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("");
-                        crate::engine::dm::note_server_did(&mut state.gui_state, val.get("server_did").and_then(|v| v.as_str())); // what friendship passes here name
-                        if nonce.is_empty() {
-                            log::warn!("identify_challenge missing nonce");
-                        } else if let Some(ref seed) = state.gui_state.private_key_bytes {
-                            // Signed for the address THIS socket opened, never one the server names
-                            // (net::identity::identify_response, 2026-11-21).
-                            if let Some(ref ws_client) = state.gui_state.ws_client {
-                                match crate::net::identity::identify_response(seed, ws_client.server_url(), nonce, &state.gui_state.profile_public_key) {
-                                    Ok(response) => ws_client.send(&response),
-                                    Err(why) => {
-                                        log::warn!("identify_challenge not signed: {why}");
-                                        state.gui_state.ws_status = why.to_string();
-                                    }
-                                }
-                            }
-                        } else {
-                            log::error!("identify_challenge received but seed not unlocked — cannot sign. Unlock identity to connect.");
-                            state.gui_state.ws_status = "Unlock your identity to complete connect (server requested challenge).".to_string();
-                        }
-                    }
-                    Some("chat") => {
-                        let sender_key = val.get("from")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let msg_timestamp = val.get("timestamp")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0);
-                        // My own line came back: it was posted ("Sending..." goes, chat/line_limit.rs).
-                        if sender_key == state.gui_state.profile_public_key {
-                            crate::gui::pages::chat::line_limit::confirm(&mut state.gui_state.chat_messages, &sender_key, msg_timestamp);
-                        }
-                        // Skip only messages WE sent from THIS client
-                        // (already added locally). Check by matching
-                        // our key + exact timestamp in recent sent list.
-                        if sender_key == state.gui_state.profile_public_key
-                            && state.gui_state.chat_sent_timestamps.contains(&msg_timestamp)
-                        {
-                            state.gui_state.chat_sent_timestamps.retain(|&t| t != msg_timestamp);
-                            continue;
-                        }
-                        let sender_name = val.get("from_name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("Anonymous")
-                            .to_string();
-                        let content = val.get("content")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let timestamp = val.get("timestamp")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0);
-                        let channel = val.get("channel")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
-                            .to_string();
-                        // Robust dedup (fixes the 2026-05-20 "reply duplicated
-                        // after a while" report). The chat_sent_timestamps
-                        // fast-path above only catches the FIRST echo of our
-                        // OWN sends — it removes the entry on match, so it's
-                        // one-shot. A LATER replay of the same message (the WS
-                        // reconnect history re-fetch resets history_fetched and
-                        // re-pulls the last 50; or a duplicate broadcast) would
-                        // otherwise sail past the consumed fast-path and append
-                        // a second copy that only clears on app restart (in-
-                        // memory only; the relay always had one copy). A message
-                        // is uniquely identified by (sender_key, timestamp_ms)
-                        // — ms precision, per-sender — so skip if we already
-                        // hold it. Cheap: chat_messages is bounded to 200.
-                        if state.gui_state.chat_messages.iter()
-                            .any(|m| m.sender_key == sender_key && m.timestamp_ms == timestamp)
-                        {
-                            continue;
-                        }
-                        // Decode reply_to context if present (threads).
-                        let reply_to = val.get("reply_to").and_then(|r| {
-                            let from = r.get("from")?.as_str()?.to_string();
-                            let from_name = r.get("from_name")?.as_str()?.to_string();
-                            let preview = r.get("content")?.as_str()?.to_string();
-                            let ts = r.get("timestamp")?.as_u64()?;
-                            Some(crate::gui::ReplyContext {
-                                sender_key: from,
-                                sender_name: from_name,
-                                preview,
-                                timestamp_ms: ts,
-                                ..Default::default()
-                            })
-                        });
-                        // Sidebar unread dot: flag the channel when the message
-                        // isn't ours and that channel isn't the open one. The
-                        // open Commons view of the same room counts as open
-                        // (its qualified id is "commons:<room>"). (v0.718)
-                        let room_is_open = channel == state.gui_state.chat_active_channel
-                            || crate::gui::pages::chat::commons_room_of(
-                                &state.gui_state.chat_active_channel,
-                            ) == Some(channel.as_str());
-                        if sender_key != state.gui_state.profile_public_key
-                            && !room_is_open
-                        {
-                            if let Some(c) = state.gui_state.chat_channels.iter_mut().find(|c| c.id == channel) {
-                                c.unread = true;
-                            }
-                        }
-                        // The line goes to the notification rule: a mention (`@name`, 2026-10-30;
-                        // was any line containing the name, v0.987), a reply to a line of mine, or
-                        // an ordinary line for a room set to every line (rung 2). This arm only
-                        // sees live broadcasts (history arrives via REST), so an old line never
-                        // notifies again; the rule drops my own, a muted room, the room's level,
-                        // quiet hours (engine/notify.rs).
-                        let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
-                        let reply_from = reply_to.as_ref().map(|r| r.sender_key.as_str());
-                        if let Some(c) = crate::engine::notify::room_line(&state.gui_state, &server, &state.gui_state.user_name, &channel, &sender_key, &sender_name, &content, reply_from) {
-                            crate::engine::notify::deliver(state, c);
-                        }
-                        state.gui_state.chat_messages.push(
-                            crate::gui::ChatMessage {
-                                sender_name,
-                                sender_key,
-                                content,
-                                timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
-                                timestamp_ms: timestamp,
-                                channel,
-                                reply_to,
-                                server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                ..Default::default()
-                            },
-                        );
-                        // Bound message buffer
-                        while state.gui_state.chat_messages.len() > 200 {
-                            state.gui_state.chat_messages.remove(0);
-                        }
-                    }
-                    Some("peer_list") => {
-                        let peer_count = val.get("peers").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
-                        log::info!("peer_list received: {} peers", peer_count);
-                        humanity_core::debug::push_debug(format!("Identified OK, {} peers online", peer_count));
-                        state.gui_state.chat_users.clear();
-                        crate::gui::pages::chat::note_upload_limit(&mut state.gui_state, &val); // this person's own upload limit here
-                        state.gui_state.ws_status = "Connected".to_string();
-                        state.gui_state.server_connected = true;
-                        // First post-bind message: the identify handshake is
-                        // complete, game messages will now be routed (v0.794).
-                        // Every new socket resets the flag, so false here
-                        // means this is that socket's identify being accepted;
-                        // the socket then asks for the server's settings anew.
-                        let first_on_socket = state.gui_state.socket_signed_in();
-                        if let Some(join) = voice_rejoin_frame(&mut state.gui_state, first_on_socket) {
-                            if let Some(ref c) = state.gui_state.ws_client { c.send(&join); }
-                        }
-                        // The person's notification switches and quiet hours, before any live
-                        // message: nothing notifies until they arrive (engine/notify.rs).
-                        if first_on_socket {
-                            crate::engine::notify::ask_prefs(&state.gui_state);
-                        }
-                        // Fetch this server's real donation info (GET /api/server-info's
-                        // `funding` field) so the Donate page shows the connected server's
-                        // actual addresses instead of relying on the user (or a self-hosting
-                        // operator) having hand-typed them into Settings -- native previously
-                        // never fetched this at all (only the web client did). Donation info
-                        // is money-routing data, so (adversarial review 2026-07-01): funding
-                        // carried over from a DIFFERENT server is cleared immediately, and an
-                        // in-flight fetch aimed at a different server is replaced (dropping
-                        // its receiver -- the late send fails harmlessly) rather than left to
-                        // land its result under the wrong server.
-                        {
-                            let url = state.gui_state.server_url.trim_end_matches('/').to_string();
-                            if state.gui_state.donate_funding_server != url {
-                                state.gui_state.donate_funding_server.clear();
-                                state.gui_state.donate_addresses_server.clear();
-                                state.gui_state.donate_funding_goal = None;
-                                state.gui_state.donate_figures = Default::default();
-                            }
-                            let already_fetching = state
-                                .gui_state
-                                .donate_info_rx
-                                .as_ref()
-                                .map_or(false, |(u, _)| *u == url);
-                            if !already_fetching {
-                                let api = format!("{}/api/server-info", url);
-                                let (tx, rx) = std::sync::mpsc::channel();
-                                std::thread::spawn(move || {
-                                    let result = (|| -> Result<crate::gui::ServerInfo, String> {
-                                        let resp = ureq::get(&api)
-                                            .timeout(std::time::Duration::from_secs(10))
-                                            .call()
-                                            .map_err(|e| e.to_string())?;
-                                        let body = resp.into_string().map_err(|e| e.to_string())?;
-                                        serde_json::from_str::<crate::gui::ServerInfo>(&body).map_err(|e| e.to_string())
-                                    })();
-                                    let _ = tx.send(result);
-                                });
-                                state.gui_state.donate_info_rx = Some((url, rx));
-                            }
-                        }
-                        // Request tasks from server on connect
-                        if let Some(ref ws_client) = state.gui_state.ws_client {
-                            let get_tasks = serde_json::json!({"type": "task_list"});
-                            ws_client.send(&get_tasks.to_string());
-                        }
-                        // Key cards (2026-10-22): a new socket may have lost requests in flight on
-                        // the old one; ask again for the people this app seals to.
-                        crate::engine::key_cards::on_signed_in(&mut state.gui_state, first_on_socket);
-                        if let Some(peers) = val.get("peers").and_then(|v| v.as_array()) {
-                            for peer in peers {
-                                let name = peer.get("display_name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Anonymous")
-                                    .to_string();
-                                let key = peer.get("public_key")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let role = peer.get("role")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let status = peer.get("status")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("online")
-                                    .to_string();
-                                // Their key card's time: fetch the card when it is newer than
-                                // the one pinned (engine/key_cards.rs). No key comes from here.
-                                crate::engine::key_cards::note_listed(&mut state.gui_state, &key, peer.get("key_card_at").and_then(|v| v.as_u64()));
-                                // If this peer is us and our local name is empty, adopt the server's display_name
-                                if key == state.gui_state.profile_public_key
-                                    && state.gui_state.user_name.is_empty()
-                                    && name != "Anonymous"
-                                {
-                                    log::info!("Adopting display name from server: {}", name);
-                                    state.gui_state.user_name = name.clone();
-                                    crate::config::AppConfig::from_gui_state(&state.gui_state).save();
-                                }
-                                state.gui_state.chat_users.push(
-                                    crate::gui::ChatUser { name, public_key: key, role, status },
-                                );
-                            }
-                        }
-                    }
-                    Some("peer_joined") => {
-                        let name = val.get("display_name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("Anonymous")
-                            .to_string();
-                        let key = val.get("public_key")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let role = val.get("role")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        // Their key card's time (engine/key_cards.rs).
-                        crate::engine::key_cards::note_listed(&mut state.gui_state, &key, val.get("key_card_at").and_then(|v| v.as_u64()));
-                        // Add if not already present
-                        if !state.gui_state.chat_users.iter().any(|u| u.public_key == key) {
-                            state.gui_state.chat_users.push(
-                                crate::gui::ChatUser { name, public_key: key.clone(), role, status: "online".into() },
-                            );
-                        }
-                    }
-                    Some("peer_left") => {
-                        if let Some(key) = val.get("public_key").and_then(|v| v.as_str()) {
-                            state.gui_state.chat_users.retain(|u| u.public_key != key);
-                        }
-                    }
-                    Some("channel_list") => {
-                        if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
-                            // Rebuilt from scratch; the marks the client keeps
-                            // are carried over below (`carry_channel_marks`).
-                            let old_channels = std::mem::take(&mut state.gui_state.chat_channels);
-                            for ch in channels {
-                                let id = ch.get("id")
-                                    .or_else(|| ch.get("name"))
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
-                                    .to_string();
-                                let name = ch.get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or(&id)
-                                    .to_string();
-                                let description = ch.get("description")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let category = ch.get("category_name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Text")
-                                    .to_string();
-                                // Read the persisted flags from the server so admin
-                                // toggles in Server Settings → Channels survive
-                                // restarts. Pre-v0.192 servers omit voice_enabled
-                                // entirely; treat missing-field as true so old
-                                // servers don't accidentally disable voice.
-                                let voice_enabled = ch.get("voice_enabled")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(true);
-                                // Who can read and post (chat/access.rs); a level the server did
-                                // not name reads as Members, the safe default.
-                                let level_word = |k: &str| ch.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let read_level = humanity_protocol::chat_access::ReadLevel::from_stored(&level_word("read_level"));
-                                let post_level = humanity_protocol::chat_access::PostLevel::from_stored(&level_word("post_level"));
-                                let federated = ch.get("federated")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false);
-                                let local_only = ch.get("local_only")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false);
-                                state.gui_state.chat_channels.push(
-                                    crate::gui::ChatChannel {
-                                        id,
-                                        name,
-                                        description,
-                                        category,
-                                        voice_joined: false,
-                                        voice_enabled,
-                                        read_level,
-                                        post_level,
-                                        federated,
-                                        local_only,
-                                        voice_participants: Vec::new(),
-                                        unread: false,
-                                    },
-                                );
-                            }
-                            carry_channel_marks(&old_channels, &mut state.gui_state.chat_channels);
-                            // A link's channel waiting for this list opens first (chat/channel_link.rs).
-                            let now = state.egui_ctx.input(|i| i.time);
-                            crate::gui::pages::chat::channel_link::open_pending(&mut state.gui_state, now);
-                            // The room open here may be gone (deleted, or renamed by the server).
-                            crate::gui::pages::chat::land_if_room_gone(&mut state.gui_state);
-                        }
-                        // Sealed-sender DMs: channel_list only arrives on a
-                        // BOUND socket (post identify-challenge), so this is
-                        // the reliable moment to fetch our mailbox. Once per
-                        // connection, with a fresh ref (10o O1); the high-water
-                        // mark lives in the local encrypted store. The sweep
-                        // waits for its last page (10n N7).
-                        if !state.gui_state.dm_fetch.sent {
-                            crate::engine::mailbox::begin_fetch(&mut state.gui_state);
-                            // Show whatever local history we already have
-                            // while the fetch round-trips, and restore the
-                            // client-side social badges (follows removal
-                            // 2026-08-24: the store is the only source).
-                            crate::engine::dm::rebuild_dm_sidebar(&mut state.gui_state);
-                            crate::engine::dm::refresh_social_mirrors(&mut state.gui_state);
-                            // Re-assert the chosen presence flag on every
-                            // fresh bound socket: server_members flags are
-                            // per-server, so a new/wiped server learns the
-                            // user's choice immediately. (2026-08-23)
-                            if !state.gui_state.settings.privacy_tier.is_empty() {
-                                crate::gui::pages::privacy::send_presence_flag(&state.gui_state);
-                            }
-                        }
-                    }
-                    // v0.200.0: the server-wide settings (per-role char limits, sharing
-                    // toggles, the erase window, ...), cached for the admin UI and the limits
-                    // that apply to our messages (gui/connections.rs).
-                    Some("server_settings_state") => state.gui_state.on_server_settings_state(&val),
-                    Some("role_list") => {
-                        // v0.241 (roles Phase R2): relay sends the full
-                        // role list on connect + after any role change.
-                        // Cache it for the user-modal role dropdown +
-                        // badge colors.
-                        if let Some(arr) = val.get("roles") {
-                            match serde_json::from_value::<Vec<crate::relay::storage::RoleDef>>(arr.clone()) {
-                                Ok(roles) => {
-                                    log::info!("Received {} role definitions", roles.len());
-                                    state.gui_state.chat_roles = roles;
-                                }
-                                Err(e) => log::warn!("Failed to parse role_list: {e}"),
-                            }
-                        }
-                    }
-                    Some("service_state") => {
-                        // v0.262.16 (Server→Services): admin-only reply
-                        // to service_control. Caches the daemon/soft
-                        // snapshot for the Services panel.
-                        if let Some(arr) = val.get("services") {
-                            match serde_json::from_value::<Vec<crate::relay::services::ServiceInfo>>(arr.clone()) {
-                                Ok(svcs) => {
-                                    log::info!("Received {} service states", svcs.len());
-                                    state.gui_state.service_state = svcs;
-                                }
-                                Err(e) => log::warn!("Failed to parse service_state: {e}"),
-                            }
-                        }
-                    }
-                    Some("backup_list") => {
-                        // v0.938: admin-targeted reply to
-                        // backup_list_request / backup_run. Drives the
-                        // Server Settings -> Backups panel.
-                        if let Some(arr) = val.get("backups") {
-                            match serde_json::from_value::<Vec<crate::relay::storage::backups::BackupEntry>>(arr.clone()) {
-                                Ok(backups) => {
-                                    log::info!("Received {} backups", backups.len());
-                                    state.gui_state.backup_list = backups;
-                                }
-                                Err(e) => log::warn!("Failed to parse backup_list: {e}"),
-                            }
-                        }
-                    }
-                    Some("banned_list") => {
-                        // v0.245: relay sends this only to admins, in
-                        // reply to banned_list_request + after any
-                        // ban/unban. Drives the Server Settings →
-                        // Banned users panel.
-                        if let Some(arr) = val.get("users") {
-                            match serde_json::from_value::<Vec<crate::relay::storage::BannedUser>>(arr.clone()) {
-                                Ok(users) => {
-                                    log::info!("Received {} banned users", users.len());
-                                    state.gui_state.chat_banned_users = users;
-                                }
-                                Err(e) => log::warn!("Failed to parse banned_list: {e}"),
-                            }
-                        }
-                    }
-                    Some("muted_list") => {
-                        // v0.246: relay sends this only to mods/admins,
-                        // in reply to muted_list_request + after any
-                        // mute/unmute. Drives the Server Settings →
-                        // Muted users panel.
-                        if let Some(arr) = val.get("users") {
-                            match serde_json::from_value::<Vec<crate::relay::storage::MutedUser>>(arr.clone()) {
-                                Ok(users) => {
-                                    log::info!("Received {} muted users", users.len());
-                                    state.gui_state.chat_muted_users = users;
-                                }
-                                Err(e) => log::warn!("Failed to parse muted_list: {e}"),
-                            }
-                        }
-                    }
-                    Some("system") => {
-                        if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
-                            // Clipped (2026-10-02): a trade list arrives here
-                            // on every connect and can run to many KB, all of
-                            // which used to land in run.log.
-                            log::info!("Relay system message: {}", clip(msg, 160));
-                            humanity_core::debug::push_debug(format!("System: {}", clip(msg, 160)));
-                            // Relay throttled this connection (per-IP identify rate
-                            // limit). Mirror the web client: back the reconnect off
-                            // PAST the 60s window. Without this the native looped every
-                            // 5s -- the backoff reset fires when the WS OPENS, before
-                            // the identify that gets rate-limited, so it never grew.
-                            // The flag stops that reset clobbering this delay until we
-                            // next actually retry. (v0.544)
-                            if msg.starts_with("Too many connection attempts")
-                                || msg.contains("Try again in a minute")
-                            {
-                                state.gui_state.ws_rate_limited = true;
-                                state.gui_state.ws_reconnect_delay = 65.0;
-                            }
-                            // Filter out internal sync + game messages from chat display.
-                            // `__game__:` prefix tags game-engine traffic (ambient
-                            // chatter, quest events, NPC dialog, world ticks) — those
-                            // belong on the game/perception channel, NOT in #global
-                            // where humans are talking. (Bug fix 2026-05-03.)
-                            // Multiplayer (v0.472): route game traffic into the sync
-                            // system (remote players join / move / leave) instead of
-                            // discarding it, then skip the chat display.
-                            if let Some(payload) = msg.strip_prefix("__game__:") {
-                                let payload = payload.to_string();
-                                route_game_message(state, &payload);
-                                continue;
-                            }
-                            // P2P trades (2026-10-02): the relay sends every
-                            // targeted Private as a system frame, so the trade
-                            // wrappers arrive HERE; they only ever reached the
-                            // private arm below, which never runs, and so were
-                            // printed into chat. The Trade page takes them.
-                            if route_trade(state, &val) {
-                                continue;
-                            }
-                            if msg.starts_with("__sync_data__")
-                                || msg == "sync_ack"
-                            {
-                                continue;
-                            }
-                            // The server's words, under the sender "From this server", never the
-                            // app's own "System" voice (the owner branch's sixth review, H1 (d)).
-                            crate::engine::friend_code::server_line(&mut state.gui_state, msg);
-                        }
-                    }
-                    Some("full_user_list") => {
-                        let user_count = val.get("users").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
-                        log::info!("full_user_list received: {} users", user_count);
-                        // Full user list includes online + offline users
-                        if let Some(users) = val.get("users").and_then(|v| v.as_array()) {
-                            state.gui_state.chat_users.clear();
-                            for user in users {
-                                let name = user.get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Anonymous")
-                                    .to_string();
-                                let key = user.get("public_key")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let role = user.get("role")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let online = user.get("online")
-                                    .and_then(|v| v.as_bool())
-                                    .unwrap_or(false);
-                                let status = if online {
-                                    user.get("status")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("online")
-                                        .to_string()
-                                } else {
-                                    "offline".to_string()
-                                };
-                                // Their key card's time (engine/key_cards.rs).
-                                crate::engine::key_cards::note_listed(&mut state.gui_state, &key, user.get("key_card_at").and_then(|v| v.as_u64()));
-                                state.gui_state.chat_users.push(
-                                    crate::gui::ChatUser { name, public_key: key, role, status },
-                                );
-                            }
-                            log::info!("Received full user list: {} users", state.gui_state.chat_users.len());
-                            // Re-derive the friends mirror now that names/keys
-                            // are known (follows removal 2026-08-24: the local
-                            // store holds the sets; chat_users supplies rows).
-                            crate::engine::dm::refresh_social_mirrors(&mut state.gui_state);
-                            crate::engine::dm::sweep_friend_passes(&mut state.gui_state); // passes owed, withdrawals unconfirmed
-                            crate::engine::owner::on_users(&mut state.gui_state); // a check that waited to know the owner
-                        }
-                    }
-                    Some("cert_revoked") => crate::engine::dm::withdrawal_confirmed(&mut state.gui_state, &val),
-                    // Key cards asked for (2026-10-22): each checked here before its key is used.
-                    Some("key_cards") => crate::engine::key_cards::on_key_cards_frame(&mut state.gui_state, &val),
-                    Some("reach_settings") | Some("reach_refused") => crate::engine::reach::on_frame(&mut state.gui_state, &val), // who can reach me (step B)
-                    // How long my lines may be here, and a line of mine the server refused (2026-10-24,
-                    // gui/pages/chat/line_limit.rs).
-                    Some("my_limits") => {
-                        let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
-                        crate::gui::pages::chat::line_limit::on_my_limits(&mut state.gui_state, &server, &val);
-                    }
-                    Some("chat_refused") => {
-                        let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
-                        crate::gui::pages::chat::line_limit::on_refused(&mut state.gui_state, &server, &val, None);
-                    }
-                    Some("voice_channel_list") => {
-                        // Voice channels received from server
-                        if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
-                            log::info!("Received {} voice channels", channels.len());
-                            // Add voice channels that don't already exist as text channels
-                            for vc in channels {
-                                // Voice is per-channel (v0.493): the entry's id IS a
-                                // text channel's string id, carrying that channel's
-                                // live voice roster.
-                                let vc_id = vc.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let vc_name = vc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                if vc_id.is_empty() { continue; }
-                                // Live voice roster (public_key, display_name), v0.481.
-                                let roster: Vec<(String, String)> = vc.get("participants")
-                                    .and_then(|v| v.as_array())
-                                    .map(|arr| arr.iter().filter_map(|p| {
-                                        let k = p.get("public_key").and_then(|v| v.as_str())?.to_string();
-                                        let n = p.get("display_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        Some((k, n))
-                                    }).collect())
-                                    .unwrap_or_default();
-                                // Attach the roster onto the matching text channel by id
-                                // (channel_list already created it). Fallback: stub it.
-                                if let Some(c) = state.gui_state.chat_channels.iter_mut()
-                                    .find(|c| c.id == vc_id)
-                                {
-                                    c.voice_enabled = true;
-                                    c.voice_participants = roster;
-                                } else if !vc_name.is_empty() {
-                                    state.gui_state.chat_channels.push(
-                                        crate::gui::ChatChannel {
-                                            id: vc_id,
-                                            name: vc_name,
-                                            description: String::new(),
-                                            category: "Text".to_string(),
-                                            voice_joined: false,
-                                            voice_enabled: true,
-                                            federated: false,
-                                            local_only: false,
-                                            voice_participants: roster,
-                                            unread: false,
-                                            // Levels unknown until the channel list names them: Members, the safe default.
-                                            ..Default::default()
-                                        },
-                                    );
-                                }
-                            }
-                            // Phase C (v0.492): if we are joined to a
-                            // voice room, dial the incumbents present in
-                            // our first post-join roster (the web's
-                            // "newcomer offers, incumbents wait" rule).
-                            // Later joiners will offer to us instead.
-                            if let Some(room_id) = state.gui_state.voice_active_room.clone() {
-                                if !state.gui_state.voice_incumbents_captured {
-                                    let my_key = state.gui_state.profile_public_key.clone();
-                                    let mut me_present = false;
-                                    let mut incumbents: Vec<String> = Vec::new();
-                                    for vc in channels {
-                                        let id = vc.get("id").and_then(|v| v.as_str());
-                                        if id != Some(room_id.as_str()) { continue; }
-                                        if let Some(arr) = vc.get("participants").and_then(|v| v.as_array()) {
-                                            for p in arr {
-                                                if let Some(k) = p.get("public_key").and_then(|v| v.as_str()) {
-                                                    if k == my_key { me_present = true; }
-                                                    else { incumbents.push(k.to_string()); }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    // Only act on the roster that lists US (post-join),
-                                    // so we capture the correct incumbent set.
-                                    if me_present {
-                                        state.gui_state.voice_incumbents_captured = true;
-                                        humanity_core::debug::push_debug(format!(
-                                            "Voice: in room {}, dialing {} incumbent(s)", room_id, incumbents.len()
-                                        ));
-                                        if let Some(ref webrtc) = state.gui_state.webrtc {
-                                            for peer in &incumbents {
-                                                webrtc.offer_to_voice(peer.clone(), room_id.clone());
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Some("profile_data") => {
-                        // The server sends everyone's profile this way: our own and anyone
-                        // else's, and `target` cannot tell them apart. Only one naming this
-                        // socket's person fills in their profile (BUG-193: every profile anyone
-                        // saved used to), and only their own complete copy becomes the server's
-                        // copy every save is built from (BUG-194, gui/pages/own_profile.rs).
-                        use crate::gui::pages::own_profile;
-                        if own_profile::names_socket(&val, &socket_name) {
-                            if let Some(name) = val.get("name").and_then(|v| v.as_str()) {
-                                state.gui_state.profile_name = name.to_string();
-                            }
-                            if let Some(bio) = val.get("bio").and_then(|v| v.as_str()) {
-                                state.gui_state.profile_bio = bio.to_string();
-                            }
-                            // Filed as this server's copy; when the server asks, the copy other
-                            // servers keep goes back signed on this socket (BUG-191).
-                            let server = state.gui_state.server_url.clone();
-                            if let Some(signed) = own_profile::take_own_copy(&mut state.gui_state, &server, &val, &socket_name) {
-                                if let Some(ws) = state.gui_state.ws_client.as_ref() { ws.send(&signed); }
-                            }
-                        } else {
-                            // Someone else's: the "accepts files from" word of a person whose DM
-                            // asked for it (chat/attach_step.rs `ask_accepts`, BUG-241).
-                            crate::gui::pages::chat::attach_step::take_profile_answer(&mut state.gui_state, &val);
-                        }
-                    }
-                    Some("sync_data") | Some("sync_ack") | Some("vault_sync") => {
-                        // Vault sync messages - handle silently, don't display in chat
-                        humanity_core::debug::push_debug("Vault sync message received (hidden)");
-                    }
-                    // (follow_list/follow_update arms removed 2026-08-24:
-                    // the social graph is client-side; sealed control
-                    // messages + the local store feed the badge sets.)
-                    Some("account_export_data") => {
-                        // Sovereignty (2026-08-23): everything the
-                        // server stores about us, written to a local
-                        // JSON file the user can keep or inspect.
-                        if let Some(data) = val.get("data") {
-                            let dir = if let Ok(appdata) = std::env::var("APPDATA") {
-                                std::path::PathBuf::from(appdata).join("HumanityOS").join("exports")
-                            } else {
-                                std::path::PathBuf::from("exports")
-                            };
-                            let _ = std::fs::create_dir_all(&dir);
-                            let ts = std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs();
-                            let path = dir.join(format!("account-export-{ts}.json"));
-                            match std::fs::write(&path, serde_json::to_string_pretty(data).unwrap_or_default()) {
-                                Ok(()) => {
-                                    state.gui_state.account_export_status =
-                                        format!("Export saved: {}", path.display());
-                                    log::info!("Account export written to {}", path.display());
-                                }
-                                Err(e) => {
-                                    state.gui_state.account_export_status =
-                                        format!("Export failed to write: {e}");
-                                }
-                            }
-                        }
-                    }
-                    Some("dm_purged") => {
-                        // Confirmation of our own mailbox scrub
-                        // ("Delete my server mailbox" in DM Settings).
-                        let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
-                        state.gui_state.ws_status = format!(
-                            "Server mailbox cleared ({count} envelope{} deleted).",
-                            if count == 1 { "" } else { "s" }
-                        );
-                        log::info!("DM mailbox purged: {count} envelopes deleted server-side");
-                    }
-                    // (legacy group_list arm removed 2026-08-23; groups are P2P E2EE)
-                    Some("notification_prefs_data") => {
-                        // See GuiState::notif_dm_enabled doc comment: the relay + web
-                        // client already fully support this, the native client just
-                        // never asked for or read it until now.
-                        let prefs = parse_notification_prefs(&val);
-                        state.gui_state.notif_dm_enabled = prefs.dm;
-                        state.gui_state.notif_mentions_enabled = prefs.mentions;
-                        state.gui_state.notif_tasks_enabled = prefs.tasks;
-                        state.gui_state.notif_dnd_start = prefs.dnd_start;
-                        state.gui_state.notif_dnd_end = prefs.dnd_end;
-                        state.gui_state.notif_quiet_friends = prefs.quiet_friends;
-                        state.gui_state.notif_quiet_mentions = prefs.quiet_mentions;
-                        state.gui_state.notif_prefs_loaded = true;
-                    }
-                    // Sealed-sender DMs, live and fetched (engine/mailbox.rs): only this
-                    // connection's own fetch pages count, and a live DM moves the read
-                    // position only once that fetch is done (10o O1).
-                    Some("dm_new") => {
-                        if let Some(c) = crate::engine::mailbox::on_new(&mut state.gui_state, &val) {
-                            crate::engine::notify::deliver(state, c);
-                        }
-                    }
-                    Some("dm_batch") => crate::engine::mailbox::on_batch(&mut state.gui_state, &val),
-                    // (legacy group_msg/group_history arms removed 2026-08-23)
-                    Some("reaction") => {
-                        // Single reaction: target_from + target_timestamp + emoji + from
-                        let target_from = val.get("target_from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let target_ts = val.get("target_timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                        let emoji = val.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        if !emoji.is_empty() && target_ts > 0 {
-                            for msg in state.gui_state.chat_messages.iter_mut() {
-                                if msg.sender_key == target_from && msg.timestamp_ms == target_ts {
-                                    let entry = msg.reactions.entry(emoji.clone()).or_insert_with(Vec::new);
-                                    // Toggle: if already reacted, remove. Otherwise add.
-                                    if let Some(idx) = entry.iter().position(|k| k == &from) {
-                                        entry.remove(idx);
-                                    } else {
-                                        entry.push(from.clone());
-                                    }
-                                    if entry.is_empty() {
-                                        msg.reactions.remove(&emoji);
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    Some("reactions_sync") => {
-                        // Bulk sync: array of {target_from, target_timestamp, emoji, from}.
-                        if let Some(arr) = val.get("reactions").and_then(|v| v.as_array()) {
-                            for r in arr {
-                                let target_from = r.get("target_from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let target_ts = r.get("target_timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                                let emoji = r.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let from = r.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                if emoji.is_empty() || target_ts == 0 { continue; }
-                                for msg in state.gui_state.chat_messages.iter_mut() {
-                                    if msg.sender_key == target_from && msg.timestamp_ms == target_ts {
-                                        let entry = msg.reactions.entry(emoji.clone()).or_insert_with(Vec::new);
-                                        if !entry.contains(&from) {
-                                            entry.push(from.clone());
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Some("edit") => {
-                        // Edited message broadcast — find by sender + timestamp, replace content.
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                        let new_content = val.get("new_content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        for msg in state.gui_state.chat_messages.iter_mut() {
-                            if msg.sender_key == from && msg.timestamp_ms == ts {
-                                msg.content = new_content;
-                                break;
-                            }
-                        }
-                    }
-                    Some("delete") => {
-                        // v0.281.0: deletion broadcast (own delete OR admin/mod
-                        // moderation). Drop the matching message from the local
-                        // view by sender_key + timestamp_ms. We don't try to be
-                        // clever about preserving thread context — pin/reaction
-                        // state for an absent message just lingers harmlessly until
-                        // the next channel refetch.
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                        if !from.is_empty() && ts > 0 {
-                            state.gui_state.chat_messages.retain(|m| !(m.sender_key == from && m.timestamp_ms == ts));
-                        }
-                    }
-                    Some("message_deleted") => {
-                        // v0.282.0: admin/mod deletion via DeleteById (broadcast
-                        // by relay when web admin uses the by-id path; native
-                        // admins use the simpler `delete` arm above). Payload
-                        // carries `from` + `timestamp` for client-side removal —
-                        // the message_id is for the web's DOM-keyed approach,
-                        // we use (sender_key, timestamp_ms) like everywhere else
-                        // on native.
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                        if !from.is_empty() && ts > 0 {
-                            state.gui_state.chat_messages.retain(|m| !(m.sender_key == from && m.timestamp_ms == ts));
-                        }
-                    }
-                    Some("typing") => {
-                        // v0.282.0: typing indicator broadcast. Insert/refresh the
-                        // sender's entry; the renderer prunes anything older than
-                        // 3 seconds (matches web's auto-clear). Skip our own typing
-                        // event — the relay echoes broadcasts to all sockets, so
-                        // we'd otherwise see "Shaostoul is typing…" every time we
-                        // touched the input on a different tab.
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        if from.is_empty() || from == state.gui_state.profile_public_key {
-                            // Continue silently — own echoes are noise.
-                        } else {
-                            let from_name = val.get("from_name").and_then(|v| v.as_str())
-                                .unwrap_or_else(|| {
-                                    // Fallback: look up display name in the user list.
-                                    // Empty string yields "user" downstream when nothing matches.
-                                    ""
-                                })
-                                .to_string();
-                            let display = if from_name.is_empty() {
-                                state.gui_state.chat_users.iter()
-                                    .find(|u| u.public_key == from)
-                                    .map(|u| u.name.clone())
-                                    .unwrap_or_else(|| "Someone".to_string())
-                            } else {
-                                from_name
-                            };
-                            state.gui_state.chat_typing_users.insert(
-                                from,
-                                (display, std::time::Instant::now()),
-                            );
-                        }
-                    }
-                    // STALE COMMENT CORRECTED 2026-07-01 (overnight loop, cycle 12):
-                    // this used to say native had no WebRTC stack and these were
-                    // stubs -- that was true at v0.283.0 when this arm was written,
-                    // but native voice shipped end-to-end in the v0.485-495 arc
-                    // (mic capture via cpal, Opus encode, str0m WebRTC transport --
-                    // see docs/STATUS.md's "Native voice" row, src/net/voice.rs,
-                    // src/net/webrtc.rs). Both arms below route real signaling into
-                    // the live WebRTC manager (`webrtc.submit_voice_signal` /
-                    // `submit_signal`), they are not stubs. The channel-list voice
-                    // icon's join/leave click handler also shipped (chat.rs, search
-                    // "voice_joined") -- it just isn't at the line this comment used
-                    // to cite, since line numbers drift as the file grows.
-                    #[cfg(feature = "native")]
-                    Some("voice_room_signal") => {
-                        // Phase C: inbound voice-room signaling (offer /
-                        // answer / ice / new_participant) relayed to us.
-                        // Route into the WebRTC manager's voice path. Note
-                        // `data` here is a JSON OBJECT (the browser
-                        // RTCSessionDescription / candidate shape), unlike
-                        // the webrtc_signal path where it is a string.
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let room_id = val.get("room_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let signal_type = val.get("signal_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let data = val.get("data").cloned().unwrap_or(serde_json::Value::Null);
-                        let wanted = voice_signal_wanted(
-                            &signal_type,
-                            &room_id,
-                            state.gui_state.voice_active_room.as_deref(),
-                        );
-                        if !from.is_empty() && !signal_type.is_empty() && wanted {
-                            if let Some(ref webrtc) = state.gui_state.webrtc {
-                                webrtc.submit_voice_signal(from, room_id, signal_type, data);
-                            }
-                        }
-                    }
-                    #[cfg(feature = "native")]
-                    Some("voice_call") => {
-                        // 1:1 call control plane (v0.703 — before this, native
-                        // silently discarded voice_call and a web caller rang
-                        // FOREVER, the worst cross-client bug in the 2026-07-04
-                        // parity audit). Protocol matches chat-voice-calls.js:
-                        // ring / accept / reject / hangup; the relay stamps
-                        // from + from_name with the authenticated sender.
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let from_name = val
-                            .get("from_name")
-                            .and_then(|v| v.as_str())
-                            .filter(|s| !s.is_empty())
-                            .map(|s| s.to_string())
-                            .or_else(|| {
-                                state.gui_state.chat_users.iter()
-                                    .find(|u| u.public_key == from)
-                                    .map(|u| u.name.clone())
-                            })
-                            .unwrap_or_else(|| {
-                                format!("{}...", humanity_core::text::prefix(&from, 8))
-                            });
-                        let action = val.get("action").and_then(|v| v.as_str()).unwrap_or("");
-                        if !from.is_empty() {
-                            match action {
-                                // Rings here, or while busy rings out with a missed-call line
-                                // and no reply (BUG-177; engine/call_relay.rs `on_ring`).
-                                // A ring that rings is a call notice through THE rule (rung 3).
-                                "ring" => {
-                                    let notice = crate::engine::notify::call(&state.gui_state, &from, &from_name);
-                                    if crate::engine::call_relay::on_ring(&mut state.gui_state, from, from_name) {
-                                        crate::engine::notify::deliver(state, notice);
-                                    }
-                                }
-                                "accept" => {
-                                    // The peer accepted OUR outgoing call. Per
-                                    // the web protocol (chat-voice-calls.js the
-                                    // caller creates the offer on accept), we
-                                    // move to in-call and send the voice offer
-                                    // over CALL_ROOM_ID (which wears the web
-                                    // webrtc_signal envelope). v0.705.
-                                    if state.gui_state.call_outgoing
-                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false)
-                                    {
-                                        if let Some((k, n)) = state.gui_state.call_outgoing.take() {
-                                            state.gui_state.call_outgoing_deadline = None;
-                                            state.gui_state.call_active = Some((k.clone(), n));
-                                            if let Some(ref webrtc) = state.gui_state.webrtc {
-                                                webrtc.offer_to_voice(
-                                                    k,
-                                                    crate::net::webrtc::CALL_ROOM_ID.to_string(),
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                                "hangup" | "reject" => {
-                                    // Peer ended it (either side of any state).
-                                    let matches_incoming = state.gui_state.call_incoming
-                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
-                                    let matches_outgoing = state.gui_state.call_outgoing
-                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
-                                    let matches_active = state.gui_state.call_active
-                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
-                                    if matches_incoming {
-                                        state.gui_state.call_incoming = None;
-                                    }
-                                    if matches_outgoing {
-                                        // They declined (or hung up) our ring.
-                                        state.gui_state.call_outgoing = None;
-                                        state.gui_state.call_outgoing_deadline = None;
-                                    }
-                                    if matches_active {
-                                        state.gui_state.call_active = None;
-                                        state.gui_state.voice_connected_peers.remove(&from);
-                                        // Drop the transport now so this peer's
-                                        // NEXT call isn't refused by the stale
-                                        // connection's is_alive guard.
-                                        if let Some(ref webrtc) = state.gui_state.webrtc {
-                                            webrtc.close_peer(from.clone());
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    Some("voice_room") | Some("voice_room_update") => {
-                        // Control/legacy voice messages: not consumed by the
-                        // native client (join/leave are outbound; the roster
-                        // arrives via voice_channel_list).
-                    }
-                    // A file connection's signal (a dial from someone we offered files to, or the
-                    // answer and candidates of one that stands) is engine/file_transfer.rs's
-                    // (files-showcase.md, device-to-device big files); anything else goes on below.
-                    Some("webrtc_signal") if crate::engine::file_transfer::on_signal(&mut state.gui_state, &val) => {}
-                    #[cfg(feature = "native")]
-                    Some("webrtc_signal") => {
-                        // Two protocols share this envelope (mirroring the web):
-                        // dc_* = P2P DataChannel signaling (data is a JSON
-                        // STRING) -> submit_signal. Bare offer/answer/ice =
-                        // 1:1 VOICE CALL signaling from a browser caller
-                        // (data is a JSON OBJECT) -> the voice path under the
-                        // reserved CALL_ROOM_ID, but ONLY from the peer whose
-                        // call we accepted — never auto-answer an unsolicited
-                        // media offer (v0.703).
-                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let signal_type = val.get("signal_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let data = val.get("data").cloned().unwrap_or(serde_json::Value::Null);
-                        if !from.is_empty() && !signal_type.is_empty() {
-                            let is_call_signal = matches!(
-                                signal_type.as_str(),
-                                "offer" | "answer" | "ice"
-                            );
-                            if is_call_signal {
-                                let call_peer_ok = state.gui_state.call_active
-                                    .as_ref()
-                                    .map(|(k, _)| *k == from)
-                                    .unwrap_or(false);
-                                if call_peer_ok {
-                                    if let Some(ref webrtc) = state.gui_state.webrtc {
-                                        webrtc.submit_voice_signal(
-                                            from,
-                                            crate::net::webrtc::CALL_ROOM_ID.to_string(),
-                                            signal_type,
-                                            data,
-                                        );
-                                    }
-                                }
-                            } else if signal_type == "dc_offer" {
-                                // Answering hands the sender this device's
-                                // network address, and the relay forwards an
-                                // offer from anyone online: answer only someone
-                                // the app already has a reason to connect to,
-                                // and ignore anyone else without a word back
-                                // (2026-10-09, defect 3.7.2 of
-                                // docs/design/blocking-and-safe-mode.md).
-                                match dc_offer_reason(&mut state.gui_state, &from) {
-                                    Some(reason) => {
-                                        if let Some(ref webrtc) = state.gui_state.webrtc {
-                                            webrtc.submit_offer(from, data, reason);
-                                        }
-                                    }
-                                    None => log::debug!(
-                                        "dc_offer from {} ignored: not a friend, group member, call or room peer",
-                                        clip(&from, 12)
-                                    ),
-                                }
-                            } else if let Some(ref webrtc) = state.gui_state.webrtc {
-                                webrtc.submit_signal(from, signal_type, data);
-                            }
-                        }
-                    }
-                    Some("federated_chat") => {
-                        // v0.282.0: chat from a federated peer server. Display
-                        // alongside local chat in the same channel, prefixed by
-                        // the originating server's name so users can tell where
-                        // it came from. The relay only delivers federated_chat
-                        // for channels it's federating, so we don't need a
-                        // per-channel federation flag client-side.
-                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                        let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let server_name = val.get("server_name").and_then(|v| v.as_str()).unwrap_or("federated").to_string();
-                        let server_id = val.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        if !content.is_empty() && ts > 0 {
-                            // Dedup across carriers: once several of our
-                            // connections bridge the same room, each delivers
-                            // its own copy of the same origin line. The wire
-                            // carries no sender key (from_name only), so the
-                            // stable identity is (origin_server, timestamp_ms,
-                            // content) -- display formatting like server_name
-                            // can differ per carrier and must not split it.
-                            let duplicate = state.gui_state.chat_messages.iter().any(|m| {
-                                m.origin_server == server_id
-                                    && m.timestamp_ms == ts
-                                    && m.content == content
-                            });
-                            if !duplicate {
-                                // A shared room's line to the notification rule (rung 2): a
-                                // mention of me, or every line in a room set to it; live only
-                                // (engine/notify.rs `federated_line`).
-                                let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
-                                let now_ms = (crate::notifications::now_secs().max(0) as u64) * 1000;
-                                if let Some(c) = crate::engine::notify::federated_line(&state.gui_state, &server, &state.gui_state.user_name, &val, now_ms) {
-                                    crate::engine::notify::deliver(state, c);
-                                }
-                                let ts_str = {
-                                    let secs = ts / 1000;
-                                    let h = (secs / 3600) % 24;
-                                    let m = (secs / 60) % 60;
-                                    format!("{:02}:{:02}", h, m)
-                                };
-                                state.gui_state.chat_messages.push(crate::gui::ChatMessage {
-                                    // Tag the displayed name with the origin server
-                                    // so federated messages are visually distinct.
-                                    // E.g. "Alice (other-server)".
-                                    sender_name: format!("{} ({})", from_name, server_name),
-                                    // sender_key uses the server_id so reactions/replies
-                                    // can target the federated origin (the relay won't
-                                    // honor cross-server reactions today, but the field
-                                    // shape is preserved for forward compat).
-                                    sender_key: server_id.clone(),
-                                    content,
-                                    timestamp: ts_str,
-                                    timestamp_ms: ts,
-                                    channel,
-                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                    origin_server: server_id,
-                                    ..Default::default()
-                                });
-                                // Bound message buffer (this arm used to be the
-                                // only push without the cap).
-                                while state.gui_state.chat_messages.len() > 200 {
-                                    state.gui_state.chat_messages.remove(0);
-                                }
-                            }
-                        }
-                    }
-                    Some("search_results") => {
-                        // Server-returned search results. Populate the search modal.
-                        if let Some(results) = val.get("results").and_then(|v| v.as_array()) {
-                            state.gui_state.chat_search_results.clear();
-                            for r in results {
-                                let channel = r.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let sender_name = r.get("from_name").and_then(|v| v.as_str())
-                                    .or_else(|| r.get("from").and_then(|v| v.as_str()))
-                                    .unwrap_or("Anonymous").to_string();
-                                let content = r.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let timestamp_ms = r.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                                state.gui_state.chat_search_results.push(crate::gui::ChatSearchResult {
-                                    channel, sender_name, content, timestamp_ms,
-                                });
-                            }
-                        }
-                    }
-                    Some("pins_sync") => {
-                        // Replace the channel's pin list.
-                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        if let Some(arr) = val.get("pins").and_then(|v| v.as_array()) {
-                            let pins: Vec<crate::gui::ChatPin> = arr.iter().map(|p| crate::gui::ChatPin {
-                                from_key: p.get("from_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                from_name: p.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                content: p.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                original_timestamp: p.get("original_timestamp").and_then(|v| v.as_u64()).unwrap_or(0),
-                                pinned_by: p.get("pinned_by").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                pinned_at: p.get("pinned_at").and_then(|v| v.as_u64()).unwrap_or(0),
-                            }).collect();
-                            state.gui_state.chat_pins.insert(channel, pins);
-                        }
-                    }
-                    Some("pin_added") => {
-                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        if let Some(p) = val.get("pin") {
-                            let pin = crate::gui::ChatPin {
-                                from_key: p.get("from_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                from_name: p.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                content: p.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                original_timestamp: p.get("original_timestamp").and_then(|v| v.as_u64()).unwrap_or(0),
-                                pinned_by: p.get("pinned_by").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                pinned_at: p.get("pinned_at").and_then(|v| v.as_u64()).unwrap_or(0),
-                            };
-                            state.gui_state.chat_pins.entry(channel).or_insert_with(Vec::new).push(pin);
-                        }
-                    }
-                    Some("pin_removed") => {
-                        let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let index = val.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                        // The relay's PinRemoved index is 1-BASED (it echoes the
-                        // /unpin <N> argument; storage does ids[index-1]). This
-                        // handler treated it as 0-based, so unpinning pin #1
-                        // locally removed the SECOND pin and unpinning the last
-                        // pin removed nothing. Off-by-one fixed v0.722.
-                        if let Some(pins) = state.gui_state.chat_pins.get_mut(&channel) {
-                            let i = index.saturating_sub(1);
-                            if index >= 1 && i < pins.len() {
-                                pins.remove(i);
-                            }
-                        }
-                    }
-                    Some("member_joined") => {
-                        log::debug!("Received server message type: member_joined");
-                    }
-                    Some("member_left") => {
-                        // Server-broadcast when a member is kicked / banned /
-                        // leaves voluntarily. Prune them from the live user list
-                        // + DMs + friends so the sidebar updates immediately.
-                        if let Some(pk) = val.get("public_key").and_then(|v| v.as_str()) {
-                            let pk = pk.to_string();
-                            state.gui_state.chat_users.retain(|u| u.public_key != pk);
-                            state.gui_state.chat_friends.retain(|f| f.public_key != pk);
-                            state.gui_state.chat_dms.retain(|d| d.user_key != pk);
-                            // If the user modal is open for this user, close it.
-                            if state.gui_state.chat_user_modal_key == pk {
-                                state.gui_state.chat_user_modal_open = false;
-                            }
-                            log::info!("Member left/kicked/banned: {}", humanity_core::text::prefix(&pk, 16));
-                        }
-                    }
-                    // The server's board: its own list, never merged into my own tasks (BUG-217,
-                    // docs/design/tasks.md; pages/tasks.rs take_board_list).
-                    Some("task_list_response") | Some("task_list") => {
-                        if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
-                            crate::gui::pages::tasks::take_board_list(&mut state.gui_state, tasks);
-                            log::info!("Received {} board tasks from the server", state.gui_state.board_tasks.len());
-                        }
-                    }
-                    Some("name_taken") => {
-                        let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("Name taken");
-                        log::warn!("Name taken: {}. Disconnecting and reconnecting with unique name.", msg);
-                        humanity_core::debug::push_debug(format!("Name taken, reconnecting: {}", msg));
-
-                        // Generate a fallback name: "DesktopUser_XXXX"
-                        let suffix: u16 = (std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .subsec_nanos() % 10000) as u16;
-                        let fallback = format!("DesktopUser_{:04}", suffix);
-                        state.gui_state.profile_name = fallback.clone();
-                        // Persist the fallback as the user_name + save the
-                        // config so the NEXT launch reuses this name (relay
-                        // accepts re-registration from the same key, so no
-                        // collision). Previously, profile_name was set but
-                        // user_name stayed at the conflicting value, so each
-                        // boot tried "Shaostoul" → name_taken → a brand-new
-                        // DesktopUser_NNNN → permanent server-side drip
-                        // (operator reported 6+ entries on one key).
-                        // The user can rename back to a preferred name from
-                        // Settings once the conflicting registration clears.
-                        state.gui_state.user_name = fallback.clone();
-                        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
-
-                        // Disconnect current connection
-                        if let Some(ref mut client) = state.gui_state.ws_client {
-                            client.disconnect();
-                        }
-                        state.gui_state.ws_client = None;
-
-                        // Reconnect with new name (full fresh handshake so
-                        // server sends channel_list, dm_list, group_list, etc.)
-                        let url = state.gui_state.server_url.clone();
-                        let ws_url = url.replace("https://", "wss://").replace("http://", "ws://");
-                        let ws_url = format!("{}/ws", ws_url.trim_end_matches('/'));
-                        // Full-PQ: keep advertising our Kyber key on the
-                        // name-collision reconnect — the 3-arg connect()
-                        // sent empty kyber, which silently broke DMs for
-                        // any DesktopUser-fallback session.
-                        let new_client = crate::net::ws_client::WsClient::connect_with_key_card(&ws_url, &fallback, &state.gui_state.profile_public_key, &state.gui_state.own_key_card);
-                        state.gui_state.ws_client = Some(new_client);
-                        state.gui_state.connected_server_url = url.clone();
-                        // Fresh socket: identify handshake not yet complete (v0.794).
-                        state.gui_state.ws_identified = false;
-                        state.gui_state.dm_fetch = Default::default();
-                        state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
-                        log::info!("Reconnecting as: {}", fallback);
-                    }
-                    // A task given to me, or one of mine changed (notifications rung 3).
-                    Some("task_notice") => {
-                        let server = state.gui_state.server_url.clone();
-                        if let Some(c) = crate::engine::notify::task(&state.gui_state, &server, &val) {
-                            crate::engine::notify::deliver(state, c);
-                        }
-                    }
-                    // ── Marketplace sync (v0.752, ladder rung 5) ──
-                    // The Market page sends listing_browse; the
-                    // relay answers listing_list (unicast) and
-                    // keeps everyone current with listing_new /
-                    // listing_updated / listing_deleted broadcasts.
-                    Some("listing_list") => {
-                        if let Some(arr) = val.get("listings").and_then(|v| v.as_array()) {
-                            state.gui_state.listings = arr
-                                .iter()
-                                .map(crate::gui::GuiListing::from_relay_json)
-                                .collect();
-                            state.gui_state.listing_status.clear();
-                        }
-                    }
-                    Some("listing_new") | Some("listing_updated") => {
-                        if let Some(l) = val.get("listing") {
-                            let gl = crate::gui::GuiListing::from_relay_json(l);
-                            if gl.seller_key == state.gui_state.profile_public_key {
-                                state.gui_state.listing_status = "Listing published.".to_string();
-                            }
-                            if let Some(slot) = state
-                                .gui_state
-                                .listings
-                                .iter_mut()
-                                .find(|x| x.id == gl.id)
-                            {
-                                *slot = gl;
-                            } else {
-                                state.gui_state.listings.insert(0, gl);
-                            }
-                        }
-                    }
-                    Some("listing_deleted") => {
-                        if let Some(id) = val.get("id").and_then(|v| v.as_str()) {
-                            state.gui_state.listings.retain(|l| l.id != id);
-                            if state.gui_state.listing_selected.as_deref() == Some(id) {
-                                state.gui_state.listing_selected = None;
-                            }
-                            if state.gui_state.listing_status == "Deleting listing..." {
-                                state.gui_state.listing_status = "Listing removed.".to_string();
-                            }
-                        }
-                    }
-                    // ── Reviews (v0.755) ── (the listing thread
-                    // arms died with the plaintext thread
-                    // protocol, 2026-08-23; marketplace contact
-                    // rides sealed-sender DMs now.)
-                    Some("review_created") => {
-                        if let Some(r) = val.get("review") {
-                            let gr = crate::gui::GuiReview::from_relay_json(r);
-                            let lid = r
-                                .get("listing_id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("");
-                            if lid == state.gui_state.listing_reviews_for {
-                                state.gui_state.listing_reviews.push(gr);
-                                // Keep the header honest without a refetch.
-                                let n = state.gui_state.listing_reviews.len() as f32;
-                                let sum: f32 = state
-                                    .gui_state
-                                    .listing_reviews
-                                    .iter()
-                                    .map(|x| x.rating as f32)
-                                    .sum();
-                                state.gui_state.listing_reviews_count =
-                                    state.gui_state.listing_reviews.len() as i64;
-                                state.gui_state.listing_reviews_avg =
-                                    if n > 0.0 { sum / n } else { 0.0 };
-                            }
-                        }
-                    }
-                    Some("review_deleted") => {
-                        let lid = val.get("listing_id").and_then(|v| v.as_str()).unwrap_or("");
-                        let rid = val.get("review_id").and_then(|v| v.as_i64()).unwrap_or(-1);
-                        if lid == state.gui_state.listing_reviews_for {
-                            state.gui_state.listing_reviews.retain(|r| r.id != rid);
-                            let n = state.gui_state.listing_reviews.len() as f32;
-                            let sum: f32 = state
-                                .gui_state
-                                .listing_reviews
-                                .iter()
-                                .map(|x| x.rating as f32)
-                                .sum();
-                            state.gui_state.listing_reviews_count =
-                                state.gui_state.listing_reviews.len() as i64;
-                            state.gui_state.listing_reviews_avg =
-                                if n > 0.0 { sum / n } else { 0.0 };
-                        }
-                    }
-                    // BUG-135: our account here was erased; leave, and never redial it by ourselves.
-                    Some("account_erased") => crate::engine::account_erase::on_active_server(state, &val),
-                    Some("private") => {
-                        // Private server-to-user message (rate limit, errors, command responses)
-                        if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
-                            humanity_core::debug::push_debug(format!("Private: {}", msg));
-                            crate::engine::held::on_private(&mut state.gui_state, msg); // held items' answers, also on Held copies
-                            // Multiplayer (v0.472): the game_welcome (our player id +
-                            // world snapshot) arrives as a private __game__ message.
-                            if let Some(payload) = msg.strip_prefix("__game__:") {
-                                let payload = payload.to_string();
-                                route_game_message(state, &payload);
-                                continue;
-                            }
-                            // P2P trades: same bridge as the system arm.
-                            if route_trade(state, &val) {
-                                continue;
-                            }
-                            // Filter out profile validation noise (not relevant to chat)
-                            let is_profile_noise = msg.contains("Profile URL")
-                                || msg.contains("must start with https://")
-                                || msg.starts_with("__sync_data__")
-                                || msg == "sync_ack";
-                            if !is_profile_noise {
-                                // The server's words, marked as the server's (sixth review, H1 (d)).
-                                crate::engine::friend_code::server_line(&mut state.gui_state, msg);
-                            }
-                        }
-                    }
-                    _ => {
-                        // Log unhandled message types to debug console
-                        let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
-                        if !crate::engine::report::on_frame(&mut state.gui_state, &val) && !crate::engine::call_relay::on_frame(&mut state.gui_state, &val) && !crate::net::admin_erase::on_frame(&mut state.gui_state.admin_erase, &val) && !crate::engine::friend_code::on_frame(&mut state.gui_state, &val) && !crate::engine::put_answer::on_frame(&mut state.gui_state, &val) { humanity_core::debug::push_debug(format!("Unhandled WS type: {}", msg_type)); } // report_received, reports: step D (engine/report.rs); call_credentials: step E (engine/call_relay.rs); admin_erase_done: 10i (net/admin_erase.rs); friend_code_*: engine/friend_code.rs; dm_put_ok, dm_put_refused: 10l (engine/put_answer.rs)
-                    }
+                // The frame itself: GuiState-level work in `on_frame`, the engine's own work after it.
+                let now_time = state.egui_ctx.input(|i| i.time);
+                let mut out = Vec::new();
+                {
+                    let reg = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
+                    let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
+                    on_frame(&mut state.gui_state, &mut state.game_world.world, &known, &val, &socket_name, now_time, &mut out);
+                }
+                for work in out {
+                    work.run(state);
                 }
             }
         }
@@ -1498,13 +139,1410 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     crate::gui::pages::trade::tick(&mut state.gui_state, &mut state.game_world.world, known);
 }
 
-/// Hand a `system` or `private` frame to the Trade bridge; true when it
-/// was a trade wrapper. `known` says whether this game has an item, so a
-/// line naming one it does not know is not added to the backpack.
-fn route_trade(state: &mut EngineState, val: &serde_json::Value) -> bool {
-    let reg = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
-    let known = |id: &str| reg.map_or(true, |r| r.items.contains_key(id));
-    crate::gui::pages::trade::route_trade_frame(&mut state.gui_state, &mut state.game_world.world, known, val)
+/// What a frame asks of the engine beyond the GUI state: done right after [`on_frame`] returns, in
+/// the order asked (a notice, a game message, an erased account).
+pub(crate) enum Deferred {
+    /// A desktop notice or sound (engine/notify.rs).
+    Notify(crate::notifications::Candidate),
+    /// A `__game__:` payload for the game's router (engine/net_route.rs).
+    Game(String),
+    /// `account_erased` on the active server (engine/account_erase.rs).
+    AccountErased(serde_json::Value),
+}
+
+impl Deferred {
+    fn run(self, state: &mut EngineState) {
+        match self {
+            Deferred::Notify(c) => crate::engine::notify::deliver(state, c),
+            Deferred::Game(payload) => route_game_message(state, &payload),
+            Deferred::AccountErased(val) => crate::engine::account_erase::on_active_server(state, &val),
+        }
+    }
+}
+
+/// ONE frame from the active relay, acted on: every `match` arm on its `type`. It touches the GUI
+/// state, the game world (a trade wrapper) and nothing else; what the engine must do besides goes in
+/// `out`. Split out of `poll_relay_messages` (2026-11-22, the owner branch's eighth review) so a
+/// test can hand it every frame type the decoder knows with a GuiState alone, and read what was
+/// drawn in the app's own voice (gui/pages/chat/app_voice_tests.rs). `now_time` is egui's clock.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn on_frame(
+    gs: &mut crate::gui::GuiState,
+    world: &mut hecs::World,
+    known: &dyn Fn(&str) -> bool,
+    val: &serde_json::Value,
+    socket_name: &str,
+    now_time: f64,
+    out: &mut Vec<Deferred>,
+) {
+    match val.get("type").and_then(|t| t.as_str()) {
+        Some("identify_challenge") => {
+            // Inc3b — relay challenged us after `identify`.
+            // Sign the canonical preimage with Dilithium3 from
+            // our BIP39 seed and return `identify_response`.
+            // Closes HIGH-2 (identity spoofing at identify).
+            let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("");
+            crate::engine::dm::note_server_did(gs, val.get("server_did").and_then(|v| v.as_str())); // what friendship passes here name
+            if nonce.is_empty() {
+                log::warn!("identify_challenge missing nonce");
+            } else if let Some(ref seed) = gs.private_key_bytes {
+                // Signed for the address THIS socket opened, never one the server names
+                // (net::identity::identify_response, 2026-11-21).
+                if let Some(ref ws_client) = gs.ws_client {
+                    match crate::net::identity::identify_response(seed, ws_client.server_url(), nonce, &gs.profile_public_key) {
+                        Ok(response) => ws_client.send(&response),
+                        Err(why) => {
+                            log::warn!("identify_challenge not signed: {why}");
+                            gs.ws_status = why.to_string();
+                        }
+                    }
+                }
+            } else {
+                log::error!("identify_challenge received but seed not unlocked — cannot sign. Unlock identity to connect.");
+                gs.ws_status = "Unlock your identity to complete connect (server requested challenge).".to_string();
+            }
+        }
+        Some("chat") => {
+            let sender_key = val.get("from")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let msg_timestamp = val.get("timestamp")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            // My own line came back: it was posted ("Sending..." goes, chat/line_limit.rs).
+            if sender_key == gs.profile_public_key {
+                crate::gui::pages::chat::line_limit::confirm(&mut gs.chat_messages, &sender_key, msg_timestamp);
+            }
+            // Skip only messages WE sent from THIS client
+            // (already added locally). Check by matching
+            // our key + exact timestamp in recent sent list.
+            if sender_key == gs.profile_public_key
+                && gs.chat_sent_timestamps.contains(&msg_timestamp)
+            {
+                gs.chat_sent_timestamps.retain(|&t| t != msg_timestamp);
+                return;
+            }
+            let sender_name = val.get("from_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Anonymous")
+                .to_string();
+            let content = val.get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let timestamp = val.get("timestamp")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let channel = val.get("channel")
+                .and_then(|v| v.as_str())
+                .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
+                .to_string();
+            // Robust dedup (fixes the 2026-05-20 "reply duplicated
+            // after a while" report). The chat_sent_timestamps
+            // fast-path above only catches the FIRST echo of our
+            // OWN sends — it removes the entry on match, so it's
+            // one-shot. A LATER replay of the same message (the WS
+            // reconnect history re-fetch resets history_fetched and
+            // re-pulls the last 50; or a duplicate broadcast) would
+            // otherwise sail past the consumed fast-path and append
+            // a second copy that only clears on app restart (in-
+            // memory only; the relay always had one copy). A message
+            // is uniquely identified by (sender_key, timestamp_ms)
+            // — ms precision, per-sender — so skip if we already
+            // hold it. Cheap: chat_messages is bounded to 200.
+            if gs.chat_messages.iter()
+                .any(|m| m.sender_key == sender_key && m.timestamp_ms == timestamp)
+            {
+                return;
+            }
+            // Decode reply_to context if present (threads).
+            let reply_to = val.get("reply_to").and_then(|r| {
+                let from = r.get("from")?.as_str()?.to_string();
+                let from_name = r.get("from_name")?.as_str()?.to_string();
+                let preview = r.get("content")?.as_str()?.to_string();
+                let ts = r.get("timestamp")?.as_u64()?;
+                Some(crate::gui::ReplyContext {
+                    sender_key: from,
+                    sender_name: from_name,
+                    preview,
+                    timestamp_ms: ts,
+                    ..Default::default()
+                })
+            });
+            // Sidebar unread dot: flag the channel when the message
+            // isn't ours and that channel isn't the open one. The
+            // open Commons view of the same room counts as open
+            // (its qualified id is "commons:<room>"). (v0.718)
+            let room_is_open = channel == gs.chat_active_channel
+                || crate::gui::pages::chat::commons_room_of(
+                    &gs.chat_active_channel,
+                ) == Some(channel.as_str());
+            if sender_key != gs.profile_public_key
+                && !room_is_open
+            {
+                if let Some(c) = gs.chat_channels.iter_mut().find(|c| c.id == channel) {
+                    c.unread = true;
+                }
+            }
+            // The line goes to the notification rule: a mention (`@name`, 2026-10-30;
+            // was any line containing the name, v0.987), a reply to a line of mine, or
+            // an ordinary line for a room set to every line (rung 2). This arm only
+            // sees live broadcasts (history arrives via REST), so an old line never
+            // notifies again; the rule drops my own, a muted room, the room's level,
+            // quiet hours (engine/notify.rs).
+            let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
+            let reply_from = reply_to.as_ref().map(|r| r.sender_key.as_str());
+            if let Some(c) = crate::engine::notify::room_line(gs, &server, &gs.user_name, &channel, &sender_key, &sender_name, &content, reply_from) {
+                out.push(Deferred::Notify(c));
+            }
+            gs.chat_messages.push(
+                crate::gui::ChatMessage {
+                    sender_name,
+                    sender_key,
+                    content,
+                    timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
+                    timestamp_ms: timestamp,
+                    channel,
+                    reply_to,
+                    server: crate::gui::pages::chat::norm_server_url(&gs.server_url),
+                    ..Default::default()
+                },
+            );
+            // Bound message buffer
+            while gs.chat_messages.len() > 200 {
+                gs.chat_messages.remove(0);
+            }
+        }
+        Some("peer_list") => {
+            let peer_count = val.get("peers").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+            log::info!("peer_list received: {} peers", peer_count);
+            humanity_core::debug::push_debug(format!("Identified OK, {} peers online", peer_count));
+            gs.chat_users.clear();
+            crate::gui::pages::chat::note_upload_limit(gs, &val); // this person's own upload limit here
+            gs.ws_status = "Connected".to_string();
+            gs.server_connected = true;
+            // First post-bind message: the identify handshake is
+            // complete, game messages will now be routed (v0.794).
+            // Every new socket resets the flag, so false here
+            // means this is that socket's identify being accepted;
+            // the socket then asks for the server's settings anew.
+            let first_on_socket = gs.socket_signed_in();
+            if let Some(join) = voice_rejoin_frame(gs, first_on_socket) {
+                if let Some(ref c) = gs.ws_client { c.send(&join); }
+            }
+            // The person's notification switches and quiet hours, before any live
+            // message: nothing notifies until they arrive (engine/notify.rs).
+            if first_on_socket {
+                crate::engine::notify::ask_prefs(gs);
+            }
+            // Fetch this server's real donation info (GET /api/server-info's
+            // `funding` field) so the Donate page shows the connected server's
+            // actual addresses instead of relying on the user (or a self-hosting
+            // operator) having hand-typed them into Settings -- native previously
+            // never fetched this at all (only the web client did). Donation info
+            // is money-routing data, so (adversarial review 2026-07-01): funding
+            // carried over from a DIFFERENT server is cleared immediately, and an
+            // in-flight fetch aimed at a different server is replaced (dropping
+            // its receiver -- the late send fails harmlessly) rather than left to
+            // land its result under the wrong server.
+            {
+                let url = gs.server_url.trim_end_matches('/').to_string();
+                if gs.donate_funding_server != url {
+                    gs.donate_funding_server.clear();
+                    gs.donate_addresses_server.clear();
+                    gs.donate_funding_goal = None;
+                    gs.donate_figures = Default::default();
+                }
+                let already_fetching = gs
+                    .donate_info_rx
+                    .as_ref()
+                    .map_or(false, |(u, _)| *u == url);
+                if !already_fetching {
+                    let api = format!("{}/api/server-info", url);
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    std::thread::spawn(move || {
+                        let result = (|| -> Result<crate::gui::ServerInfo, String> {
+                            let resp = ureq::get(&api)
+                                .timeout(std::time::Duration::from_secs(10))
+                                .call()
+                                .map_err(|e| e.to_string())?;
+                            let body = resp.into_string().map_err(|e| e.to_string())?;
+                            serde_json::from_str::<crate::gui::ServerInfo>(&body).map_err(|e| e.to_string())
+                        })();
+                        let _ = tx.send(result);
+                    });
+                    gs.donate_info_rx = Some((url, rx));
+                }
+            }
+            // Request tasks from server on connect
+            if let Some(ref ws_client) = gs.ws_client {
+                let get_tasks = serde_json::json!({"type": "task_list"});
+                ws_client.send(&get_tasks.to_string());
+            }
+            // Key cards (2026-10-22): a new socket may have lost requests in flight on
+            // the old one; ask again for the people this app seals to.
+            crate::engine::key_cards::on_signed_in(gs, first_on_socket);
+            if let Some(peers) = val.get("peers").and_then(|v| v.as_array()) {
+                for peer in peers {
+                    let name = peer.get("display_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Anonymous")
+                        .to_string();
+                    let key = peer.get("public_key")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let role = peer.get("role")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let status = peer.get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("online")
+                        .to_string();
+                    // Their key card's time: fetch the card when it is newer than
+                    // the one pinned (engine/key_cards.rs). No key comes from here.
+                    crate::engine::key_cards::note_listed(gs, &key, peer.get("key_card_at").and_then(|v| v.as_u64()));
+                    // If this peer is us and our local name is empty, adopt the server's display_name
+                    if key == gs.profile_public_key
+                        && gs.user_name.is_empty()
+                        && name != "Anonymous"
+                    {
+                        log::info!("Adopting display name from server: {}", name);
+                        gs.user_name = name.clone();
+                        crate::config::AppConfig::from_gui_state(gs).save();
+                    }
+                    gs.chat_users.push(
+                        crate::gui::ChatUser { name, public_key: key, role, status },
+                    );
+                }
+            }
+        }
+        Some("peer_joined") => {
+            let name = val.get("display_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Anonymous")
+                .to_string();
+            let key = val.get("public_key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let role = val.get("role")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            // Their key card's time (engine/key_cards.rs).
+            crate::engine::key_cards::note_listed(gs, &key, val.get("key_card_at").and_then(|v| v.as_u64()));
+            // Add if not already present
+            if !gs.chat_users.iter().any(|u| u.public_key == key) {
+                gs.chat_users.push(
+                    crate::gui::ChatUser { name, public_key: key.clone(), role, status: "online".into() },
+                );
+            }
+        }
+        Some("peer_left") => {
+            if let Some(key) = val.get("public_key").and_then(|v| v.as_str()) {
+                gs.chat_users.retain(|u| u.public_key != key);
+            }
+        }
+        Some("channel_list") => {
+            if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
+                // Rebuilt from scratch; the marks the client keeps
+                // are carried over below (`carry_channel_marks`).
+                let old_channels = std::mem::take(&mut gs.chat_channels);
+                for ch in channels {
+                    let id = ch.get("id")
+                        .or_else(|| ch.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(humanity_protocol::chat_access::MAIN_CHANNEL)
+                        .to_string();
+                    let name = ch.get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&id)
+                        .to_string();
+                    let description = ch.get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let category = ch.get("category_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Text")
+                        .to_string();
+                    // Read the persisted flags from the server so admin
+                    // toggles in Server Settings → Channels survive
+                    // restarts. Pre-v0.192 servers omit voice_enabled
+                    // entirely; treat missing-field as true so old
+                    // servers don't accidentally disable voice.
+                    let voice_enabled = ch.get("voice_enabled")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    // Who can read and post (chat/access.rs); a level the server did
+                    // not name reads as Members, the safe default.
+                    let level_word = |k: &str| ch.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let read_level = humanity_protocol::chat_access::ReadLevel::from_stored(&level_word("read_level"));
+                    let post_level = humanity_protocol::chat_access::PostLevel::from_stored(&level_word("post_level"));
+                    let federated = ch.get("federated")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let local_only = ch.get("local_only")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    gs.chat_channels.push(
+                        crate::gui::ChatChannel {
+                            id,
+                            name,
+                            description,
+                            category,
+                            voice_joined: false,
+                            voice_enabled,
+                            read_level,
+                            post_level,
+                            federated,
+                            local_only,
+                            voice_participants: Vec::new(),
+                            unread: false,
+                        },
+                    );
+                }
+                carry_channel_marks(&old_channels, &mut gs.chat_channels);
+                // A link's channel waiting for this list opens first (chat/channel_link.rs).
+                let now = now_time;
+                crate::gui::pages::chat::channel_link::open_pending(gs, now);
+                // The room open here may be gone (deleted, or renamed by the server).
+                crate::gui::pages::chat::land_if_room_gone(gs);
+            }
+            // Sealed-sender DMs: channel_list only arrives on a
+            // BOUND socket (post identify-challenge), so this is
+            // the reliable moment to fetch our mailbox. Once per
+            // connection, with a fresh ref (10o O1); the high-water
+            // mark lives in the local encrypted store. The sweep
+            // waits for its last page (10n N7).
+            if !gs.dm_fetch.sent {
+                crate::engine::mailbox::begin_fetch(gs);
+                // Show whatever local history we already have
+                // while the fetch round-trips, and restore the
+                // client-side social badges (follows removal
+                // 2026-08-24: the store is the only source).
+                crate::engine::dm::rebuild_dm_sidebar(gs);
+                crate::engine::dm::refresh_social_mirrors(gs);
+                // Re-assert the chosen presence flag on every
+                // fresh bound socket: server_members flags are
+                // per-server, so a new/wiped server learns the
+                // user's choice immediately. (2026-08-23)
+                if !gs.settings.privacy_tier.is_empty() {
+                    crate::gui::pages::privacy::send_presence_flag(gs);
+                }
+            }
+        }
+        // v0.200.0: the server-wide settings (per-role char limits, sharing
+        // toggles, the erase window, ...), cached for the admin UI and the limits
+        // that apply to our messages (gui/connections.rs).
+        Some("server_settings_state") => gs.on_server_settings_state(&val),
+        Some("role_list") => {
+            // v0.241 (roles Phase R2): relay sends the full
+            // role list on connect + after any role change.
+            // Cache it for the user-modal role dropdown +
+            // badge colors.
+            if let Some(arr) = val.get("roles") {
+                match serde_json::from_value::<Vec<crate::relay::storage::RoleDef>>(arr.clone()) {
+                    Ok(roles) => {
+                        log::info!("Received {} role definitions", roles.len());
+                        gs.chat_roles = roles;
+                    }
+                    Err(e) => log::warn!("Failed to parse role_list: {e}"),
+                }
+            }
+        }
+        Some("service_state") => {
+            // v0.262.16 (Server→Services): admin-only reply
+            // to service_control. Caches the daemon/soft
+            // snapshot for the Services panel.
+            if let Some(arr) = val.get("services") {
+                match serde_json::from_value::<Vec<crate::relay::services::ServiceInfo>>(arr.clone()) {
+                    Ok(svcs) => {
+                        log::info!("Received {} service states", svcs.len());
+                        gs.service_state = svcs;
+                    }
+                    Err(e) => log::warn!("Failed to parse service_state: {e}"),
+                }
+            }
+        }
+        Some("backup_list") => {
+            // v0.938: admin-targeted reply to
+            // backup_list_request / backup_run. Drives the
+            // Server Settings -> Backups panel.
+            if let Some(arr) = val.get("backups") {
+                match serde_json::from_value::<Vec<crate::relay::storage::backups::BackupEntry>>(arr.clone()) {
+                    Ok(backups) => {
+                        log::info!("Received {} backups", backups.len());
+                        gs.backup_list = backups;
+                    }
+                    Err(e) => log::warn!("Failed to parse backup_list: {e}"),
+                }
+            }
+        }
+        Some("banned_list") => {
+            // v0.245: relay sends this only to admins, in
+            // reply to banned_list_request + after any
+            // ban/unban. Drives the Server Settings →
+            // Banned users panel.
+            if let Some(arr) = val.get("users") {
+                match serde_json::from_value::<Vec<crate::relay::storage::BannedUser>>(arr.clone()) {
+                    Ok(users) => {
+                        log::info!("Received {} banned users", users.len());
+                        gs.chat_banned_users = users;
+                    }
+                    Err(e) => log::warn!("Failed to parse banned_list: {e}"),
+                }
+            }
+        }
+        Some("muted_list") => {
+            // v0.246: relay sends this only to mods/admins,
+            // in reply to muted_list_request + after any
+            // mute/unmute. Drives the Server Settings →
+            // Muted users panel.
+            if let Some(arr) = val.get("users") {
+                match serde_json::from_value::<Vec<crate::relay::storage::MutedUser>>(arr.clone()) {
+                    Ok(users) => {
+                        log::info!("Received {} muted users", users.len());
+                        gs.chat_muted_users = users;
+                    }
+                    Err(e) => log::warn!("Failed to parse muted_list: {e}"),
+                }
+            }
+        }
+        Some("system") => {
+            if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
+                // Clipped (2026-10-02): a trade list arrives here
+                // on every connect and can run to many KB, all of
+                // which used to land in run.log.
+                log::info!("Relay system message: {}", clip(msg, 160));
+                humanity_core::debug::push_debug(format!("System: {}", clip(msg, 160)));
+                // Relay throttled this connection (per-IP identify rate
+                // limit). Mirror the web client: back the reconnect off
+                // PAST the 60s window. Without this the native looped every
+                // 5s -- the backoff reset fires when the WS OPENS, before
+                // the identify that gets rate-limited, so it never grew.
+                // The flag stops that reset clobbering this delay until we
+                // next actually retry. (v0.544)
+                if msg.starts_with("Too many connection attempts")
+                    || msg.contains("Try again in a minute")
+                {
+                    gs.ws_rate_limited = true;
+                    gs.ws_reconnect_delay = 65.0;
+                }
+                // Filter out internal sync + game messages from chat display.
+                // `__game__:` prefix tags game-engine traffic (ambient
+                // chatter, quest events, NPC dialog, world ticks) — those
+                // belong on the game/perception channel, NOT in #global
+                // where humans are talking. (Bug fix 2026-05-03.)
+                // Multiplayer (v0.472): route game traffic into the sync
+                // system (remote players join / move / leave) instead of
+                // discarding it, then skip the chat display.
+                if let Some(payload) = msg.strip_prefix("__game__:") {
+                    let payload = payload.to_string();
+                    out.push(Deferred::Game(payload));
+                    return;
+                }
+                // P2P trades (2026-10-02): the relay sends every
+                // targeted Private as a system frame, so the trade
+                // wrappers arrive HERE; they only ever reached the
+                // private arm below, which never runs, and so were
+                // printed into chat. The Trade page takes them.
+                if crate::gui::pages::trade::route_trade_frame(gs, world, known, val) {
+                    return;
+                }
+                if msg.starts_with("__sync_data__")
+                    || msg == "sync_ack"
+                {
+                    return;
+                }
+                // The server's words, under the sender "From this server", never the
+                // app's own "System" voice (the owner branch's sixth review, H1 (d)).
+                crate::engine::friend_code::server_line(gs, msg);
+            }
+        }
+        Some("full_user_list") => {
+            let user_count = val.get("users").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+            log::info!("full_user_list received: {} users", user_count);
+            // Full user list includes online + offline users
+            if let Some(users) = val.get("users").and_then(|v| v.as_array()) {
+                gs.chat_users.clear();
+                for user in users {
+                    let name = user.get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Anonymous")
+                        .to_string();
+                    let key = user.get("public_key")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let role = user.get("role")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let online = user.get("online")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let status = if online {
+                        user.get("status")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("online")
+                            .to_string()
+                    } else {
+                        "offline".to_string()
+                    };
+                    // Their key card's time (engine/key_cards.rs).
+                    crate::engine::key_cards::note_listed(gs, &key, user.get("key_card_at").and_then(|v| v.as_u64()));
+                    gs.chat_users.push(
+                        crate::gui::ChatUser { name, public_key: key, role, status },
+                    );
+                }
+                log::info!("Received full user list: {} users", gs.chat_users.len());
+                // Re-derive the friends mirror now that names/keys
+                // are known (follows removal 2026-08-24: the local
+                // store holds the sets; chat_users supplies rows).
+                crate::engine::dm::refresh_social_mirrors(gs);
+                crate::engine::dm::sweep_friend_passes(gs); // passes owed, withdrawals unconfirmed
+                crate::engine::owner::on_users(gs); // a check that waited to know the owner
+            }
+        }
+        Some("cert_revoked") => crate::engine::dm::withdrawal_confirmed(gs, &val),
+        // Key cards asked for (2026-10-22): each checked here before its key is used.
+        Some("key_cards") => crate::engine::key_cards::on_key_cards_frame(gs, &val),
+        Some("reach_settings") | Some("reach_refused") => crate::engine::reach::on_frame(gs, &val), // who can reach me (step B)
+        // How long my lines may be here, and a line of mine the server refused (2026-10-24,
+        // gui/pages/chat/line_limit.rs).
+        Some("my_limits") => {
+            let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
+            crate::gui::pages::chat::line_limit::on_my_limits(gs, &server, &val);
+        }
+        Some("chat_refused") => {
+            let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
+            crate::gui::pages::chat::line_limit::on_refused(gs, &server, &val, None);
+        }
+        Some("voice_channel_list") => {
+            // Voice channels received from server
+            if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
+                log::info!("Received {} voice channels", channels.len());
+                // Add voice channels that don't already exist as text channels
+                for vc in channels {
+                    // Voice is per-channel (v0.493): the entry's id IS a
+                    // text channel's string id, carrying that channel's
+                    // live voice roster.
+                    let vc_id = vc.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let vc_name = vc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    if vc_id.is_empty() { continue; }
+                    // Live voice roster (public_key, display_name), v0.481.
+                    let roster: Vec<(String, String)> = vc.get("participants")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|p| {
+                            let k = p.get("public_key").and_then(|v| v.as_str())?.to_string();
+                            let n = p.get("display_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            Some((k, n))
+                        }).collect())
+                        .unwrap_or_default();
+                    // Attach the roster onto the matching text channel by id
+                    // (channel_list already created it). Fallback: stub it.
+                    if let Some(c) = gs.chat_channels.iter_mut()
+                        .find(|c| c.id == vc_id)
+                    {
+                        c.voice_enabled = true;
+                        c.voice_participants = roster;
+                    } else if !vc_name.is_empty() {
+                        gs.chat_channels.push(
+                            crate::gui::ChatChannel {
+                                id: vc_id,
+                                name: vc_name,
+                                description: String::new(),
+                                category: "Text".to_string(),
+                                voice_joined: false,
+                                voice_enabled: true,
+                                federated: false,
+                                local_only: false,
+                                voice_participants: roster,
+                                unread: false,
+                                // Levels unknown until the channel list names them: Members, the safe default.
+                                ..Default::default()
+                            },
+                        );
+                    }
+                }
+                // Phase C (v0.492): if we are joined to a
+                // voice room, dial the incumbents present in
+                // our first post-join roster (the web's
+                // "newcomer offers, incumbents wait" rule).
+                // Later joiners will offer to us instead.
+                if let Some(room_id) = gs.voice_active_room.clone() {
+                    if !gs.voice_incumbents_captured {
+                        let my_key = gs.profile_public_key.clone();
+                        let mut me_present = false;
+                        let mut incumbents: Vec<String> = Vec::new();
+                        for vc in channels {
+                            let id = vc.get("id").and_then(|v| v.as_str());
+                            if id != Some(room_id.as_str()) { continue; }
+                            if let Some(arr) = vc.get("participants").and_then(|v| v.as_array()) {
+                                for p in arr {
+                                    if let Some(k) = p.get("public_key").and_then(|v| v.as_str()) {
+                                        if k == my_key { me_present = true; }
+                                        else { incumbents.push(k.to_string()); }
+                                    }
+                                }
+                            }
+                        }
+                        // Only act on the roster that lists US (post-join),
+                        // so we capture the correct incumbent set.
+                        if me_present {
+                            gs.voice_incumbents_captured = true;
+                            humanity_core::debug::push_debug(format!(
+                                "Voice: in room {}, dialing {} incumbent(s)", room_id, incumbents.len()
+                            ));
+                            if let Some(ref webrtc) = gs.webrtc {
+                                for peer in &incumbents {
+                                    webrtc.offer_to_voice(peer.clone(), room_id.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Some("profile_data") => {
+            // The server sends everyone's profile this way: our own and anyone
+            // else's, and `target` cannot tell them apart. Only one naming this
+            // socket's person fills in their profile (BUG-193: every profile anyone
+            // saved used to), and only their own complete copy becomes the server's
+            // copy every save is built from (BUG-194, gui/pages/own_profile.rs).
+            use crate::gui::pages::own_profile;
+            if own_profile::names_socket(&val, &socket_name) {
+                if let Some(name) = val.get("name").and_then(|v| v.as_str()) {
+                    gs.profile_name = name.to_string();
+                }
+                if let Some(bio) = val.get("bio").and_then(|v| v.as_str()) {
+                    gs.profile_bio = bio.to_string();
+                }
+                // Filed as this server's copy; when the server asks, the copy other
+                // servers keep goes back signed on this socket (BUG-191).
+                let server = gs.server_url.clone();
+                if let Some(signed) = own_profile::take_own_copy(gs, &server, &val, &socket_name) {
+                    if let Some(ws) = gs.ws_client.as_ref() { ws.send(&signed); }
+                }
+            } else {
+                // Someone else's: the "accepts files from" word of a person whose DM
+                // asked for it (chat/attach_step.rs `ask_accepts`, BUG-241).
+                crate::gui::pages::chat::attach_step::take_profile_answer(gs, &val);
+            }
+        }
+        Some("sync_data") | Some("sync_ack") | Some("vault_sync") => {
+            // Vault sync messages - handle silently, don't display in chat
+            humanity_core::debug::push_debug("Vault sync message received (hidden)");
+        }
+        // (follow_list/follow_update arms removed 2026-08-24:
+        // the social graph is client-side; sealed control
+        // messages + the local store feed the badge sets.)
+        Some("account_export_data") => {
+            // Sovereignty (2026-08-23): everything the
+            // server stores about us, written to a local
+            // JSON file the user can keep or inspect.
+            if let Some(data) = val.get("data") {
+                let dir = if let Ok(appdata) = std::env::var("APPDATA") {
+                    std::path::PathBuf::from(appdata).join("HumanityOS").join("exports")
+                } else {
+                    std::path::PathBuf::from("exports")
+                };
+                let _ = std::fs::create_dir_all(&dir);
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let path = dir.join(format!("account-export-{ts}.json"));
+                match std::fs::write(&path, serde_json::to_string_pretty(data).unwrap_or_default()) {
+                    Ok(()) => {
+                        gs.account_export_status =
+                            format!("Export saved: {}", path.display());
+                        log::info!("Account export written to {}", path.display());
+                    }
+                    Err(e) => {
+                        gs.account_export_status =
+                            format!("Export failed to write: {e}");
+                    }
+                }
+            }
+        }
+        Some("dm_purged") => {
+            // Confirmation of our own mailbox scrub
+            // ("Delete my server mailbox" in DM Settings).
+            let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
+            gs.ws_status = format!(
+                "Server mailbox cleared ({count} envelope{} deleted).",
+                if count == 1 { "" } else { "s" }
+            );
+            log::info!("DM mailbox purged: {count} envelopes deleted server-side");
+        }
+        // (legacy group_list arm removed 2026-08-23; groups are P2P E2EE)
+        Some("notification_prefs_data") => {
+            // See GuiState::notif_dm_enabled doc comment: the relay + web
+            // client already fully support this, the native client just
+            // never asked for or read it until now.
+            let prefs = parse_notification_prefs(&val);
+            gs.notif_dm_enabled = prefs.dm;
+            gs.notif_mentions_enabled = prefs.mentions;
+            gs.notif_tasks_enabled = prefs.tasks;
+            gs.notif_dnd_start = prefs.dnd_start;
+            gs.notif_dnd_end = prefs.dnd_end;
+            gs.notif_quiet_friends = prefs.quiet_friends;
+            gs.notif_quiet_mentions = prefs.quiet_mentions;
+            gs.notif_prefs_loaded = true;
+        }
+        // Sealed-sender DMs, live and fetched (engine/mailbox.rs): only this
+        // connection's own fetch pages count, and a live DM moves the read
+        // position only once that fetch is done (10o O1).
+        Some("dm_new") => {
+            if let Some(c) = crate::engine::mailbox::on_new(gs, &val) {
+                out.push(Deferred::Notify(c));
+            }
+        }
+        Some("dm_batch") => crate::engine::mailbox::on_batch(gs, &val),
+        // (legacy group_msg/group_history arms removed 2026-08-23)
+        Some("reaction") => {
+            // Single reaction: target_from + target_timestamp + emoji + from
+            let target_from = val.get("target_from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let target_ts = val.get("target_timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+            let emoji = val.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if !emoji.is_empty() && target_ts > 0 {
+                for msg in gs.chat_messages.iter_mut() {
+                    if msg.origin.is_network() && msg.sender_key == target_from && msg.timestamp_ms == target_ts {
+                        let entry = msg.reactions.entry(emoji.clone()).or_insert_with(Vec::new);
+                        // Toggle: if already reacted, remove. Otherwise add.
+                        if let Some(idx) = entry.iter().position(|k| k == &from) {
+                            entry.remove(idx);
+                        } else {
+                            entry.push(from.clone());
+                        }
+                        if entry.is_empty() {
+                            msg.reactions.remove(&emoji);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        Some("reactions_sync") => {
+            // Bulk sync: array of {target_from, target_timestamp, emoji, from}.
+            if let Some(arr) = val.get("reactions").and_then(|v| v.as_array()) {
+                for r in arr {
+                    let target_from = r.get("target_from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let target_ts = r.get("target_timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let emoji = r.get("emoji").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let from = r.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    if emoji.is_empty() || target_ts == 0 { continue; }
+                    for msg in gs.chat_messages.iter_mut() {
+                        if msg.origin.is_network() && msg.sender_key == target_from && msg.timestamp_ms == target_ts {
+                            let entry = msg.reactions.entry(emoji.clone()).or_insert_with(Vec::new);
+                            if !entry.contains(&from) {
+                                entry.push(from.clone());
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        Some("edit") => {
+            // Edited message broadcast — find by sender + timestamp, replace content.
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+            let new_content = val.get("new_content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            for msg in gs.chat_messages.iter_mut() {
+                // Only a member's row: an app or server line is nobody's to edit (the owner
+                // branch's eighth review, M4: an edit naming the empty key rewrote an app line).
+                if msg.origin.is_network() && msg.sender_key == from && msg.timestamp_ms == ts {
+                    msg.content = new_content;
+                    break;
+                }
+            }
+        }
+        Some("delete") => {
+            // v0.281.0: deletion broadcast (own delete OR admin/mod
+            // moderation). Drop the matching message from the local
+            // view by sender_key + timestamp_ms. We don't try to be
+            // clever about preserving thread context — pin/reaction
+            // state for an absent message just lingers harmlessly until
+            // the next channel refetch.
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+            if !from.is_empty() && ts > 0 {
+                gs.chat_messages.retain(|m| !(m.origin.is_network() && m.sender_key == from && m.timestamp_ms == ts));
+            }
+        }
+        Some("message_deleted") => {
+            // v0.282.0: admin/mod deletion via DeleteById (broadcast
+            // by relay when web admin uses the by-id path; native
+            // admins use the simpler `delete` arm above). Payload
+            // carries `from` + `timestamp` for client-side removal —
+            // the message_id is for the web's DOM-keyed approach,
+            // we use (sender_key, timestamp_ms) like everywhere else
+            // on native.
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+            if !from.is_empty() && ts > 0 {
+                gs.chat_messages.retain(|m| !(m.origin.is_network() && m.sender_key == from && m.timestamp_ms == ts));
+            }
+        }
+        Some("typing") => {
+            // v0.282.0: typing indicator broadcast. Insert/refresh the
+            // sender's entry; the renderer prunes anything older than
+            // 3 seconds (matches web's auto-clear). Skip our own typing
+            // event — the relay echoes broadcasts to all sockets, so
+            // we'd otherwise see "Shaostoul is typing…" every time we
+            // touched the input on a different tab.
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if from.is_empty() || from == gs.profile_public_key {
+                // Continue silently — own echoes are noise.
+            } else {
+                let from_name = val.get("from_name").and_then(|v| v.as_str())
+                    .unwrap_or_else(|| {
+                        // Fallback: look up display name in the user list.
+                        // Empty string yields "user" downstream when nothing matches.
+                        ""
+                    })
+                    .to_string();
+                let display = if from_name.is_empty() {
+                    gs.chat_users.iter()
+                        .find(|u| u.public_key == from)
+                        .map(|u| u.name.clone())
+                        .unwrap_or_else(|| "Someone".to_string())
+                } else {
+                    from_name
+                };
+                gs.chat_typing_users.insert(
+                    from,
+                    (display, std::time::Instant::now()),
+                );
+            }
+        }
+        // STALE COMMENT CORRECTED 2026-07-01 (overnight loop, cycle 12):
+        // this used to say native had no WebRTC stack and these were
+        // stubs -- that was true at v0.283.0 when this arm was written,
+        // but native voice shipped end-to-end in the v0.485-495 arc
+        // (mic capture via cpal, Opus encode, str0m WebRTC transport --
+        // see docs/STATUS.md's "Native voice" row, src/net/voice.rs,
+        // src/net/webrtc.rs). Both arms below route real signaling into
+        // the live WebRTC manager (`webrtc.submit_voice_signal` /
+        // `submit_signal`), they are not stubs. The channel-list voice
+        // icon's join/leave click handler also shipped (chat.rs, search
+        // "voice_joined") -- it just isn't at the line this comment used
+        // to cite, since line numbers drift as the file grows.
+        #[cfg(feature = "native")]
+        Some("voice_room_signal") => {
+            // Phase C: inbound voice-room signaling (offer /
+            // answer / ice / new_participant) relayed to us.
+            // Route into the WebRTC manager's voice path. Note
+            // `data` here is a JSON OBJECT (the browser
+            // RTCSessionDescription / candidate shape), unlike
+            // the webrtc_signal path where it is a string.
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let room_id = val.get("room_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let signal_type = val.get("signal_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let data = val.get("data").cloned().unwrap_or(serde_json::Value::Null);
+            let wanted = voice_signal_wanted(
+                &signal_type,
+                &room_id,
+                gs.voice_active_room.as_deref(),
+            );
+            if !from.is_empty() && !signal_type.is_empty() && wanted {
+                if let Some(ref webrtc) = gs.webrtc {
+                    webrtc.submit_voice_signal(from, room_id, signal_type, data);
+                }
+            }
+        }
+        #[cfg(feature = "native")]
+        Some("voice_call") => {
+            // 1:1 call control plane (v0.703 — before this, native
+            // silently discarded voice_call and a web caller rang
+            // FOREVER, the worst cross-client bug in the 2026-07-04
+            // parity audit). Protocol matches chat-voice-calls.js:
+            // ring / accept / reject / hangup; the relay stamps
+            // from + from_name with the authenticated sender.
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let from_name = val
+                .get("from_name")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    gs.chat_users.iter()
+                        .find(|u| u.public_key == from)
+                        .map(|u| u.name.clone())
+                })
+                .unwrap_or_else(|| {
+                    format!("{}...", humanity_core::text::prefix(&from, 8))
+                });
+            let action = val.get("action").and_then(|v| v.as_str()).unwrap_or("");
+            if !from.is_empty() {
+                match action {
+                    // Rings here, or while busy rings out with a missed-call line
+                    // and no reply (BUG-177; engine/call_relay.rs `on_ring`).
+                    // A ring that rings is a call notice through THE rule (rung 3).
+                    "ring" => {
+                        let notice = crate::engine::notify::call(gs, &from, &from_name);
+                        if crate::engine::call_relay::on_ring(gs, from, from_name) {
+                            out.push(Deferred::Notify(notice));
+                        }
+                    }
+                    "accept" => {
+                        // The peer accepted OUR outgoing call. Per
+                        // the web protocol (chat-voice-calls.js the
+                        // caller creates the offer on accept), we
+                        // move to in-call and send the voice offer
+                        // over CALL_ROOM_ID (which wears the web
+                        // webrtc_signal envelope). v0.705.
+                        if gs.call_outgoing
+                            .as_ref().map(|(k, _)| *k == from).unwrap_or(false)
+                        {
+                            if let Some((k, n)) = gs.call_outgoing.take() {
+                                gs.call_outgoing_deadline = None;
+                                gs.call_active = Some((k.clone(), n));
+                                if let Some(ref webrtc) = gs.webrtc {
+                                    webrtc.offer_to_voice(
+                                        k,
+                                        crate::net::webrtc::CALL_ROOM_ID.to_string(),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    "hangup" | "reject" => {
+                        // Peer ended it (either side of any state).
+                        let matches_incoming = gs.call_incoming
+                            .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
+                        let matches_outgoing = gs.call_outgoing
+                            .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
+                        let matches_active = gs.call_active
+                            .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
+                        if matches_incoming {
+                            gs.call_incoming = None;
+                        }
+                        if matches_outgoing {
+                            // They declined (or hung up) our ring.
+                            gs.call_outgoing = None;
+                            gs.call_outgoing_deadline = None;
+                        }
+                        if matches_active {
+                            gs.call_active = None;
+                            gs.voice_connected_peers.remove(&from);
+                            // Drop the transport now so this peer's
+                            // NEXT call isn't refused by the stale
+                            // connection's is_alive guard.
+                            if let Some(ref webrtc) = gs.webrtc {
+                                webrtc.close_peer(from.clone());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Some("voice_room") | Some("voice_room_update") => {
+            // Control/legacy voice messages: not consumed by the
+            // native client (join/leave are outbound; the roster
+            // arrives via voice_channel_list).
+        }
+        // A file connection's signal (a dial from someone we offered files to, or the
+        // answer and candidates of one that stands) is engine/file_transfer.rs's
+        // (files-showcase.md, device-to-device big files); anything else goes on below.
+        Some("webrtc_signal") if crate::engine::file_transfer::on_signal(gs, &val) => {}
+        #[cfg(feature = "native")]
+        Some("webrtc_signal") => {
+            // Two protocols share this envelope (mirroring the web):
+            // dc_* = P2P DataChannel signaling (data is a JSON
+            // STRING) -> submit_signal. Bare offer/answer/ice =
+            // 1:1 VOICE CALL signaling from a browser caller
+            // (data is a JSON OBJECT) -> the voice path under the
+            // reserved CALL_ROOM_ID, but ONLY from the peer whose
+            // call we accepted — never auto-answer an unsolicited
+            // media offer (v0.703).
+            let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let signal_type = val.get("signal_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let data = val.get("data").cloned().unwrap_or(serde_json::Value::Null);
+            if !from.is_empty() && !signal_type.is_empty() {
+                let is_call_signal = matches!(
+                    signal_type.as_str(),
+                    "offer" | "answer" | "ice"
+                );
+                if is_call_signal {
+                    let call_peer_ok = gs.call_active
+                        .as_ref()
+                        .map(|(k, _)| *k == from)
+                        .unwrap_or(false);
+                    if call_peer_ok {
+                        if let Some(ref webrtc) = gs.webrtc {
+                            webrtc.submit_voice_signal(
+                                from,
+                                crate::net::webrtc::CALL_ROOM_ID.to_string(),
+                                signal_type,
+                                data,
+                            );
+                        }
+                    }
+                } else if signal_type == "dc_offer" {
+                    // Answering hands the sender this device's
+                    // network address, and the relay forwards an
+                    // offer from anyone online: answer only someone
+                    // the app already has a reason to connect to,
+                    // and ignore anyone else without a word back
+                    // (2026-10-09, defect 3.7.2 of
+                    // docs/design/blocking-and-safe-mode.md).
+                    match dc_offer_reason(gs, &from) {
+                        Some(reason) => {
+                            if let Some(ref webrtc) = gs.webrtc {
+                                webrtc.submit_offer(from, data, reason);
+                            }
+                        }
+                        None => log::debug!(
+                            "dc_offer from {} ignored: not a friend, group member, call or room peer",
+                            clip(&from, 12)
+                        ),
+                    }
+                } else if let Some(ref webrtc) = gs.webrtc {
+                    webrtc.submit_signal(from, signal_type, data);
+                }
+            }
+        }
+        Some("federated_chat") => {
+            // v0.282.0: chat from a federated peer server. Display
+            // alongside local chat in the same channel, prefixed by
+            // the originating server's name so users can tell where
+            // it came from. The relay only delivers federated_chat
+            // for channels it's federating, so we don't need a
+            // per-channel federation flag client-side.
+            let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+            let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let server_name = val.get("server_name").and_then(|v| v.as_str()).unwrap_or("federated").to_string();
+            let server_id = val.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if !content.is_empty() && ts > 0 {
+                // Dedup across carriers: once several of our
+                // connections bridge the same room, each delivers
+                // its own copy of the same origin line. The wire
+                // carries no sender key (from_name only), so the
+                // stable identity is (origin_server, timestamp_ms,
+                // content) -- display formatting like server_name
+                // can differ per carrier and must not split it.
+                let duplicate = gs.chat_messages.iter().any(|m| {
+                    m.origin_server == server_id
+                        && m.timestamp_ms == ts
+                        && m.content == content
+                });
+                if !duplicate {
+                    // A shared room's line to the notification rule (rung 2): a
+                    // mention of me, or every line in a room set to it; live only
+                    // (engine/notify.rs `federated_line`).
+                    let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
+                    let now_ms = (crate::notifications::now_secs().max(0) as u64) * 1000;
+                    if let Some(c) = crate::engine::notify::federated_line(gs, &server, &gs.user_name, &val, now_ms) {
+                        out.push(Deferred::Notify(c));
+                    }
+                    let ts_str = {
+                        let secs = ts / 1000;
+                        let h = (secs / 3600) % 24;
+                        let m = (secs / 60) % 60;
+                        format!("{:02}:{:02}", h, m)
+                    };
+                    gs.chat_messages.push(crate::gui::ChatMessage {
+                        // Tag the displayed name with the origin server
+                        // so federated messages are visually distinct.
+                        // E.g. "Alice (other-server)".
+                        sender_name: format!("{} ({})", from_name, server_name),
+                        // sender_key uses the server_id so reactions/replies
+                        // can target the federated origin (the relay won't
+                        // honor cross-server reactions today, but the field
+                        // shape is preserved for forward compat).
+                        sender_key: server_id.clone(),
+                        content,
+                        timestamp: ts_str,
+                        timestamp_ms: ts,
+                        channel,
+                        server: crate::gui::pages::chat::norm_server_url(&gs.server_url),
+                        origin_server: server_id,
+                        ..Default::default()
+                    });
+                    // Bound message buffer (this arm used to be the
+                    // only push without the cap).
+                    while gs.chat_messages.len() > 200 {
+                        gs.chat_messages.remove(0);
+                    }
+                }
+            }
+        }
+        Some("search_results") => {
+            // Server-returned search results. Populate the search modal.
+            if let Some(results) = val.get("results").and_then(|v| v.as_array()) {
+                gs.chat_search_results.clear();
+                for r in results {
+                    let channel = r.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let sender_name = r.get("from_name").and_then(|v| v.as_str())
+                        .or_else(|| r.get("from").and_then(|v| v.as_str()))
+                        .unwrap_or("Anonymous").to_string();
+                    let content = r.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let timestamp_ms = r.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                    gs.chat_search_results.push(crate::gui::ChatSearchResult {
+                        channel, sender_name, content, timestamp_ms,
+                    });
+                }
+            }
+        }
+        Some("pins_sync") => {
+            // Replace the channel's pin list.
+            let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if let Some(arr) = val.get("pins").and_then(|v| v.as_array()) {
+                let pins: Vec<crate::gui::ChatPin> = arr.iter().map(|p| crate::gui::ChatPin {
+                    from_key: p.get("from_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    from_name: p.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    content: p.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    original_timestamp: p.get("original_timestamp").and_then(|v| v.as_u64()).unwrap_or(0),
+                    pinned_by: p.get("pinned_by").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    pinned_at: p.get("pinned_at").and_then(|v| v.as_u64()).unwrap_or(0),
+                }).collect();
+                gs.chat_pins.insert(channel, pins);
+            }
+        }
+        Some("pin_added") => {
+            let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if let Some(p) = val.get("pin") {
+                let pin = crate::gui::ChatPin {
+                    from_key: p.get("from_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    from_name: p.get("from_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    content: p.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    original_timestamp: p.get("original_timestamp").and_then(|v| v.as_u64()).unwrap_or(0),
+                    pinned_by: p.get("pinned_by").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    pinned_at: p.get("pinned_at").and_then(|v| v.as_u64()).unwrap_or(0),
+                };
+                gs.chat_pins.entry(channel).or_insert_with(Vec::new).push(pin);
+            }
+        }
+        Some("pin_removed") => {
+            let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let index = val.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            // The relay's PinRemoved index is 1-BASED (it echoes the
+            // /unpin <N> argument; storage does ids[index-1]). This
+            // handler treated it as 0-based, so unpinning pin #1
+            // locally removed the SECOND pin and unpinning the last
+            // pin removed nothing. Off-by-one fixed v0.722.
+            if let Some(pins) = gs.chat_pins.get_mut(&channel) {
+                let i = index.saturating_sub(1);
+                if index >= 1 && i < pins.len() {
+                    pins.remove(i);
+                }
+            }
+        }
+        Some("member_joined") => {
+            log::debug!("Received server message type: member_joined");
+        }
+        Some("member_left") => {
+            // Server-broadcast when a member is kicked / banned /
+            // leaves voluntarily. Prune them from the live user list
+            // + DMs + friends so the sidebar updates immediately.
+            if let Some(pk) = val.get("public_key").and_then(|v| v.as_str()) {
+                let pk = pk.to_string();
+                gs.chat_users.retain(|u| u.public_key != pk);
+                gs.chat_friends.retain(|f| f.public_key != pk);
+                gs.chat_dms.retain(|d| d.user_key != pk);
+                // If the user modal is open for this user, close it.
+                if gs.chat_user_modal_key == pk {
+                    gs.chat_user_modal_open = false;
+                }
+                log::info!("Member left/kicked/banned: {}", humanity_core::text::prefix(&pk, 16));
+            }
+        }
+        // The server's board: its own list, never merged into my own tasks (BUG-217,
+        // docs/design/tasks.md; pages/tasks.rs take_board_list).
+        Some("task_list_response") | Some("task_list") => {
+            if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
+                crate::gui::pages::tasks::take_board_list(gs, tasks);
+                log::info!("Received {} board tasks from the server", gs.board_tasks.len());
+            }
+        }
+        Some("name_taken") => {
+            let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("Name taken");
+            log::warn!("Name taken: {}. Disconnecting and reconnecting with unique name.", msg);
+            humanity_core::debug::push_debug(format!("Name taken, reconnecting: {}", msg));
+
+            // Generate a fallback name: "DesktopUser_XXXX"
+            let suffix: u16 = (std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos() % 10000) as u16;
+            let fallback = format!("DesktopUser_{:04}", suffix);
+            gs.profile_name = fallback.clone();
+            // Persist the fallback as the user_name + save the
+            // config so the NEXT launch reuses this name (relay
+            // accepts re-registration from the same key, so no
+            // collision). Previously, profile_name was set but
+            // user_name stayed at the conflicting value, so each
+            // boot tried "Shaostoul" → name_taken → a brand-new
+            // DesktopUser_NNNN → permanent server-side drip
+            // (operator reported 6+ entries on one key).
+            // The user can rename back to a preferred name from
+            // Settings once the conflicting registration clears.
+            gs.user_name = fallback.clone();
+            crate::config::AppConfig::from_gui_state(gs).save();
+
+            // Disconnect current connection
+            if let Some(ref mut client) = gs.ws_client {
+                client.disconnect();
+            }
+            gs.ws_client = None;
+
+            // Reconnect with new name (full fresh handshake so
+            // server sends channel_list, dm_list, group_list, etc.)
+            let url = gs.server_url.clone();
+            let ws_url = url.replace("https://", "wss://").replace("http://", "ws://");
+            let ws_url = format!("{}/ws", ws_url.trim_end_matches('/'));
+            // Full-PQ: keep advertising our Kyber key on the
+            // name-collision reconnect — the 3-arg connect()
+            // sent empty kyber, which silently broke DMs for
+            // any DesktopUser-fallback session.
+            let new_client = crate::net::ws_client::WsClient::connect_with_key_card(&ws_url, &fallback, &gs.profile_public_key, &gs.own_key_card);
+            gs.ws_client = Some(new_client);
+            gs.connected_server_url = url.clone();
+            // Fresh socket: identify handshake not yet complete (v0.794).
+            gs.ws_identified = false;
+            gs.dm_fetch = Default::default();
+            gs.ws_status = format!("Reconnecting as {}...", fallback);
+            log::info!("Reconnecting as: {}", fallback);
+        }
+        // A task given to me, or one of mine changed (notifications rung 3).
+        Some("task_notice") => {
+            let server = gs.server_url.clone();
+            if let Some(c) = crate::engine::notify::task(gs, &server, &val) {
+                out.push(Deferred::Notify(c));
+            }
+        }
+        // ── Marketplace sync (v0.752, ladder rung 5) ──
+        // The Market page sends listing_browse; the
+        // relay answers listing_list (unicast) and
+        // keeps everyone current with listing_new /
+        // listing_updated / listing_deleted broadcasts.
+        Some("listing_list") => {
+            if let Some(arr) = val.get("listings").and_then(|v| v.as_array()) {
+                gs.listings = arr
+                    .iter()
+                    .map(crate::gui::GuiListing::from_relay_json)
+                    .collect();
+                gs.listing_status.clear();
+            }
+        }
+        Some("listing_new") | Some("listing_updated") => {
+            if let Some(l) = val.get("listing") {
+                let gl = crate::gui::GuiListing::from_relay_json(l);
+                if gl.seller_key == gs.profile_public_key {
+                    gs.listing_status = "Listing published.".to_string();
+                }
+                if let Some(slot) = gs
+                    .listings
+                    .iter_mut()
+                    .find(|x| x.id == gl.id)
+                {
+                    *slot = gl;
+                } else {
+                    gs.listings.insert(0, gl);
+                }
+            }
+        }
+        Some("listing_deleted") => {
+            if let Some(id) = val.get("id").and_then(|v| v.as_str()) {
+                gs.listings.retain(|l| l.id != id);
+                if gs.listing_selected.as_deref() == Some(id) {
+                    gs.listing_selected = None;
+                }
+                if gs.listing_status == "Deleting listing..." {
+                    gs.listing_status = "Listing removed.".to_string();
+                }
+            }
+        }
+        // ── Reviews (v0.755) ── (the listing thread
+        // arms died with the plaintext thread
+        // protocol, 2026-08-23; marketplace contact
+        // rides sealed-sender DMs now.)
+        Some("review_created") => {
+            if let Some(r) = val.get("review") {
+                let gr = crate::gui::GuiReview::from_relay_json(r);
+                let lid = r
+                    .get("listing_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if lid == gs.listing_reviews_for {
+                    gs.listing_reviews.push(gr);
+                    // Keep the header honest without a refetch.
+                    let n = gs.listing_reviews.len() as f32;
+                    let sum: f32 = gs
+                        .listing_reviews
+                        .iter()
+                        .map(|x| x.rating as f32)
+                        .sum();
+                    gs.listing_reviews_count =
+                        gs.listing_reviews.len() as i64;
+                    gs.listing_reviews_avg =
+                        if n > 0.0 { sum / n } else { 0.0 };
+                }
+            }
+        }
+        Some("review_deleted") => {
+            let lid = val.get("listing_id").and_then(|v| v.as_str()).unwrap_or("");
+            let rid = val.get("review_id").and_then(|v| v.as_i64()).unwrap_or(-1);
+            if lid == gs.listing_reviews_for {
+                gs.listing_reviews.retain(|r| r.id != rid);
+                let n = gs.listing_reviews.len() as f32;
+                let sum: f32 = gs
+                    .listing_reviews
+                    .iter()
+                    .map(|x| x.rating as f32)
+                    .sum();
+                gs.listing_reviews_count =
+                    gs.listing_reviews.len() as i64;
+                gs.listing_reviews_avg =
+                    if n > 0.0 { sum / n } else { 0.0 };
+            }
+        }
+        // BUG-135: our account here was erased; leave, and never redial it by ourselves.
+        Some("account_erased") => out.push(Deferred::AccountErased(val.clone())),
+        Some("private") => {
+            // Private server-to-user message (rate limit, errors, command responses)
+            if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
+                humanity_core::debug::push_debug(format!("Private: {}", msg));
+                crate::engine::held::on_private(gs, msg); // held items' answers, also on Held copies
+                // Multiplayer (v0.472): the game_welcome (our player id +
+                // world snapshot) arrives as a private __game__ message.
+                if let Some(payload) = msg.strip_prefix("__game__:") {
+                    let payload = payload.to_string();
+                    out.push(Deferred::Game(payload));
+                    return;
+                }
+                // P2P trades: same bridge as the system arm.
+                if crate::gui::pages::trade::route_trade_frame(gs, world, known, val) {
+                    return;
+                }
+                // Filter out profile validation noise (not relevant to chat)
+                let is_profile_noise = msg.contains("Profile URL")
+                    || msg.contains("must start with https://")
+                    || msg.starts_with("__sync_data__")
+                    || msg == "sync_ack";
+                if !is_profile_noise {
+                    // The server's words, marked as the server's (sixth review, H1 (d)).
+                    crate::engine::friend_code::server_line(gs, msg);
+                }
+            }
+        }
+        _ => {
+            // Log unhandled message types to debug console
+            let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+            if !crate::engine::report::on_frame(gs, &val) && !crate::engine::call_relay::on_frame(gs, &val) && !crate::net::admin_erase::on_frame(&mut gs.admin_erase, &val) && !crate::engine::friend_code::on_frame(gs, &val) && !crate::engine::put_answer::on_frame(gs, &val) { humanity_core::debug::push_debug(format!("Unhandled WS type: {}", msg_type)); } // report_received, reports: step D (engine/report.rs); call_credentials: step E (engine/call_relay.rs); admin_erase_done: 10i (net/admin_erase.rs); friend_code_*: engine/friend_code.rs; dm_put_ok, dm_put_refused: 10l (engine/put_answer.rs)
+        }
+    }
 }
 
 /// The marks this client keeps on a channel across a `channel_list` rebuild,
@@ -1607,3 +1645,8 @@ mod voice_rejoin_tests {
         assert!(!new[1].voice_joined && !new[1].unread, "a channel with no marks gains none");
     }
 }
+
+// Every frame type, with hostile text, leaves the app's voice alone (the eighth review).
+#[cfg(test)]
+#[path = "app_voice_sweep_tests.rs"]
+mod app_voice_sweep;

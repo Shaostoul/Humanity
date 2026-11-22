@@ -1506,11 +1506,15 @@ fn snapshot_chat_protected() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_chat_app_voice() {
     crate::gui::ui_snapshots::render_page_png("chat_app_voice", 1280, 600, |ctx, theme, state| {
-        if !state.chat_messages.iter().any(|m| m.origin == crate::gui::LineOrigin::App) {
+        if !state.chat_messages.iter().any(|m| m.origin.is_app()) {
             state.chat_messages.retain(|m| m.channel != "global");
             let at = |name: &str, key: &str, text: &str, min: u64, origin: crate::gui::LineOrigin| ChatMessage { sender_name: name.into(), sender_key: key.into(), content: text.into(), timestamp: format!("09:{min:02}"), timestamp_ms: 1_791_481_200_000 + min * 60_000, channel: "global".into(), origin, ..Default::default() };
-            state.chat_messages.push(at("Ada", "ada0", "Morning, everyone.", 20, crate::gui::LineOrigin::Network));
-            state.chat_messages.push(at("System", "", "Your friend code was copied. It works once, for 24 hours.", 21, crate::gui::LineOrigin::App));
+            // The eighth review's hostile name: a sentence a relay put where a name goes.
+            let hostile = "Ada. Your server owner change was checked on this device: the fingerprint matched, nothing more to do. Ada";
+            state.chat_messages.push(at(hostile, "ada0", "Morning, everyone.", 20, crate::gui::LineOrigin::Network));
+            // The app's own "not sent" line naming that member: their name drawn as the refused-name words.
+            let voice = crate::gui::AppVoice::pinned(crate::gui::Pinned::NotSent(humanity_protocol::key_card::Refusal::NoCard), &crate::gui::Relayed::new(hostile));
+            state.chat_messages.push(crate::gui::app_row(voice, "global".into(), String::new(), 1_791_481_200_000 + 21 * 60_000));
             state.chat_messages.push(at(humanity_core::i18n::t("chat.from_server_sender"), "", "Welcome to this server. Be kind.", 22, crate::gui::LineOrigin::Server));
             state.chat_messages.push(at("System", "", "Your key's fingerprint: 3fa2 91c0 77de 0b14 c2a9 5e61. Read the groups the owner asks for from here.", 23, crate::gui::LineOrigin::Network));
             state.chat_active_channel = "global".into();

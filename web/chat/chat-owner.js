@@ -253,14 +253,13 @@
 
   /** The chat line on a server with no owner, with its "Claim ownership" button. */
   function showNotice() {
-    if (owner.notice || typeof appendMessage !== 'function' || typeof document === 'undefined') return;
-    const el = make('div', 'message system app-line owner-unclaimed');
+    if (owner.notice || typeof appLine !== 'function' || typeof document === 'undefined') return;
+    // The app's own voice, by key: app.js `appLine`, the one way to the app's mark (the eighth review).
+    const el = appLine('chat_owner.notice', null, { className: 'owner-unclaimed' });
     el.style.padding = 'var(--space-sm) var(--space-md)';
-    el.appendChild(make('div', 'owner-unclaimed-words', t('chat_owner.notice')));
     const b = button('chat_owner.claim_title', 'chat_owner.open_hint', () => openClaimView());
     el.appendChild(b);
     owner.notice = b;
-    appendMessage(el);
   }
 
   // ── A recipient's check: the desktop app's (the seventh review, M2) ──
@@ -270,13 +269,11 @@
   function onCheck(msg) {
     const round = msg && typeof msg.round === 'string' ? msg.round : '';
     console.warn('owner_change_check: an owner change to check, which only the desktop app does.');
-    if (owner.checkRounds.has(round) || typeof appendMessage !== 'function' || typeof document === 'undefined') return;
+    if (owner.checkRounds.has(round) || typeof appLine !== 'function' || typeof document === 'undefined') return;
     owner.checkRounds.add(round);
-    const el = make('div', 'message system app-line owner-check-desktop');
+    const el = appLine('chat_owner.check_desktop', null, { className: 'owner-check-desktop' });
     el.style.padding = 'var(--space-sm) var(--space-md)';
-    el.appendChild(marked(make('div', 'owner-check-desktop-words'), 'chat_owner.check_desktop'));
     owner.checkLines += 1;
-    appendMessage(el);
   }
 
   // ── In Held copies (chat-held.js) ──

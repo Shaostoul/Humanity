@@ -152,6 +152,10 @@ pub fn parse_done(frame: &Value) -> Option<EraseReceipt> {
                     Some((pair.first()?.as_str()?.to_string(), pair.get(1)?.as_u64()?))
                 })
                 .filter(|(_, n)| *n > 0)
+                // A label is a table's name (letters, digits, _) and nothing else: a relay's sentence
+                // in one is dropped (the owner branch's eighth review, H1; the website's twin is
+                // web/shared/admin-erase.js `adminEraseReceiptRows`).
+                .filter(|(label, _)| (1..=48).contains(&label.len()) && label.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'))
                 .collect()
         })
         .unwrap_or_default();
@@ -174,7 +178,8 @@ pub fn on_frame(ui: &mut AdminEraseUi, frame: &Value) -> bool {
 /// part of it failed, that it did not finish and how to finish it. Byte for byte the web client's
 /// `adminEraseReceiptText`.
 pub fn receipt_words(r: &EraseReceipt) -> String {
-    let who = if r.name.is_empty() { "this person" } else { r.name.as_str() };
+    // Only an honest name (the relay chose it): else "this person" (the eighth review, H1).
+    let who = if humanity_protocol::key_card::honest_name(&r.name) { r.name.as_str() } else { "this person" };
     let summary: Vec<String> = r.counts.iter().filter(|(_, n)| *n > 0).map(|(l, n)| format!("{l}: {n}")).collect();
     let summary = if summary.is_empty() { "nothing was stored".to_string() } else { summary.join(", ") };
     if r.partial {

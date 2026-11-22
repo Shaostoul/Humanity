@@ -71,3 +71,25 @@ async fn identify_refuses_the_apps_and_servers_names_with_words() {
     let ok = identify(spawn_relay("identify_ok").await, [60; 32], "Ada").await;
     assert_eq!(ok["type"], "peer_list", "an ordinary name signs in: {ok}");
 }
+
+/// THE BOT ROUTE HOLDS A BOT'S NAME TO THE RULE A PERSON'S IS (the owner branch's eighth review): it
+/// checked only the name's ASCII letters ("S\u{0443}stem", a Cyrillic u, folded to "Sstem") and then
+/// registered the whole name. Every reserved name and every name an honest relay would refuse is
+/// refused, with words; an ordinary bot name is taken.
+/// Seen red 2026-11-22 by mutation (scratchpad ownfix11-red-relay.log): with the honest-name check
+/// taken out (only the reserved one, as before), "S\u{0443}stem" was taken.
+#[test]
+fn the_bot_route_refuses_what_a_person_could_not_be_named() {
+    for bad in ["S\u{0443}stem", "System", "Sy5tem", "S y s t e m", "Heron \u{1fab6}", "a sentence. with spaces", " Lead", "Two  spaces", ""] {
+        assert!(crate::relay::api::bot_name_refusal(bad).is_some(), "{bad:?} refused");
+    }
+    assert_eq!(crate::relay::api::bot_name_refusal("System"), Some(crate::relay::handlers::live_conns::RESERVED_NAME_REFUSED));
+    assert_eq!(crate::relay::api::bot_name_refusal("S\u{0443}stem"), Some(crate::relay::api::BOT_NAME_REFUSED));
+    assert_eq!(crate::relay::api::bot_name_refusal("Heron"), None, "an ordinary bot name");
+    // The bots that exist keep working (the ninth review): the release announcer, whose key the
+    // front door reads its cards from, and the server's disk alerts. Seen red 2026-11-22 against
+    // round 9's person-name rule: "Deploy Bot" was refused.
+    for name in ["Deploy Bot", "Disk Guard"] {
+        assert_eq!(crate::relay::api::bot_name_refusal(name), None, "{name:?}, an existing bot, is taken");
+    }
+}

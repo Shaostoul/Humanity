@@ -87,6 +87,30 @@ pub struct MessagesResponse {
     pub cursor: usize,
 }
 
+/// What a bot whose name breaks the bot-name rule is told.
+pub const BOT_NAME_REFUSED: &str = "A bot's name must be 1 to 24 plain letters, digits, _ or -, with single spaces between words. Nothing was sent.";
+
+/// Why the bot route refuses `name`, or None when it is taken: none of the app's or the server's own
+/// names in any lookalike, spaces ignored for that comparison ("S y s t e m"), and only plain ASCII
+/// letters, digits, `_`, `-` and single spaces between words (the eighth review: a Cyrillic
+/// "S\u{0443}stem" passed as itself). Bots keep the space a person's name does not allow, because
+/// bots are registered only by whoever holds the server's bot secret and the existing ones have one
+/// ("Deploy Bot" posts every release to #announcements, the front door's cards are read from its key
+/// `bot_deploy_bot`, and "Disk Guard" sends the server's disk alerts; the ninth review found round 9's
+/// person-name rule would refuse both, silently, since their senders ignore an HTTP 400).
+pub fn bot_name_refusal(name: &str) -> Option<&'static str> {
+    if humanity_protocol::key_card::reserved_name(name) || humanity_protocol::key_card::reserved_name(&name.replace(' ', "")) {
+        return Some(crate::relay::handlers::live_conns::RESERVED_NAME_REFUSED);
+    }
+    let len = name.chars().count();
+    let plain = name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ');
+    let spaced = !name.starts_with(' ') && !name.ends_with(' ') && !name.contains("  ");
+    if !(1..=24).contains(&len) || !plain || !spaced {
+        return Some(BOT_NAME_REFUSED);
+    }
+    None
+}
+
 /// POST /api/send — send a message as a bot (requires API_SECRET auth).
 pub async fn send_message(
     State(state): State<Arc<RelayState>>,
@@ -112,10 +136,11 @@ pub async fn send_message(
     // This allows bots (e.g., Heron) to post to read-only channels like #todo.
 
     // The app's and the server's own names are nobody's, a bot's included (the owner branch's
-    // seventh review, H1 (b)): checked on the letters a name could fold to.
-    let letters: String = req.from_name.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
-    if humanity_protocol::key_card::reserved_name(&letters) {
-        return Err((StatusCode::BAD_REQUEST, crate::relay::handlers::live_conns::RESERVED_NAME_REFUSED.to_string()));
+    // seventh review, H1 (b)), and a bot's name is held to the rule every person's is (honest_name:
+    // 1 to 24 letters, digits, _ or -; the eighth review: only the ASCII letters were checked while
+    // the whole name was registered, so a Cyrillic "S\u{0443}stem" passed as itself).
+    if let Some(why) = bot_name_refusal(&req.from_name) {
+        return Err((StatusCode::BAD_REQUEST, why.to_string()));
     }
 
     // Strip emoji/special chars from bot key generation (name stays as-is for display).

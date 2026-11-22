@@ -97,7 +97,9 @@ pub async fn hide_and_keep_in(state: &Arc<RelayState>, me: &str, report: &Report
     let now = crate::relay::storage::now_millis() as i64;
     let waits = sealing.is_none();
     let (mut hidden, mut files, mut left) = (0usize, 0usize, Vec::new());
-    for (author, stamp) in posts {
+    let total = posts.len();
+    let mut hidden_at: Vec<usize> = Vec::new(); // which of the report's posts (1-based) were hidden
+    for (at, (author, stamp)) in posts.into_iter().enumerate() {
         // Hiding a post seals its files (whole files read and written): on a blocking thread, never
         // on the async runtime (the fifth review's L4). The card is read again inside, under the
         // held folder's lock (the sixth review's M1); the one read above only says why not, early.
@@ -114,6 +116,7 @@ pub async fn hide_and_keep_in(state: &Arc<RelayState>, me: &str, report: &Report
         match done {
             Ok(Some(h)) => {
                 hidden += 1;
+                hidden_at.push(at + 1);
                 files += h.files;
                 left.extend(h.left_in_view);
                 let _ = state.broadcast_tx.send(RelayMessage::Delete { from: author.clone(), timestamp: stamp });
@@ -125,7 +128,18 @@ pub async fn hide_and_keep_in(state: &Arc<RelayState>, me: &str, report: &Report
             Ok(None) => {} // already gone: its author deleted it, or it expired
             Err(e) => {
                 tracing::error!("Hide and keep: report #{}: a post could not be hidden: {e}", report.id);
-                return Err(format!("a post could not be hidden: {e}. Posts hidden before it stay hidden."));
+                if hidden == 0 {
+                    return Err(format!("a post could not be hidden: {e}. Nothing was hidden."));
+                }
+                // Part-way (the owner branch's eighth review, M5): what WAS done goes on the report,
+                // which stays OPEN with those true words, so the moderator can decide it again and
+                // the next start never "completes" it with words saying every post is out of view.
+                let words = partial_hide_words(&hidden_at, total, files, at + 1, &e.to_string());
+                match state.db.report_note_open(report.id, &words) {
+                    Ok(_) => {}
+                    Err(db) => tracing::error!("Hide and keep: report #{}: what was hidden could not be noted on it: {db}", report.id),
+                }
+                return Err(words);
             }
         }
     }
@@ -158,6 +172,20 @@ pub async fn hide_and_keep_in(state: &Arc<RelayState>, me: &str, report: &Report
         words.push_str(&format!(" {} file(s) could not be taken out of the uploads folder; the server's log names them.", left.len()));
     }
     Ok(words)
+}
+
+/// The words for a hide and keep that stopped at post `failed` (1-based) of the report's `total`
+/// after hiding the posts `hidden_at` with `files` file(s): what was hidden and held, what was not
+/// and why, and that the report stays open. Begins with
+/// [`crate::relay::storage::reports::PARTIAL_HIDE_PREFIX`].
+pub(crate) fn partial_hide_words(hidden_at: &[usize], total: usize, files: usize, failed: usize, why: &str) -> String {
+    let list: Vec<String> = hidden_at.iter().map(|n| n.to_string()).collect();
+    format!(
+        "{}: {} of the report's {total} post(s) and {files} file(s) were taken out of view and are held (post(s) {} in the report's order). Post {failed} could not be hidden ({why}) and is still in view, with any after it. The report stays open: decide it again to hide the rest.",
+        crate::relay::storage::reports::PARTIAL_HIDE_PREFIX,
+        hidden_at.len(),
+        list.join(", ")
+    )
 }
 
 // ── The signed actions (rung 4) and the held items list ──

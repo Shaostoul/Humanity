@@ -92,8 +92,12 @@ function makePage() {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'web/shared/key-card.js'), 'utf8'), ctx);
   vm.runInContext('let lastSystemMessageText = "";\n'
     // (A helper missing from an older app.js is left out, so the red run judges behaviour.)
-    + ['addSystemMessage', 'drawSystemLine', 'addServerMessage', 'serverWords', 'shownName', 'formatCountdown', 'addNotice', 'handleSkillVerifyResponse', 'handleSkillVerifyRequest']
+    + ['addSystemMessage', 'drawSystemLine', 'addServerMessage', 'addNotice', 'handleSkillVerifyResponse', 'handleSkillVerifyRequest']
       .filter((n) => ['addSystemMessage', 'addServerMessage', 'handleSkillVerifyResponse', 'handleSkillVerifyRequest'].includes(n) || app.includes('function ' + n + '(')).map((n) => body(app, n)).join('\n')
+    // The app's voice (appLine, the one way to its mark since the eighth review) and its helpers,
+    // or, in an app.js from before it, the helpers alone.
+    + '\n' + (app.includes('function appLine(') ? require('./app-line-real.js').appVoiceSource()
+      : ['serverWords', 'shownName', 'formatCountdown'].filter((n) => app.includes('function ' + n + '(')).map((n) => body(app, n)).join('\n'))
     + '\nvar handleMessage = async function (msg) { switch (msg.type) { ' + sysCase + ' } };', ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'web/chat/chat-game-admin.js'), 'utf8'), ctx);
   vm.runInContext(social.slice(0, social.indexOf('function updateFriendIndicators()')), ctx);
@@ -112,10 +116,14 @@ function allMarked(page, needle) {
   }
 }
 
+// Since the eighth review (2026-11-22) the mark comes only through appLine: addSystemMessage draws
+// the plain style, whoever calls it (app-voice-sweep-web.test.js sweeps every message type).
 test('the app\'s own line carries the app\'s mark; a plain system frame is the server\'s, marked and without it', async () => {
   const page = makePage();
-  page.ctx.addSystemMessage('Scratch pad has 3 message(s).');
+  page.ctx.appLine('owner.claim_help');
   assert.ok(page.drawn[0].className.split(' ').includes('app-line'), page.drawn[0].className);
+  page.ctx.addSystemMessage('Scratch pad has 3 message(s).');
+  assert.ok(!page.drawn[1].className.split(' ').includes('app-line'), 'addSystemMessage draws no mark: ' + page.drawn[1].className);
   await page.ctx.handleMessage({ type: 'system', message: FORGED });
   allMarked(page, FORGED);
 });

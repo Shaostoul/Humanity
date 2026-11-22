@@ -122,9 +122,13 @@ mod tests {
             std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(rel))
                 .unwrap_or_else(|e| panic!("read {rel}: {e}"))
         };
-        let active = r#"Some("account_erased") => crate::engine::account_erase::on_active_server(state, &val),"#;
+        // The active socket's frame is handed on through `Deferred` (frame_ws_poll.rs `on_frame` works
+        // on the GUI state alone since 2026-11-22) and run right after the frame.
+        let active = r#"Some("account_erased") => out.push(Deferred::AccountErased(val.clone())),"#;
+        let active_run = r#"Deferred::AccountErased(val) => crate::engine::account_erase::on_active_server(state, &val),"#;
         let parked = r#"Some("account_erased") => crate::engine::account_erase::on_parked_server(state, ci, &val),"#;
-        assert!(read("src/engine/frame_ws_poll.rs").contains(active), "the active socket does not hand account_erased here");
+        let pump = read("src/engine/frame_ws_poll.rs");
+        assert!(pump.contains(active) && pump.contains(active_run), "the active socket does not hand account_erased here");
         assert!(read("src/engine/bg_connections.rs").contains(parked), "a parked socket does not hand account_erased here");
     }
 }

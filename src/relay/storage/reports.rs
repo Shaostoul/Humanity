@@ -28,6 +28,11 @@ use super::Storage;
 /// Days a decided report is kept after its decision (10a, question 7).
 pub const REPORT_KEEP_DAYS_AFTER_DECISION: i64 = 90;
 
+/// How the note on an OPEN report begins when a hide and keep stopped part-way
+/// ([`Storage::report_note_open`]): the start's completion of cut-short hides passes such a report
+/// by (storage/held.rs `held_unfinished_hides`).
+pub const PARTIAL_HIDE_PREFIX: &str = "Hide and keep stopped part-way";
+
 /// A report as stored.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReportRow {
@@ -178,6 +183,16 @@ impl Storage {
                 params![id, decision, note, reviewer, now_ms],
             )
             .map(|n| n > 0)
+        })
+    }
+
+    /// Put `note` on open report `id` WITHOUT deciding it: what a hide and keep that stopped
+    /// part-way did (its words start with [`PARTIAL_HIDE_PREFIX`]), so the report stays open, says
+    /// truly what was hidden, and is never "completed" at the next start (the owner branch's eighth
+    /// review, M5). False when it is not open.
+    pub fn report_note_open(&self, id: i64, note: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute("UPDATE reports_v2 SET decision_note = ?2 WHERE id = ?1 AND state = 'open'", params![id, note]).map(|n| n > 0)
         })
     }
 

@@ -361,18 +361,31 @@ pub fn refusal(gs: &GuiState, person: &str) -> Option<Refusal> {
 /// The sentence for [`refusal`], naming `person` the way the app does. Asks for their card when
 /// it is still to come, so trying again in a moment works.
 pub fn refusal_text(gs: &mut GuiState, person: &str) -> Option<String> {
+    refusal_voice(gs, person).map(|v| v.text().to_string())
+}
+
+/// [`refusal_text`] as a line in the app's own voice (the chat's "not sent" line): the name the
+/// relay listed goes in only through `honest_name`, else as the refused-name words (the owner
+/// branch's eighth review, H2: a relay's name wrote a sentence into the app's line).
+pub fn refusal_voice(gs: &mut GuiState, person: &str) -> Option<crate::gui::AppVoice> {
     let why = refusal(gs, person)?;
     if why == Refusal::Fetching {
         want(gs, person, false);
     }
-    let name = crate::engine::dm::dm_display_name(gs, person);
-    Some(why.text(&name))
+    Some(crate::gui::AppVoice::pinned(crate::gui::Pinned::NotSent(why), &listed_name(gs, person)))
 }
 
-/// The change notice for `person`, when their key changed and is waiting to be accepted.
+/// The name the server lists for `person` (or the short key the app falls back to), as relayed
+/// text: what the app's own sentences may only show through `honest_name`.
+fn listed_name(gs: &GuiState, person: &str) -> crate::gui::Relayed {
+    crate::gui::Relayed::new(crate::engine::dm::dm_display_name(gs, person))
+}
+
+/// The change notice for `person`, when their key changed and is waiting to be accepted. The name
+/// goes in only through `honest_name` (the eighth review, H2).
 pub fn change_notice(gs: &GuiState, person: &str) -> Option<String> {
     gs.key_cards.pins.as_ref()?.changed(person)?;
-    Some(key_card::change_notice(&crate::engine::dm::dm_display_name(gs, person)))
+    Some(key_card::change_notice(&listed_name(gs, person).as_name()))
 }
 
 /// What the recovery section may seal a trusted person's piece to (gui/pages/settings/recovery.rs,
@@ -381,7 +394,7 @@ pub fn change_notice(gs: &GuiState, person: &str) -> Option<String> {
 /// it itself (`settings/recovery_net.rs`).
 pub fn pinned_for_recovery(gs: &GuiState, person: &str) -> Result<Option<String>, String> {
     if gs.key_cards.pins.as_ref().is_some_and(|p| p.changed(person).is_some()) {
-        return Err(Refusal::Changed.text(&crate::engine::dm::dm_display_name(gs, person)));
+        return Err(Refusal::Changed.text(&listed_name(gs, person).as_name()));
     }
     Ok(gs.peer_kyber_keys.get(person).cloned())
 }

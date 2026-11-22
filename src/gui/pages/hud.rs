@@ -956,7 +956,9 @@ pub fn draw(
                     // The app's own voice: no name, its words in the accent ink, which no frame can
                     // choose (the owner branch's seventh review, H1 (a)); a frame named "System" is
                     // drawn "System: ..." like anyone's.
-                    let app_voice = m.origin == crate::gui::LineOrigin::App;
+                    // The words of an app line are its AppVoice's own, never `content` (the eighth review).
+                    let app_voice = m.origin.is_app();
+                    let words = m.origin.voice().map_or(m.content.as_str(), |v| v.text());
                     // ONE line per message: the feed is a fixed 15 px grid, so
                     // a message with newlines (a list, a code block) painted
                     // its extra lines over the rows below and out past the
@@ -967,7 +969,7 @@ pub fn draw(
                     // surfaces agree. Only blocks change shape (see
                     // `chat::one_line_formatted`). The galley elides at the
                     // box's edge with an ellipsis instead of a char count.
-                    let (text, spans) = crate::gui::pages::chat::one_line_formatted(&m.content);
+                    let (text, spans) = crate::gui::pages::chat::one_line_formatted(words);
                     let line_job = |ink: Option<Color32>| {
                         let mut job = egui::text::LayoutJob::default();
                         job.wrap = egui::text::TextWrapping {

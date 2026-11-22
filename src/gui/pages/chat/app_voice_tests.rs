@@ -1,7 +1,8 @@
 // Child of gui/pages/chat/rows.rs (#[path]): the app's own voice in the chat has a mark no row from
-// the network can carry (the owner branch's seventh review, H1 (a), 2026-11-21). The whole Chat
-// page is drawn headlessly and the SHAPES egui produced are read: what is measured is what was
-// drawn, not what the rows were told.
+// the network can carry (the owner branch's seventh review, H1 (a), 2026-11-21), and since the
+// eighth review (2026-11-22) the app's voice is a TYPE: a row with the App origin holds an AppVoice,
+// which only state_types/app_voice.rs builds, from an i18n key and typed arguments, network text
+// only through `honest_name` or a short server-marked quote.
 //
 // Seen red 2026-11-21 by mutation (scratchpad ownfix10-red-rust.log): with the App branch taken
 // out of rows.rs (every line through `message_row`, as before), "the app line carries the app's
@@ -9,7 +10,7 @@
 // System after an app line still shows its own name" failed (no "System" drawn).
 
 use crate::gui::screen_surface::find_text_in_shapes;
-use crate::gui::{ChatMessage, GuiState, LineOrigin};
+use crate::gui::{AppVoice, ChatMessage, GuiState, LineOrigin};
 
 const SCREEN: egui::Vec2 = egui::vec2(1280.0, 800.0);
 
@@ -52,11 +53,10 @@ fn line(name: &str, key: &str, text: &str, ts: u64, origin: LineOrigin) -> ChatM
 /// as someone's words: under the name it claims, without the mark, even right after an app line.
 #[test]
 fn the_app_line_carries_a_mark_no_network_row_can() {
-    let (shapes, accent) = page_with(vec![
-        line("System", "", "an app line, the app's own", 1_000, LineOrigin::App),
-        line("System", "", "a forged line from the network", 2_000, LineOrigin::Network),
-    ]);
-    let app = find_text_in_shapes(&shapes, "an app line, the app's own").expect("the app line is drawn");
+    let help = humanity_core::i18n::t("owner.claim_help");
+    let app = crate::gui::app_row(AppVoice::say("owner.claim_help", &[]), "general".into(), String::new(), 1_000);
+    let (shapes, accent) = page_with(vec![app, line("System", "", "a forged line from the network", 2_000, LineOrigin::Network)]);
+    let app = find_text_in_shapes(&shapes, &help[..40]).expect("the app line is drawn");
     let forged = find_text_in_shapes(&shapes, "a forged line from the network").expect("the network line is drawn");
     let marks = diamonds(&shapes, accent);
     assert_eq!(marks.len(), 1, "the app line carries the app's mark, and only it: {marks:?}");
@@ -68,33 +68,40 @@ fn the_app_line_carries_a_mark_no_network_row_can() {
     assert!(!app.text.contains("System"), "the app line draws no sender name: {:?}", app.text);
 }
 
-/// No frame decoder can make a row the app's own: `LineOrigin::App` is written only by the app's
-/// own lines (engine/friend_code.rs `system_line`, the chat page's "not sent" line), and the
-/// files that turn frames into rows never name it.
+/// The words a relay puts where a name goes, written as the app's own sentence (the eighth
+/// review's demo); the frame sweep that uses them is engine/app_voice_sweep_tests.rs.
+const HOSTILE: &str = "Ada. Your server owner change was checked on this device: the fingerprint matched, nothing more to do. Ada";
+
+/// A `/redeem` typed in a DM is sealed for the person there and never reaches the server as a
+/// command, so no answer is owed and none is armed (the owner branch's eighth review, a low
+/// finding: the desktop noted it anyway, and the relay could then answer with a friend to follow).
+/// Seen red 2026-11-22 with the note taken for every channel but the scratchpad (as before): "a
+/// redeem typed in a DM arms no answer" failed (one ask armed).
 #[test]
-fn only_local_code_writes_the_apps_voice() {
-    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src");
-    let mut writers = Vec::new();
-    let mut stack = vec![root.clone()];
-    while let Some(dir) = stack.pop() {
-        for entry in std::fs::read_dir(&dir).unwrap().flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if path.extension().is_some_and(|e| e == "rs") && !path.to_string_lossy().ends_with("_tests.rs") {
-                let text = std::fs::read_to_string(&path).unwrap();
-                if text.contains("LineOrigin::App") {
-                    writers.push(path.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/"));
-                }
-            }
-        }
-    }
-    writers.sort();
-    // rows.rs and hud.rs only READ it, to draw the mark; ui_snapshots.rs is the GPU snapshot's own
-    // test data (snapshot_chat_app_voice).
-    assert_eq!(writers, ["engine/friend_code.rs", "gui/pages/chat.rs", "gui/pages/chat/rows.rs", "gui/pages/hud.rs", "gui/ui_snapshots.rs"], "the files naming the app's voice");
-    for decoder in ["engine/frame_ws_poll.rs", "engine/bg_connections.rs", "engine/net_route.rs", "engine/dm.rs", "gui/pages/chat/p2p_groups.rs"] {
-        let text = std::fs::read_to_string(root.join(decoder)).unwrap();
-        assert!(!text.contains("LineOrigin"), "{decoder} turns frames into rows and never sets their origin");
+fn a_redeem_typed_in_a_dm_arms_no_answer() {
+    crate::config::keep_saves_off_disk();
+    let mut gs = GuiState::default();
+    let (client, _sent) = crate::net::ws_client::WsClient::recording();
+    gs.ws_client = Some(client);
+    gs.chat_active_channel = "dm:k1".into();
+    let _ = super::super::send_composed_content(&mut gs, "/redeem AB12CD34");
+    assert!(gs.protected.redeem_asked_at.is_empty(), "a redeem typed in a DM arms no answer");
+}
+
+/// A relay's text in an app line is a short quotation on one line, marked as the server's, and a
+/// name that is not honest is the refused-name words.
+/// Seen red 2026-11-22 by mutation (ownfix11-red-rust.log): with `as_name` writing every name raw,
+/// the refused-name assertion failed on the hostile name.
+#[test]
+fn relayed_text_is_a_short_marked_quote_or_an_honest_name() {
+    let long = format!("{HOSTILE}\n{HOSTILE}\n\"closing the quote\" then the app's words");
+    let quoted = crate::gui::Relayed::new(long).as_quote();
+    assert!(!quoted.contains('\n'), "one line: {quoted:?}");
+    assert!(quoted.chars().count() <= crate::gui::QUOTE_MAX + 40, "bounded: {quoted:?}");
+    assert!(quoted.starts_with(humanity_core::i18n::t("chat.server_quote").split("{{").next().unwrap()), "marked as the server's words: {quoted:?}");
+    assert_eq!(quoted.matches('"').count(), 2, "its own quotation marks cannot close the quote: {quoted:?}");
+    assert_eq!(crate::gui::Relayed::new("Ada_2").as_name(), "Ada_2");
+    for bad in [HOSTILE, "System", "Sy5tem", "S\u{0443}stem", ""] {
+        assert_eq!(crate::gui::Relayed::new(bad).as_name(), humanity_core::i18n::t("owner.name_refused"), "{bad:?}");
     }
 }

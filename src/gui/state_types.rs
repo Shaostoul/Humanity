@@ -67,6 +67,13 @@ mod admin_console;
 #[cfg(feature = "native")]
 pub use admin_console::*;
 
+// The app's own voice as a type (the owner branch's eighth review, 2026-11-22): the one way to
+// build a chat line with the app's mark. Native only, like the chat rows it builds.
+#[cfg(feature = "native")]
+mod app_voice;
+#[cfg(feature = "native")]
+pub use app_voice::*;
+
 /// Item slot data bridged from ECS Inventory for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -894,24 +901,48 @@ pub struct ChatMessage {
     pub group_object_id: String,
     /// Mine: "Sending..." until the server's copy comes back, or "Not sent" (pages/chat/line_limit.rs).
     pub send_state: crate::gui::pages::chat::line_limit::LineSend,
-    /// Who wrote the line. Set ONLY by local code (engine/friend_code.rs `system_line` and
-    /// `server_line`), never by a frame decoder: every row built from a frame keeps the default,
-    /// `Network`, and is drawn as someone's words whatever name it claims (the owner branch's
-    /// seventh review, H1 (a): a chat frame named "System" drew exactly like the app's own line).
+    /// Who wrote the line. Every row built from a frame keeps the default, `Network`, and is drawn
+    /// as someone's words whatever name it claims (the owner branch's seventh review, H1 (a): a chat
+    /// frame named "System" drew exactly like the app's own line). The App origin holds an
+    /// [`AppVoice`], which only state_types/app_voice.rs can build, from an i18n key and typed
+    /// arguments (the eighth review): no code can put a plain string in the app's voice.
     pub origin: LineOrigin,
 }
 
 /// Who wrote a chat line ([`ChatMessage::origin`]).
 #[cfg(feature = "native")]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum LineOrigin {
     /// From the network: a member's words, drawn under the name the frame gave, never as the app.
     #[default]
     Network,
-    /// The app's own voice: drawn with the app's mark (widgets/app_line.rs), never a sender name.
-    App,
+    /// The app's own voice: drawn with the app's mark (widgets/app_line.rs), never a sender name,
+    /// and the words drawn are the [`AppVoice`]'s own, never the row's `content`.
+    App(AppVoice),
     /// The server's own words (a `system` frame), drawn under "From this server".
     Server,
+}
+
+#[cfg(feature = "native")]
+impl LineOrigin {
+    /// The app's words, when this is an app line.
+    pub fn voice(&self) -> Option<&AppVoice> {
+        match self {
+            LineOrigin::App(voice) => Some(voice),
+            _ => None,
+        }
+    }
+
+    /// Whether this is an app line.
+    pub fn is_app(&self) -> bool {
+        matches!(self, LineOrigin::App(_))
+    }
+
+    /// Whether this row came from the network: the only rows an `edit`, `delete` or reaction frame
+    /// may touch (the eighth review: an edit naming the empty key rewrote an app line).
+    pub fn is_network(&self) -> bool {
+        matches!(self, LineOrigin::Network)
+    }
 }
 
 /// Cached parent-message context for a thread reply.

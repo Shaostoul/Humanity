@@ -767,9 +767,11 @@ impl Storage {
                 "SELECT h.report_id, h.held_by, h.author_key, h.stamp, h.channel,
                         EXISTS(SELECT 1 FROM held_actions a WHERE a.action = 'hide_and_keep' AND a.target = h.report_id)
                  FROM held_items h JOIN reports_v2 r ON r.id = h.report_id
-                 WHERE r.state = 'open' ORDER BY h.id",
+                 WHERE r.state = 'open' AND substr(r.decision_note, 1, length(?1)) <> ?1 ORDER BY h.id",
             )?;
-            let rows = q.query_map([], |r| {
+            // A hide that stopped part-way and SAID so (its note begins with the prefix) is no stop
+            // to complete: the report stays open for the moderator (the eighth review, M5).
+            let rows = q.query_map([crate::relay::storage::reports::PARTIAL_HIDE_PREFIX], |r| {
                 Ok(UnfinishedHide { report_id: r.get(0)?, held_by: r.get(1)?, author: r.get(2)?, stamp: r.get::<_, i64>(3)? as u64, channel: r.get(4)?, recorded: r.get(5)? })
             })?;
             rows.collect()

@@ -224,10 +224,11 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
         // someone's words under the name it claims, and a row only continues the one above when
         // both came the same way from the same key under the same name, so a frame named "System"
         // never reads as the line before it.
-        if msg.origin == crate::gui::LineOrigin::App {
+        // The words drawn are the AppVoice's own, never `content` (the eighth review).
+        if let Some(voice) = msg.origin.voice() {
             sender_parity = !sender_parity;
             last_sender = "app".to_string();
-            crate::gui::widgets::app_line::draw(ui, theme, &msg.content, if sender_parity { bg_even } else { bg_odd });
+            crate::gui::widgets::app_line::draw(ui, theme, voice, if sender_parity { bg_even } else { bg_odd });
             continue;
         }
         let sender_id = format!("{:?}\u{1f}{}\u{1f}{}", msg.origin, msg.sender_key, msg.sender_name);

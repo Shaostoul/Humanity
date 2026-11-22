@@ -140,3 +140,53 @@ fn two_moderators_deciding_one_report_at_once_make_one_held_item() {
     assert!(st.db.post_for_report(&tom.key, 43).unwrap().is_none(), "the post is out of view");
     assert_eq!(st.db.report_by_id(id).unwrap().unwrap().decision.as_deref(), Some("hide_and_keep"), "the report is decided once");
 }
+
+/// M5 (the owner branch's eighth review, 2026-11-22): A HIDE THAT STOPS PART-WAY SAYS WHAT IT DID,
+/// AND THE REPORT STAYS OPEN. A report of two posts: the first hides, the second cannot be sealed
+/// (the owner's key card is gone by the time it is reached: a hook the first hide runs sets one
+/// for the second, which takes the card away). The moderator is told which
+/// post was hidden and which was not; the report stays open with those words on it; and a start
+/// does not "complete" it with words saying every post is out of view.
+/// Seen red 2026-11-22 by mutation (scratchpad ownfix11-red-relay.log): with the start's query not
+/// passing a part-way report by (as before), "a start does not complete it" failed (left 1, right
+/// 0); with the note left unwritten (as before), "the report says what was done" failed.
+#[test]
+fn a_hide_that_stops_part_way_says_what_it_did_and_the_report_stays_open() {
+    let d = dirs("r9_partial");
+    let (st, id, _rae, tom, ada) = reported_post("r9_partial", &d);
+    make_owner(&st, &person(9), true);
+    st.db
+        .with_conn(|c| {
+            c.execute(
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json, channel_id) VALUES ('chat', ?1, 'Tom', 'and another', 43, '{}', 'global')",
+                rusqlite::params![tom.key],
+            )
+        })
+        .unwrap();
+    // The first hide's hook sets the second's, which takes the owner's key card away: post 2's seal
+    // finds no card to seal to.
+    let (held, st2) = (crate::relay::storage::held::held_dir_beside(d.folders()), st.clone());
+    let held2 = held.clone();
+    let first = move || {
+        let st3 = st2.clone();
+        let second = move || {
+            st3.db.with_conn(|c| c.execute("DELETE FROM key_cards", [])).unwrap();
+        };
+        crate::relay::storage::held::BEFORE_HIDE.lock().unwrap().push((held2.clone(), Box::new(second)));
+    };
+    crate::relay::storage::held::BEFORE_HIDE.lock().unwrap().push((held, Box::new(first)));
+    let report = st.db.report_by_id(id).unwrap().unwrap();
+    let raw = json!({ "action": signed(&st, &ada, "hide_and_keep", "report", id, 0) });
+    let posts = vec![(tom.key.clone(), 42), (tom.key.clone(), 43)];
+    let words = block(crate::relay::handlers::held::hide_and_keep_in(&st, &ada.key, &report, posts, &raw, d.folders())).expect_err("it stopped part-way");
+    assert!(words.starts_with(crate::relay::storage::reports::PARTIAL_HIDE_PREFIX), "{words}");
+    assert!(words.contains("1 of the report's 2 post(s)") && words.contains("post(s) 1 in the report's order") && words.contains("Post 2 could not be hidden"), "which was hidden and which not: {words}");
+    assert!(st.db.post_for_report(&tom.key, 42).unwrap().is_none(), "the first post is out of view");
+    assert!(st.db.post_for_report(&tom.key, 43).unwrap().is_some(), "the second is still in view");
+    let r = st.db.report_by_id(id).unwrap().unwrap();
+    assert_eq!((r.state.as_str(), r.decision.as_deref()), ("open", None), "the report stays open");
+    assert_eq!(r.decision_note, words, "the report says what was done");
+    assert_eq!(block(crate::relay::handlers::held::complete_unfinished_hides(&st)), 0, "a start does not complete it");
+    let r = st.db.report_by_id(id).unwrap().unwrap();
+    assert_eq!((r.state.as_str(), r.decision.as_deref()), ("open", None), "still open after the start, for the moderator to decide");
+}

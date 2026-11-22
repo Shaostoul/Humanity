@@ -46,15 +46,21 @@ const ANSWER_WINDOW: std::time::Duration = std::time::Duration::from_secs(120);
 pub(crate) fn note_sent(gs: &mut GuiState, command: &str) {
     let first = command.split_whitespace().next().unwrap_or("");
     if first.eq_ignore_ascii_case("/friend-code") {
-        gs.protected.code_asked_at = Some(std::time::Instant::now());
+        gs.protected.code_asked_at.push(std::time::Instant::now());
     } else if first.eq_ignore_ascii_case("/redeem") {
-        gs.protected.redeem_asked_at = Some(std::time::Instant::now());
+        gs.protected.redeem_asked_at.push(std::time::Instant::now());
     }
 }
 
-/// Whether an answer was asked for in the last [`ANSWER_WINDOW`]; the ask is used up either way.
-fn asked(at: &mut Option<std::time::Instant>) -> bool {
-    at.take().is_some_and(|t| t.elapsed() < ANSWER_WINDOW)
+/// Whether an answer was asked for in the last [`ANSWER_WINDOW`]: asks older than that are
+/// forgotten, and the oldest one still waiting is used up by this answer (one answer per ask).
+fn asked(asks: &mut Vec<std::time::Instant>) -> bool {
+    asks.retain(|t| t.elapsed() < ANSWER_WINDOW);
+    if asks.is_empty() {
+        return false;
+    }
+    asks.remove(0);
+    true
 }
 
 /// A friend code as the server makes one: letters, digits and dashes, at most 32. Anything else is
@@ -137,19 +143,13 @@ fn on_result(gs: &mut GuiState, frame: &serde_json::Value) {
 
 /// One line from the app in the chat, where the server's own private notices appear (never
 /// into an open direct message or group, where it would vanish on reload).
-pub(crate) fn system_line(gs: &mut GuiState, text: &str) {
+/// The words are an [`crate::gui::AppVoice`]: an i18n key and typed arguments, never a string
+/// (the eighth review: the app's voice is a type no frame's text can reach).
+pub(crate) fn system_line(gs: &mut GuiState, voice: crate::gui::AppVoice) {
     let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
-    gs.chat_messages.push(crate::gui::ChatMessage {
-        sender_name: "System".to_string(),
-        content: text.to_string(),
-        timestamp: crate::gui::pages::chat::format_timestamp(now_ms),
-        timestamp_ms: now_ms,
-        channel: crate::gui::pages::chat::notice_channel(&gs.chat_active_channel),
-        server: crate::gui::pages::chat::norm_server_url(&gs.server_url),
-        // The app's own voice: drawn with the app's mark, which no frame can set (seventh review, H1 (a)).
-        origin: crate::gui::LineOrigin::App,
-        ..Default::default()
-    });
+    let channel = crate::gui::pages::chat::notice_channel(&gs.chat_active_channel);
+    let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
+    gs.chat_messages.push(crate::gui::app_row(voice, channel, server, now_ms));
 }
 
 /// A line the SERVER wrote (a `system` frame, which is also how its private lines arrive, and the

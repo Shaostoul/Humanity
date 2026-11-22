@@ -372,7 +372,7 @@ pub(crate) fn typed_claim(gs: &mut GuiState, line: &str) -> bool {
             true
         }
         Some(owner::TypedClaim::Help) => {
-            crate::engine::friend_code::system_line(gs, t("owner.claim_help"));
+            crate::engine::friend_code::system_line(gs, crate::gui::AppVoice::say("owner.claim_help", &[]));
             true
         }
         None => false,
