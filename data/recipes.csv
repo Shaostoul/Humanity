@@ -269,7 +269,9 @@ cook_bread,Bake Bread,cooking,flour_0:2|water_purified_0:1|salt_food_0:1,bread_0
 # Whey stands in for the water in bread, a long-standing farm-kitchen use of the cheese-making leftover.
 cook_bread_whey,Bake Whey Bread,cooking,flour_0:2|whey_0:1|salt_food_0:1,bread_0:3,10,oven_0,baking,1,Knead bread with the whey left from cheese making instead of water
 cook_jerky,Make Jerky,cooking,raw_mutton_0:2|salt_food_0:1|spice_mix_0:1,jerky_0:4,15,stove_0,preserving,1,Slice lean meat thin and season it; heat to 160 F then dry (USDA FSIS)
-cook_canned_food,Can Food,cooking,vegetable_potato_0:2|vegetable_carrot_0:2|salt_food_0:1,canned_food_0:3,15,stove_0,preserving,2,Canned vegetables. Low-acid food like potatoes and carrots is only safe canned in a pressure canner (USDA): a pot on a stove cannot get hot enough to kill botulism spores
+can_applesauce,Can Applesauce,cooking,fruit_apple_0:3|canning_jar_0:1,applesauce_jar_0:1,15,stove_0,preserving,1,Hot applesauce in a pint jar with 1/2 inch headspace; 15 minutes in a boiling-water canner at 0-1000 ft (USDA guide via NCHFP): apples are an acid food
+can_carrots,Can Carrots,cooking,vegetable_carrot_0:4|canning_jar_0:1,canned_carrots_0:1,15,stove_0,preserving,1,Sliced carrots in a pint jar with 1 inch headspace; a pressure canner vented 10 minutes then 25 minutes at 10 lb (weighted gauge at 0-1000 ft; USDA guide via NCHFP). Low-acid food: never a boiling-water canner (CDC)
+can_potatoes,Can Potatoes,cooking,vegetable_potato_0:2|canning_jar_0:1,canned_potatoes_0:1,15,stove_0,preserving,1,Half-inch potato cubes boiled 2 minutes in a pint jar under fresh boiling water; a pressure canner vented 10 minutes then 35 minutes at 10 lb (weighted gauge at 0-1000 ft; USDA guide via NCHFP)
 cook_mre,Pack MRE,cooking,bread_0:1|jerky_0:2|protein_bar_0:1,mre_0:2,10,,preserving,2,Vacuum-pack field rations
 cook_protein_bar,Make Protein Bar,cooking,flour_0:1|egg_0:2|honey_0:1,protein_bar_0:4,8,oven_0,baking,1,Bake high-protein nutrition bars
 cook_soup,Cook Soup,cooking,vegetable_potato_0:2|vegetable_carrot_0:1|water_purified_0:1|salt_food_0:1,soup_vegetable_0:2,10,stove_0,cooking,1,Simmer a hearty vegetable soup
@@ -281,7 +283,8 @@ cook_pancake,Make Pancakes,cooking,flour_0:1|egg_0:2|milk_0:1,bread_0:3,8,stove_
 # about 3.4 kg leaves as whey, three 1 kg units (2026-09-26).
 cook_cheese,Make Cheese,cooking,milk_0:4|salt_food_0:1,cheese_0:2|whey_0:3,30,stove_0,fermenting,3,Culture and press milk into cheese
 cook_butter,Churn Butter,cooking,milk_0:3,butter_0:2,15,,cooking,1,Agitate cream into solid butter
-cook_dried_fruit,Dry Fruit,cooking,fruit_apple_0:3|fruit_banana_0:2,dried_fruit_0:4,20,oven_0,preserving,0,Dehydrate fruit for preservation
+dry_apples,Dry Apples,cooking,fruit_apple_0:5,dried_apples_0:2,20,oven_0,preserving,0,Apple rings 1/8 to 1/4 inch thick dried at 60 C (140 F) until soft and leathery with no moist centre: 6 to 24 hours (Colorado State Extension)
+dry_carrots,Dry Carrots,cooking,vegetable_carrot_0:10,dried_carrots_0:4,20,oven_0,preserving,0,Carrot slices 1/8 inch thick blanched 4 minutes then dried at 60 C (140 F) until tough to brittle: 6 to 10 hours (Colorado State Extension)
 cook_dried_meat,Dry Meat,cooking,raw_mutton_0:2|salt_food_0:1,dried_meat_0:4,20,stove_0,preserving,1,Heat thin meat strips to 160 F (poultry to 165 F) then salt and dry them (USDA FSIS; CDC)
 # Apple pomace: the skins, cores and pulp left after pressing are about a quarter to a third of the fruit
 # (Shalini and Gupta 2010, J Food Sci Technol 47:365-371). It used to press 0.8 kg of apples into 1.0 kg of

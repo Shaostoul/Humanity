@@ -12,9 +12,22 @@
 // `rules`: by station, and by category when one is given (empty = any); the
 // first rule that matches wins. Recipes made by hand match no rule.
 // `recipes`: a recipe's tools outright, overriding the rules ([] = none).
+// `at_home`: tools that live where they are used instead of in the backpack: a
+// craft takes one from the home's storage wherever that storage counts for a
+// craft (the reach the craft's ingredients have, BUG-147), and from the backpack
+// anywhere. A tool used from storage is not worn yet (docs/design/preserving.md
+// rung 2).
 // tests/: every tool named here must be a real item with a durability that a
-// player can get (vendor, starter kit, or a recipe whose tools they can get).
+// player can get (vendor, starter kit, home storage at the start, or a recipe
+// whose tools they can get).
 (
+    // The canners (preserving rung 1, 2026-11-21): a 20 L boiling-water canner and
+    // a 22 L pressure canner are kitchen pots that go on the stove, and together
+    // they are 42 L of the 65 L backpack. Carried, they filled the homestead kit to
+    // the litre, so a soak's person could take no food from storage and starved;
+    // a player would have met the same full pack. They start in the home's
+    // storage (data/places/seed.json, the Barn) and are canned with from there.
+    at_home: ["water_bath_canner_0", "pressure_canner_0"],
     rules: [
         // Carpentry: furniture, doors, walls and crates are sawn and nailed.
         (station: "workbench_0", category: "construction", tools: ["hammer_0", "saw_hand_0"]),
@@ -48,12 +61,16 @@
         "cook_stew": ["knife_utility_0"],
         "cook_soup_vegetable": ["knife_utility_0"],
         "cook_stew_meat": ["knife_utility_0"],
-        "cook_canned_food": ["knife_utility_0"],
+        // Canning (preserving rung 1, 2026-11-21): the canner the tested process needs.
+        "can_applesauce": ["knife_utility_0", "water_bath_canner_0"],
+        "can_carrots": ["knife_utility_0", "pressure_canner_0"],
+        "can_potatoes": ["knife_utility_0", "pressure_canner_0"],
         "cook_salad": ["knife_utility_0"],
         "cook_sandwich": ["knife_utility_0"],
         "cook_jerky": ["knife_utility_0"],
         "bake_pie": ["knife_utility_0"],
-        "cook_dried_fruit": ["knife_utility_0"],
+        "dry_apples": ["knife_utility_0"],
+        "dry_carrots": ["knife_utility_0"],
         // Crush and strain honey: a long knife cuts the comb out of the frame
         // (2026-10-05; data/recipes.csv, cook_honey, quotes the source).
         "cook_honey": ["knife_utility_0"],

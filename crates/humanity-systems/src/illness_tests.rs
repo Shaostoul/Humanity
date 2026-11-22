@@ -81,8 +81,11 @@ struct SharesRow {
 struct IllnessRow {
     effect: String,
     water_l_per_day: f32,
+    #[serde(default)]
     onset: String,
+    #[serde(default)]
     helps: String,
+    #[serde(default)]
     passed: String,
     #[serde(default)]
     again: String,
@@ -603,4 +606,119 @@ fn every_medical_item_has_a_treatment_and_every_treatment_is_real() {
     for tag in &antibiotics.ends {
         assert!(!fp_tags.split('|').any(|x| x == tag), "antibiotics end the tag {tag}, which Food Poisoning carries");
     }
+}
+
+// ── Botulism by mode, and the medbay (2026-11-21, the operator's call) ──
+//
+// "In Realistic, botulism is fatal unless treated at a medbay; in Simplified it is serious but
+// survivable" (the operator's "Yes" to the orchestrator's recommendation, 2026-11-21). Simplified
+// is the Illness and injury setting's Forgiving. The harm is data/medical/illnesses.ron's
+// `health_per_h` (1 an hour, Realistic), Forgiving's `harm_share` of it, never below its
+// `forgiving_floor`; a medbay's treatment (systems::medbay) ends it, and only in a medbay.
+//
+// Seen red 2026-11-21 in two runs (scratchpad pres2-faults.js). With the harm as it was before the
+// operator's call (the row's own harm off, status_effects.csv's mode-blind 0.4 an hour back) and the
+// medbay ending nothing: botulism_untreated_in_realistic_is_fatal "a Realistic body with untreated
+// botulism lived the whole course: health 33.0 after 168 h"; botulism_in_forgiving_is_survived_untreated
+// "it never takes a body below its floor: 6.4 < 25.0"; botulism_treated_at_a_medbay_is_survived
+// "a day and a quarter of harm, then healing: 33.0" (the end-of-course check then caught it; the
+// test now checks an hour after the treatment). With the row's harm on but Forgiving at the whole
+// Realistic harm and no floor, and the medbay ending nothing: "a Forgiving body died of botulism:
+// health 0.0" and "the medbay did not end it (an hour after the treatment, of a 168 h course)".
+
+/// Keep `who` fed, watered, rested and clean, so only the illness touches their health.
+fn keep_well(world: &mut hecs::World, who: hecs::Entity) {
+    let mut v = world.get::<&mut Vitals>(who).unwrap();
+    v.satiation = 60.0;
+    v.hydration = 80.0;
+    v.energy = v.energy_max;
+    v.waste = 0.0;
+}
+
+/// Give `who` botulism for the whole course `mode` runs, as the food system does when a bad jar
+/// is eaten (status_effects.csv's course times the mode's share).
+fn give_botulism(sys: &FoodSystem, world: &mut hecs::World, who: hecs::Entity, mode: Mode) -> f64 {
+    let course = f64::from(registry().duration("botulism")) * f64::from(sys.illnesses.course_share(mode));
+    assert!(course > 0.0, "botulism has a course");
+    world.get::<&mut StatusEffects>(who).unwrap().apply("botulism", course);
+    course
+}
+
+/// Run `who`'s world in ten-minute steps for `hours`, kept well, calling `each` before every step
+/// with the hour. Returns the hour they died at, or None.
+fn run_ill(sys: &mut FoodSystem, world: &mut hecs::World, data: &mut DataStore, who: hecs::Entity, hours: f64, mut each: impl FnMut(f64, &mut DataStore)) -> Option<f64> {
+    let steps = (hours * f64::from(STEPS_PER_HOUR)).ceil() as u32;
+    for step in 0..steps {
+        let hour = f64::from(step) / f64::from(STEPS_PER_HOUR);
+        if world.get::<&Dead>(who).is_ok() {
+            return Some(hour);
+        }
+        keep_well(world, who);
+        each(hour, data);
+        sys.tick(world, STEP_S, data);
+    }
+    world.get::<&Dead>(who).is_ok().then_some(hours)
+}
+
+#[test]
+fn botulism_untreated_in_realistic_is_fatal() {
+    let mut data = store(Some(Mode::Realistic));
+    let mut sys = FoodSystem::new(data_dir());
+    let mut world = hecs::World::new();
+    let p = adult(&mut world, 80.0);
+    let course = give_botulism(&sys, &mut world, p, Mode::Realistic);
+    let died = run_ill(&mut sys, &mut world, &mut data, p, course / 3600.0 + 1.0, |_, _| {});
+    assert!(died.is_some(), "a Realistic body with untreated botulism lived the whole course: health {:.1} after {:.0} h", health(&world, p), course / 3600.0);
+    let cause = data.get::<Mutex<Option<String>>>("player_death").unwrap().lock().unwrap().clone();
+    assert_eq!(cause.as_deref(), Some("Botulism"), "the death names the illness");
+    // It kills within the course, so a medbay reached in time is the way out (about 4 of 7 days).
+    assert!(died.unwrap() < course / 3600.0, "it kills within the course: at {:?} h", died);
+}
+
+#[test]
+fn botulism_treated_at_a_medbay_is_survived() {
+    let mut data = store(Some(Mode::Realistic));
+    let mut sys = FoodSystem::new(data_dir());
+    let mut world = hecs::World::new();
+    let p = adult(&mut world, 80.0);
+    let course = give_botulism(&sys, &mut world, p, Mode::Realistic);
+    // A day ill, the treatment asked for away from a medbay (refused, words that say where to go),
+    // then in a medbay on the second day.
+    let died = run_ill(&mut sys, &mut world, &mut data, p, 31.0, |hour, data| {
+        if hour == 24.0 {
+            crate::medbay::request(data);
+        }
+        if hour == 30.0 {
+            crate::medbay::publish_here(data, true);
+            crate::medbay::request(data);
+        }
+    });
+    assert!(died.is_none(), "the body died before the medbay: health {:.1}", health(&world, p));
+    assert!(!world.get::<&StatusEffects>(p).unwrap().has("botulism"), "the medbay did not end it (an hour after the treatment, of a {:.0} h course)", course / 3600.0);
+    let died = run_ill(&mut sys, &mut world, &mut data, p, course / 3600.0, |_, _| {});
+    assert!(died.is_none(), "treated at a medbay on the second day, the body still died: health {:.1}", health(&world, p));
+    let said = notices(&data).join(" | ");
+    assert!(said.contains(&crate::illness::word("medbay.go_there")), "asked away from a medbay, the player is told where to go: {said}");
+    assert!(said.contains("treated your Botulism"), "the medbay says what it treated: {said}");
+    assert!(health(&world, p) > 50.0, "a day and a quarter of harm, then healing: {:.1}", health(&world, p));
+}
+
+#[test]
+fn botulism_in_forgiving_is_survived_untreated() {
+    let mut data = store(Some(Mode::Forgiving));
+    let mut sys = FoodSystem::new(data_dir());
+    let mut world = hecs::World::new();
+    let p = adult(&mut world, 80.0);
+    // Already hurt: the floor, not a full bar, is what makes it survivable.
+    world.get::<&mut Health>(p).unwrap().current = 40.0;
+    let course = give_botulism(&sys, &mut world, p, Mode::Forgiving);
+    // To the end of the course, where it has taken the most (healing stops while ill).
+    let died = run_ill(&mut sys, &mut world, &mut data, p, course / 3600.0, |_, _| {});
+    assert!(died.is_none(), "a Forgiving body died of botulism: health {:.1}", health(&world, p));
+    let floor = sys.illnesses.get("botulism").unwrap().forgiving_floor * Health::default().max;
+    let lowest = health(&world, p);
+    assert!(lowest >= floor - 0.01, "it never takes a body below its floor: {lowest:.1} < {floor:.1}");
+    assert!(lowest < 40.0, "and it is serious: it did harm ({lowest:.1} of 40)");
+    run_ill(&mut sys, &mut world, &mut data, p, 1.0, |_, _| {});
+    assert!(!world.get::<&StatusEffects>(p).unwrap().has("botulism"), "and it passes by itself in Forgiving");
 }

@@ -445,58 +445,36 @@ USDA guide, and a few rules worth knowing before you start (USDA, Guides
 
 ## How the game models it
 
-The game makes canned food, but not by pressure canning.
+Pressure canning is a procedure in the game since preserving rung 1
+(2026-11-21, `docs/design/preserving.md`), against the tested tables of the
+USDA guide.
 
-- **Three recipes make Canned Food.** On the Crafting page, Can Food turns
-  two Potatoes, two Carrots and one Salt into three Canned Food, and its
-  in-game description reads "Pressure-seal preserved meals". Cook Soup
-  turns two Potatoes, a Carrot, a Purified Water and a Salt into two
-  Canned Food, and Cook Stew turns two Potatoes, an Onion, a Jerky and a
-  Purified Water into three (`data/recipes.csv`). The page lists the parts
-  by their item ids, so the vegetables appear there as Vegetable Potato,
-  Vegetable Carrot and Vegetable Onion, Salt as Salt Food and Purified
-  Water as Water Purified (`src/gui/pages/crafting.rs`). All three are
-  made at the home's Stove, which stands in the default home's kitchen
-  (`data/machines/home.ron`), and all three need a Utility Knife in your
-  backpack, which the Crafting page lists as Knife Utility
-  (`data/crafting/tools.ron`). Can Food and Cook Stew need Cooking level
-  2; Cook Soup is a level-1 recipe, and the game's skill gate starts at
-  level 2, so anyone can make it (`src/gui/pages/crafting.rs`,
-  `crates/humanity-systems/src/crafting/mod.rs`).
-- **Under the default settings.** In the Normal play mode, where the game
-  starts (Settings > Gameplay > Play mode), the Craft button waits until
-  the parts are in your backpack, or in your home's storage while you are
-  at home, and the knife is in your backpack, and the craft then uses up
-  its parts and wears the knife by one use (`src/gui/pages/crafting.rs`,
-  `crates/humanity-systems/src/crafting/mod.rs`); a new character's starting kit holds
-  the Utility Knife (`data/world/player.ron`). In Creative, and in Dev if
-  you choose it, a craft uses up none of its parts and wears no tool
-  while the Inventory page's Creative mode switch is on, though the
-  button still waits for them; in Dev, the page's "Dev: stock all
-  materials" button fills your backpack with every recipe's parts but no
-  tools. Cooking the level-1 cooking recipes trains the Cooking skill,
-  and in Dev the Profile page's "Dev: max skills" button raises every
-  skill at once.
-- **What the recipes get right, and wrong.** Potatoes, carrots, onions and
-  meat are all low-acid foods, so in real life every one of these would
-  need a pressure canner and a tested process. The salt in Can Food is
-  seasoning: the USDA guide says salt is not needed for the safety of
-  canned vegetables and meat. Cook Stew's "thick meat stew" is the
-  opposite of the USDA's way with soup, which is to fill each jar only
-  halfway with solids, cover them with liquid and never thicken. And its
-  Canned Food is a steel tin, a "Sealed tinned meal" (`data/items.csv`),
-  where home canners use glass jars: the USDA guide says metal cans need
-  special sealing equipment and can be used only once.
+- **Can Carrots and Can Potatoes** (Crafting page, at the home's Stove, a
+  pressure canner, a canning jar and a utility knife) follow the guide's
+  tables as NCHFP prints them: carrots pints 25 minutes and potatoes 35, at
+  10 lb in a weighted-gauge canner up to 1,000 ft (15 lb above), vented 10
+  minutes first (`data/food_system.ron`, `preserving`). The card shows the
+  whole table, quarts and the dial-gauge pounds by altitude too. The home's
+  air is at sea-level pressure, so the game uses the up to 1,000 ft rows.
+- **Settings > Gameplay > Preserving**: Simplified (the default) lets the
+  canner pick the tested process. Guided and Realistic let you choose the
+  canner, the minutes, the weight and whether you vented.
+- **The wrong way leaves a botulism risk.** Carrots or potatoes in a
+  boiling-water canner, a pressure canner not vented, under the pounds or
+  short of the minutes: the jar says BOTULISM RISK, because in real life the
+  toxin cannot be seen, smelled or tasted. Eating such a jar can give you
+  Botulism, a serious illness that weakens and slowly harms you; its length
+  and harm are game choices (`data/medical/illnesses.ron`).
+- **A safe jar keeps a year** (the guide's "within a year", a quality limit)
+  and eating one hands the empty jar back. The salt in the guide's recipes is
+  seasoning, so the game's recipes carry none.
 
-The food data also lists canning as a preservation method that makes food
-keep a hundred times as long and needs Cooking level 4, but no code acts
-on that row yet (`data/food_system.ron`).
-
-What the game leaves out, so you do not learn it from the game: there is
-no pressure canner, gauge, vent, weight, headspace or processing time,
-and no recipe changes with altitude, so nothing can be under-processed.
-Botulism is not in the game either: a record for its toxin sits in
-`data/chemistry/toxins.csv`, but no game code reads it.
+What the game leaves out, so you do not learn it from the game: headspace,
+pack style and the hot water in the canner are words on the card, not
+steps; there are no lids to replace, no seals to test (the How-to "Test
+home-canned jar seals" teaches it), and no unsealed jars; the processing
+happens within the craft; and Botulism starts when the jar is eaten,
+where in real life it usually takes 18 to 36 hours.
 
 ## You own this when
 
@@ -636,8 +614,9 @@ were read on 4 October 2026.
   USGS 3DEP elevation data: `data/locales/silverdale_wa/locale.json`
   (`elevation_m`), shown in [Silverdale,
   Washington](/library#silverdale-wa).
-- The Can Food, Cook Soup and Cook Stew recipes: `data/recipes.csv`
-  (`cook_canned_food`, `cook_soup`, `cook_stew`); their knife:
+- The Can Carrots and Can Potatoes recipes: `data/recipes.csv`
+  (`can_carrots`, `can_potatoes`), their tested tables:
+  `data/food_system.ron` (`preserving`); their knife and canner:
   `data/crafting/tools.ron`; the Canned Food item and the other items:
   `data/items.csv`; the Stove in the default home's kitchen:
   `data/machines/home.ron`; the starting kit: `data/world/player.ron`.

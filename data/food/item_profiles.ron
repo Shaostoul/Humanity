@@ -62,6 +62,12 @@
         ("jerky_0", "jerky"),
         ("dried_meat_0", "jerky"),
         ("dried_fruit_0", "dried_fruit"),
+        // Preserved by hand (preserving rung 1, 2026-11-21, docs/design/preserving.md).
+        ("dried_apples_0", "dried_apples_home"),
+        ("dried_carrots_0", "dried_carrots_home"),
+        ("applesauce_jar_0", "applesauce_canned"),
+        ("canned_carrots_0", "carrots_canned"),
+        ("canned_potatoes_0", "potatoes_canned"),
         ("fruit_date_palm_0", "dried_fruit"), // dates are eaten semi-dry; 277 kcal like dried fruit
         ("protein_bar_0", "protein_bar"),
         ("honey_0", "honey"),
@@ -326,6 +332,15 @@
         ("raw_fish_0", 600.0),
         ("roast_chicken_0", 1005.0), // a 1.5 kg whole roast bird less USDA's 33% bone (NDB 05009, broiler meat and skin, roasted)
         ("fish_grilled_0", 400.0),   // a 0.4 kg fillet
+        // A pint jar's food, not its glass (preserving rung 1, 2026-11-21): the jar's 0.35 kg comes
+        // back when it is eaten. A US pint is 473 mL; less the headspace, about 440 g of applesauce,
+        // and of carrots or potatoes about 300 g of drained solids once the liquid is poured off.
+        // GAME ESTIMATES: the USDA guide gives the raw weight per jar, not the drained weight.
+        ("applesauce_jar_0", 440.0),
+        ("dried_apples_0", 90.0),    // a 90 g bag (items.csv), eaten whole
+        ("dried_carrots_0", 50.0),   // a 50 g bag (items.csv), eaten whole
+        ("canned_carrots_0", 300.0),
+        ("canned_potatoes_0", 300.0),
         ("egg_0", 52.8),             // 60 g in the shell less USDA's 12% shell (NDB 01123); USDA's large egg is 50 g, extra large 56 g
         ("cheese_0", 300.0),
         ("butter_0", 250.0),

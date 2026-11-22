@@ -193,6 +193,9 @@
 
     (id: "hoe_0",             name: "Hoe",                category: "tool",            base_value: 10,   weight_kg: 1.5,   description: "Farming tool for tilling soil"),
     (id: "food_thermometer_0", name: "Food Thermometer", category: "tool",            base_value: 8,    weight_kg: 0.05,  description: "Reads the temperature inside food: the only way to tell it is safely cooked (CDC)"),
+    (id: "canning_jar_0",     name: "Canning Jar (pint)", category: "tool",            base_value: 2,    weight_kg: 0.35,  description: "Mason-type pint jar with its screw band, for home canning"),
+    (id: "water_bath_canner_0", name: "Boiling-Water Canner", category: "tool",        base_value: 25,   weight_kg: 3.0,   description: "Deep pot and jar rack: for acid foods such as fruit (USDA)"),
+    (id: "pressure_canner_0", name: "Pressure Canner",    category: "tool",            base_value: 90,   weight_kg: 6.0,   description: "Weighted-gauge canner: the only safe way to can vegetables, meat and fish (USDA; CDC)"),
     (id: "shovel_0",          name: "Shovel",             category: "tool",            base_value: 12,   weight_kg: 2.0,   description: "Digging tool for earth and sand"),
     (id: "pickaxe_0",         name: "Pickaxe",            category: "tool",            base_value: 20,   weight_kg: 3.0,   description: "Mining tool for breaking rock and ore"),
     (id: "axe_0",             name: "Axe",                category: "tool",            base_value: 18,   weight_kg: 2.5,   description: "Felling tool for trees and chopping wood"),

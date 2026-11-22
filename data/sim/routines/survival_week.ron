@@ -19,6 +19,8 @@
 //   PlantTower  the Garden page's "Plant this tower" on tower design `what`: every empty slot
 //            whose seed the backpack holds
 //   Compost  the Inventory page's Compost
+//   Store    the Inventory page's Stash to: every stack of item `what` in the backpack, into the
+//            home-storage container labelled `into` ("Barn")
 // A count step counts from the moment its quest was accepted, so the views and readings run
 // every day: a quest started later (Keep It starts when Food First ends) still sees one.
 //
@@ -43,13 +45,18 @@
 (
     id: "survival_week",
     name: "Playing the survival quests at home",
+    // The preserved foods first (2026-11-21, preserving rung 1): eaten once Dry It and Can It have
+    // made them, so their stacks leave the backpack (an eaten jar hands its empty jar back). The
+    // kit's carrots are not on the list: they wait for Can It's pressure canner.
     foods: [
+        "dried_apples_0",
+        "applesauce_jar_0",
+        "canned_carrots_0",
         "vegetable_lettuce_0",
         "vegetable_spinach_0",
         "vegetable_kale_0",
         "vegetable_radish_0",
         "vegetable_tomato_0",
-        "vegetable_carrot_0",
         "legume_bean_0",
         "vegetable_potato_0",
         "ration_basic_0",
@@ -91,6 +98,27 @@
         (hour: 19.6, act: Craft, what: "cook_boiled_eggs", day: Some(0)),
         (hour: 19.6, act: Craft, what: "cook_boiled_eggs", day: Some(1)),
         (hour: 19.6, act: Craft, what: "cook_boiled_eggs", day: Some(2)),
+        // Dry It and Can It (2026-11-21, preserving rung 1) start when Keep It ends, at 10:30 on
+        // day 1 (its guide read above): their guides, then the kit's apples dried in the oven and
+        // canned in the boiling-water canner, and its carrots in the pressure canner, at the
+        // station's pick (Simplified). The canners are the home's (the Barn's), not the kit's: a
+        // craft at home takes them from storage. Day 2 again in case they started late; a craft
+        // with too few apples or carrots left is refused and spends nothing.
+        (hour: 11.2, act: Read, what: "library:drying_food"),
+        (hour: 11.3, act: Read, what: "library:why_canning_has_rules"),
+        (hour: 11.4, act: Read, what: "how_to:test_jar_seals"),
+        (hour: 12.0, act: Craft, what: "dry_apples", day: Some(1)),
+        (hour: 12.1, act: Craft, what: "can_applesauce", day: Some(1)),
+        (hour: 12.2, act: Craft, what: "can_carrots", day: Some(1)),
+        (hour: 12.0, act: Craft, what: "dry_apples", day: Some(2)),
+        (hour: 12.1, act: Craft, what: "can_applesauce", day: Some(2)),
+        (hour: 12.2, act: Craft, what: "can_carrots", day: Some(2)),
+        // The empty jars the eaten applesauce and carrots hand back (by the 13:00 meal of day 2) go
+        // to the Barn, where the next canning at home still takes them (preserving rung 1: the
+        // canners never enter the backpack, data/crafting/tools.ron `at_home`). Day 3 again in
+        // case a jar came back late; storing nothing is logged as a miss and changes nothing.
+        (hour: 14.0, act: Store, what: "canning_jar_0", into: "Barn", day: Some(2)),
+        (hour: 14.0, act: Store, what: "canning_jar_0", into: "Barn", day: Some(3)),
         (hour: 20.0, act: Compost, day: Some(0)),
         (hour: 20.0, act: Compost, day: Some(1)),
         (hour: 20.0, act: Compost, day: Some(2)),

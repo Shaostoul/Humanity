@@ -261,6 +261,8 @@ pub(crate) fn run(state: &mut EngineState) {
     // 2026-09-27): the station types and their power for the
     // CraftingSystem and the Crafting page (engine/built_uses.rs).
     crate::engine::built_uses::publish_stations(state);
+    // In a medbay (2026-11-21): its treatment works only there (engine/medbay.rs).
+    crate::engine::medbay::publish(state);
 
     humanity_core::frame_costs::span("cpu.span.settle_vendor");
     // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──

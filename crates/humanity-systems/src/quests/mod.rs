@@ -997,6 +997,8 @@ impl QuestSystem {
             QuestObjective::Learn { page } => progress.get(&learn_event_key(page)).copied().unwrap_or(0) >= 1,
             // A dish cooked through (2026-11-21, cooking rung 1).
             QuestObjective::Cook { item_id, quantity } => counted(progress, crate::cooking::COOKED_EVENT, item_id.as_deref()) >= *quantity,
+            // A food preserved safely (2026-11-21, preserving rung 1).
+            QuestObjective::Preserve { item_id, quantity } => counted(progress, crate::preserving::PRESERVED_EVENT, item_id.as_deref()) >= *quantity,
             QuestObjective::Keep { .. } => keep_met,
         }
     }
@@ -1707,6 +1709,12 @@ mod quest_tests {
                     QuestObjective::Cook { item_id, .. } => {
                         if let Some(id) = item_id {
                             assert!(crate::cooking::Cooking::load(&root.join("data")).dish_for_item(id).is_some(), "quest {}: Cook names {id}, which no dish makes", q.id);
+                        }
+                    }
+                    // A Preserve item must be what a preserving procedure makes (preserving rung 1).
+                    QuestObjective::Preserve { item_id, .. } => {
+                        if let Some(id) = item_id {
+                            assert!(crate::preserving::Preserving::load(&root.join("data")).procedure_for_item(id).is_some(), "quest {}: Preserve names {id}, which no procedure makes", q.id);
                         }
                     }
                 }

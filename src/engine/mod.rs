@@ -184,6 +184,9 @@ pub mod own_home;
 /// The Death setting's engine half (2026-10-04): a death surfaced, the pack left where the
 /// player fell in Realistic, its prompt, E, drawing, marker and clock (systems::death_pack).
 pub mod death_pack;
+/// The medbay (2026-11-21, the operator's call on botulism): whether the player stands in one,
+/// published each frame for its treatment (systems::medbay).
+pub mod medbay;
 /// Waking at a respawner (game-setting-and-intro.md 5.6, rung 2): where the dead player may wake,
 /// the death screen's list, the respawn's spot, the relay join's `wake`, E at a pod.
 pub mod wake;

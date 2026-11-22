@@ -4623,6 +4623,29 @@ Cook It Through. Design: docs/design/cooking.md; sources: docs/reference/finding
 - Data: `data/food_system.ron` (`cooking_methods`, `food_classes`, `dishes`, `not_dishes`, `meal_quality_levels`), `data/gameplay/levels.json` (`cooking`), `data/quests/survival.ron` (`food_cook`), `data/how_to/food/cook_meat_to_a_safe_temperature.json`
 - Web: `scripts/gen-recipes-json.js` -> `data/recipes.json` (`dish`), `web/pages/crafting-app.js`
 
+### Preserving: drying and canning against spoilage (preserving rung 1, 2026-11-21)
+Drying and canning are procedures with right and wrong ways (food_system.ron `preserving`).
+Dry Apples and Dry Carrots (oven) dry on a thin-layer water curve to NCHFP's dryness (fruit 20%
+water, vegetables 10%); the sun dries fruit only, at 29 C (85 F) or warmer; taken off too soon, the
+food spoils on its fresh food's clock. Can Applesauce (boiling-water canner), Can Carrots and Can
+Potatoes (pressure canner) follow the USDA guide's tested tables as NCHFP prints them, by jar size
+and altitude; a low-acid jar canned any other way (boiling water, not vented, too little pressure,
+too short) carries a botulism risk on the jar, and eating it can give Botulism: by the Illness and
+injury setting, fatal in Realistic unless treated at a medbay, serious but survivable in Forgiving
+(the operator's call, 2026-11-21). The medbay's treatment: stand in a medbay (General Services has one)
+and choose Get treated (the Inventory page's Status section, or [E] there). The canners
+are kept at home (data/crafting/tools.ron `at_home`: the homestead's Barn), and a craft at home takes
+them from storage. A dried or canned food keeps on its own USDA
+profile's longer clock (dried apples six months, a jar a year); an eaten jar hands back its empty
+jar. Settings > Gameplay > Preserving: Simplified (the station picks the tested process; always
+safe), Guided (choose; told before the start how it will come out), Realistic (choose; the tested
+table only). The Crafting page's preserving card; the inventory card says how a preserved food came
+out (never a safe-looking botulism jar); the `Preserve` quest objective; Dry It and Can It after Keep
+It. Design: docs/design/preserving.md; sources: docs/reference/findings/2026-11-21-preserving-safety-facts.md.
+- Native: `crates/humanity-systems/src/preserving.rs`, `crates/humanity-systems/src/food.rs` (`consume`, `freshness_of`), `crates/humanity-systems/src/crafting/mod.rs` (`deliver_goods`, tools kept at home), `src/gui/pages/preserving_panel.rs`, `crates/humanity-systems/src/illness.rs` (`harm`, by mode), `crates/humanity-systems/src/medbay.rs`, `src/engine/medbay.rs`, `src/gui/pages/medbay.rs`
+- Data: `data/food_system.ron` (`preserving`, five preserved profiles), `data/items.csv` (dried apples and carrots, three pint jars, the two canners), `data/medical/illnesses.ron` and `data/status_effects.csv` (`botulism`), `data/gameplay/levels.json` (`preserving`), `data/quests/survival.ron` (`food_keep_dry`, `food_keep_can`)
+- Web: `scripts/gen-recipes-json.js` -> `data/recipes.json` (`preserve`), `web/pages/crafting-app.js`
+
 ### Byproducts and Machine Output to Storage
 Recipes leave real byproducts at sourced ratios (slag, sawdust, bran, press
 cake, olive and apple pomace, whey; ratios and sources as # comments in

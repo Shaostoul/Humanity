@@ -75,6 +75,10 @@ pub mod wallet;
 pub mod crafting;
 /// The cooking card on the Crafting page: heat, time and doneness (cooking rung 1, 2026-11-21).
 pub mod cooking_panel;
+/// The preserving card on the Crafting page: drying and canning procedures (preserving rung 1, 2026-11-21).
+pub mod preserving_panel;
+/// The medbay's "Get treated" in the Inventory page's Status section (2026-11-21, botulism).
+pub mod medbay;
 // Guilds retired into Organisations (orgs) on 2026-11-15: docs/design/organisations.md, "Decided".
 pub mod orgs;
 pub mod trade;

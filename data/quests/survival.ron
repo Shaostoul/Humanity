@@ -162,6 +162,53 @@
         after: Quest("food_first"),
         starts: ["homestead"],
     ),
+    (
+        id: "food_keep_dry",
+        name: "Dry It",
+        // Preserving rung 1 (2026-11-21, docs/design/preserving.md; quest-chains.md 2.2,
+        // food_keep_dry). F7, refutation pass 2026-11-21: "Dry at 140 degrees F (60°C) in an oven or
+        // dehydrator." (Colorado State Extension, Drying Fruits); apples "Dry until soft, pliable, and
+        // leathery; no moist area in center when cut (6-24 hours)."; "The moisture content of home
+        // dried fruit should be about 20 percent." (NCHFP, Packaging and Storing Dried Foods); "Most
+        // dried fruits can be stored for 1 year at 60ºF, 6 months at 80ºF." (the same page). The
+        // jerky step (heat to 160 F first) waits for raw mutton to be obtainable: no trading post
+        // sells it, and the kit carries none.
+        description: "Drying takes the water out of food, so the moulds and bacteria that spoil it cannot grow. Dry apple rings at 60 C (140 F) in an oven or dehydrator until they are soft, pliable and leathery with no moist spot in the middle, about 20% water: 6 to 24 hours. Take them off too soon and they go mouldy like fresh fruit. Dried well, they keep about six months at room temperature.",
+        steps: [
+            (description: "Read: Drying Food (Library)", objective: Learn(page: "library:drying_food")),
+            (description: "Dry apples until leathery: Crafting, Dry Apples", objective: Preserve(item_id: Some("dried_apples_0"), quantity: 2)),
+        ],
+        rewards: [],
+        xp_rewards: [("preserving", 20)],
+        after: Quest("food_keep"),
+        starts: ["homestead"],
+    ),
+    (
+        id: "food_keep_can",
+        name: "Can It",
+        // Preserving rung 1 (2026-11-21, docs/design/preserving.md; quest-chains.md 2.2,
+        // food_keep_can). F10 to F12, refutation pass 2026-11-21: "Pressure canning is the only
+        // recommended method for canning low-acid foods."; "Do not use a boiling water canner for
+        // low-acid foods because it will not protect against botulism."; "You cannot see, smell, or
+        // taste the toxin that causes botulism."; "If in doubt, throw it out! Never taste food to see
+        // if it's safe." (CDC, Home-Canned Foods, Apr. 25, 2024). "Acid foods have a pH of 4.6 or
+        // lower."; "Low-acid foods have pH values higher than 4.6. They include red meats, seafood,
+        // poultry, milk, and all fresh vegetables except for most tomatoes." (NCHFP, Ensuring Safe
+        // Canned Foods). Applesauce pints 15 min in boiling water at 0-1,000 ft; carrots pints 25 min
+        // at 10 lb in a weighted-gauge canner at 0-1,000 ft, vented 10 minutes (NCHFP, from the USDA
+        // guide, 2015). LETHAL hazard: botulism.
+        description: "Canning heats food sealed in jars so nothing can grow in it. Acid food such as most fruit is safe in a boiling-water canner for the tested time. Low-acid food, every fresh vegetable, meat and fish, is safe ONLY in a pressure canner, vented 10 minutes, at the tested pressure for the tested time: botulinum spores survive boiling water, and the toxin cannot be seen, smelled or tasted. Use only tested recipes, and if in doubt, throw it out.",
+        steps: [
+            (description: "Read: Why Canning Has Rules (Library)", objective: Learn(page: "library:why_canning_has_rules")),
+            (description: "Can applesauce in boiling water: Crafting, Can Applesauce", objective: Preserve(item_id: Some("applesauce_jar_0"), quantity: 1)),
+            (description: "Can carrots in the pressure canner: Crafting, Can Carrots", objective: Preserve(item_id: Some("canned_carrots_0"), quantity: 1)),
+            (description: "Learn: Test home-canned jar seals (How-to)", objective: Learn(page: "how_to:test_jar_seals")),
+        ],
+        rewards: [],
+        xp_rewards: [("preserving", 30)],
+        after: Quest("food_keep"),
+        starts: ["homestead"],
+    ),
 
     // ── Rest (design 2.7) ───────────────────────────────────────────────
     (

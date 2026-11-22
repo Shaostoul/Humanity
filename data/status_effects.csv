@@ -98,6 +98,7 @@ plague,Plague,disease,86400,false,1,10,max_hp:-25:add,5,disease,0,illness|critic
 parasites,Parasites,disease,43200,false,1,60,hunger_rate:2.0:multiply,1,disease,0,illness|chronic,Doubles hunger rate as parasites consume nutrients
 allergic_reaction,Allergic Reaction,disease,3600,false,1,10,speed:0.7:multiply,2,disease,0,illness|acute,Causes swelling and reduced speed with periodic damage
 food_poisoning,Food Poisoning,disease,172800,false,1,0,speed:0.85:multiply,0,none,0,illness|food|stomach,A stomach illness from spoiled or raw food: vomiting and diarrhoea take water out of you for a day or two and then it passes. Drink while it lasts (oral rehydration solution best). Feeling ill slows you a little
+botulism,Botulism,disease,604800,false,1,0,speed:0.5:multiply,0,none,0,illness|food|paralysis,A paralysing illness from botulinum toxin in a jar canned the wrong way: muscle weakness and double vision and trouble swallowing and breathing. A medical emergency in real life (CDC). Its seven-day course and its harm (by mode: data/medical/illnesses.ron) are game choices
 radiation_sickness,Radiation Sickness,disease,72000,false,1,30,max_hp:-15:add,4,radiation,0,illness|radiation,Long-lasting reduction to max HP with ongoing radiation damage
 sunburn,Sunburn,environmental,0,true,3,30,armor:-5:add,1,heat,0,temperature|sun,Reduces armor slightly and causes mild pain from sun exposure
 frostbite,Frostbite,environmental,0,true,3,20,dexterity:0.7:multiply,2,cold,0,temperature|cold,Reduces dexterity by 30% per stack and damages extremities

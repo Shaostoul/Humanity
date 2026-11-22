@@ -94,6 +94,8 @@ pub mod flight;
 pub mod food;
 /// Cooking as a procedure: heat, time, doneness and what cooking changes (2026-11-21, rung 1).
 pub mod cooking;
+/// Preserving as a procedure: drying and canning against spoilage, botulism (2026-11-21, rung 1).
+pub mod preserving;
 /// The intake ledger: what the body took in over the last game day (2026-11-20, P3).
 pub mod intake;
 /// Body heat: the Gagge two-node heat balance behind the core temperature (2026-09-27).
@@ -104,6 +106,9 @@ pub mod illness;
 /// Medical items: what the Inventory's Use button does with each, from
 /// data/medical/treatments.ron (BUG-162, 2026-10-05).
 pub mod treatment;
+/// The medbay's treatment (2026-11-21, the operator's call on botulism): what a medbay ends,
+/// asked for there and refused anywhere else.
+pub mod medbay;
 /// Wounds and healing: what a bite or a burn leaves, how it passes, and how a body heals by
 /// itself, from data/medical/wounds.ron (first-hour audit S8, 2026-10-12). Applied by the
 /// food system, which owns the body; it replaced the never-run MedicalSystem.

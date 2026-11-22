@@ -86,7 +86,11 @@ pub(crate) fn run(state: &mut EngineState) {
                 .collect();
             // Each wound and illness, with what helps (first-hour audit S8,
             // systems::wounds): the HUD's rows and the Inventory's lines.
-            state.gui_state.vitals.care = humanity_systems::wounds::care_lines(effects, fx_registry);
+            // In the Settings mode (2026-11-21: botulism kills in Realistic unless a medbay
+            // treats it), and whether a medbay's treatment would help (its button, gui::pages::medbay).
+            let mode = humanity_systems::illness::Mode::from_store(&state.data_store);
+            state.gui_state.vitals.care = humanity_systems::wounds::care_lines_in(effects, fx_registry, mode);
+            crate::gui::pages::medbay::set_treatable(humanity_systems::wounds::medbay_treats_any(effects));
         }
     }
     humanity_core::frame_costs::span("cpu.span.mirror_skills");

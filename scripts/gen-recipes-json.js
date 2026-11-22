@@ -61,13 +61,17 @@ const toolOverrides = Object.fromEntries(
   [...recipesPart.matchAll(/"([^"]+)":\s*\[([^\]]*)\]/g)].map((m) => [m[1], listOf(m[2])]),
 );
 if (!toolRules.length) throw new Error('tools.ron: no rules parsed');
+// Tools kept at home (the canners, 2026-11-21, tools.ron `at_home`): a craft at home takes them
+// from the home's storage, so the website says "kept at home" beside them.
+const atHomeMatch = TOOLS_RON.match(/at_home:\s*\[([^\]]*)\]/);
+const toolsAtHome = atHomeMatch ? listOf(atHomeMatch[1]) : [];
 function toolsFor(id, station, category, outputs) {
   let list = toolOverrides[id];
   if (!list) {
     const rule = station && toolRules.find((r) => r.station === station && (!r.category || r.category === category));
     list = rule ? rule.tools : [];
   }
-  return list.filter((t) => !outputs.some((o) => o.id === t)).map((t) => ({ id: t, label: pretty(t) }));
+  return list.filter((t) => !outputs.some((o) => o.id === t)).map((t) => (toolsAtHome.includes(t) ? { id: t, label: pretty(t), at_home: true } : { id: t, label: pretty(t) }));
 }
 
 // Dishes (cooking rung 1, 2026-11-21, docs/design/cooking.md): each hand-cooked recipe's method
@@ -89,6 +93,23 @@ for (const m of FOOD_RON.matchAll(/\(recipe: "([a-z_0-9]+)", makes: "[a-z_0-9]+"
 }
 if (!Object.keys(dishes).length) throw new Error('food_system.ron: no dishes parsed');
 
+// Preserving procedures (preserving rung 1, 2026-11-21, docs/design/preserving.md): each drying or
+// canning recipe's kind, its food's acidity and its tested canning rows, from data/food_system.ron,
+// so the website's recipe card says what the desktop's preserving card says
+// (src/gui/pages/preserving_panel.rs, the same en.json keys).
+const presBlock = FOOD_RON.slice(FOOD_RON.indexOf('procedures: ['), FOOD_RON.indexOf('not_procedures: ['));
+const procedures = {};
+const bandsOf = (s) => [...(s || '').matchAll(/\(up_to_ft: (None|Some\(([0-9.]+)\)), value: ([0-9.]+)\)/g)]
+  .map((b) => ({ up_to_ft: b[2] ? Number(b[2]) : null, value: Number(b[3]) }));
+for (const chunk of presBlock.split('(recipe: "').slice(1)) {
+  const id = chunk.slice(0, chunk.indexOf('"'));
+  const cls = chunk.match(/class: Some\("([a-z_]+)"\)/);
+  const tested = [...chunk.matchAll(/\(canner: "([a-z_]+)",\s*pints: \[([^\]]*)\](?:,\s*quarts: \[([^\]]*)\])?(?:,\s*psi: \[([^\]]*)\])?/g)]
+    .map((t) => ({ canner: t[1], pints: bandsOf(t[2]), quarts: bandsOf(t[3]), psi: bandsOf(t[4]) }));
+  procedures[id] = { kind: /kind: Dry/.test(chunk) ? 'dry' : 'can', acid: /acid: true/.test(chunk), class: cls ? cls[1] : null, tested };
+}
+if (!Object.keys(procedures).length) throw new Error('food_system.ron: no preserving procedures parsed');
+
 const recipes = lines.map((line) => {
   const f = splitRow(line);
   const outputs = parseItems(f[col.outputs]);
@@ -105,6 +126,7 @@ const recipes = lines.map((line) => {
     description: (f[col.description] || '').trim(),
     tools: toolsFor(f[col.id], (f[col.station_required] || '').trim(), f[col.category] || '', outputs),
     dish: dishes[f[col.id]] || null,
+    preserve: procedures[f[col.id]] || null,
   };
 }).filter((r) => r.id);
 

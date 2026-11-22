@@ -387,6 +387,8 @@
         default_color: (0.55, 0.55, 0.6, 1.0),
         default_material: "polished_metal",
         equipment: ["medical_bed", "surgical_table", "medicine_cabinet", "diagnostic_scanner", "defibrillator", "quarantine_curtain"],
+        // Its treatment (2026-11-21, systems::medbay): what ends botulism.
+        actions: ["medbay_treatment"],
         power_draw_watts: 700,
         requires_life_support: true,
         ambient_sound: "ambient.space_station",

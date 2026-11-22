@@ -237,7 +237,7 @@ fn the_soaks_body_breathes_the_homes_air() {
 #[test]
 fn a_routines_acts_fall_due_once_at_their_hours() {
     use sim_routine::{due_between, Act, ActKind};
-    let act = |hour: f64, act: ActKind| Act { hour, act, what: String::new(), day: None };
+    let act = |hour: f64, act: ActKind| Act { hour, act, what: String::new(), day: None, into: String::new() };
     let acts = vec![act(7.0, ActKind::Drink), act(22.5, ActKind::Sleep)];
     let due = |a: f64, b: f64| due_between(&acts, 24.0, a, b).into_iter().map(|(_, i)| acts[i].act).collect::<Vec<_>>();
     assert_eq!(due(6.0, 7.0), vec![ActKind::Drink], "an act at the end of the span is due");
@@ -296,7 +296,7 @@ fn a_routines_span_stepped_at_the_frames_dt_and_coarsely_agrees() {
         foods: vec!["ration_basic_0".into()],
         // Bottles only, so the drink is filled at the tank first (the kit's jugs are left).
         drinks: vec!["water_bottle_0".into()],
-        acts: vec![sim_routine::Act { hour: hour(5.0), act: sim_routine::ActKind::Drink, what: String::new(), day: None }, sim_routine::Act { hour: hour(10.0), act: sim_routine::ActKind::Eat, what: String::new(), day: None }],
+        acts: vec![sim_routine::Act { hour: hour(5.0), act: sim_routine::ActKind::Drink, what: String::new(), day: None, into: String::new() }, sim_routine::Act { hour: hour(10.0), act: sim_routine::ActKind::Eat, what: String::new(), day: None, into: String::new() }],
     };
     // Long enough for both acts at the coarsest step: each takes two steps, one act starts a step.
     let span_s = 300.0;
@@ -494,12 +494,23 @@ fn the_survival_chains_finish_in_the_soak() {
     let log = span.routine.clone().expect("the run kept no routine log");
     let (done, under_way) = &span.quests;
     assert!(span.death.is_none(), "the person died playing the survival quests: {:?}; {log:?}", span.death);
+    // The empty jars the eaten preserves hand back went to the Barn by the Store act (2026-11-21),
+    // measured from the backpack, so the pack keeps room for the meals taken from storage. Seen red
+    // 2026-11-21 with the routine's two Store acts taken out: "the Store act put no returned jar
+    // away; RoutineLog { ... eaten: {"applesauce_jar_0": 1, "canned_carrots_0": 1, "dried_apples_0":
+    // 2, ...} ... }". (The soak itself failed before the canners left the kit, the person starving
+    // with "nothing to eat after fetching" x60 behind a full 65 L pack: pres1's run, 2026-11-21.)
+    assert!(log.stored >= 1, "the Store act put no returned jar away; {log:?}");
     let (low, at) = log.lowest_energy.expect("the routine read no Energy");
     assert!(
         low >= 25.0,
         "a regular sleeper went under the fatigue line: Energy {low:.1} at {at:.2} h; Energy every 3 h of the first days {:?}",
         span.marks.iter().take(16).map(|(_, o)| get(o, "vitals.energy").round()).collect::<Vec<_>>()
     );
+    // Every survival quest, Dry It and Can It included (preserving rung 1). Seen red 2026-11-21 with
+    // the kit's eight apples taken out (scratchpad pres1-faults2.js): "the soak finished [... 9 quests]
+    // of the survival quests; under way ["gs_first_steps", "food_keep_can", "food_keep_dry",
+    // "tutorial_farming_basics"]" (Can It's applesauce needs apples too).
     let survival: Vec<String> = humanity_systems::quests::QuestRegistry::from_ron_dir(&data_dir().join("quests"))
         .quests
         .values()

@@ -978,6 +978,11 @@ fn draw_item_card(
             if let Some(words) = crate::gui::pages::cooking_panel::dish_words(&item.item_id, item.quality) {
                 widgets::detail_row(ui, theme, t("cooking.card_cooked"), &words);
             }
+            // A preserved food's state (preserving rung 1): never a safe-looking botulism jar.
+            if let Some((words, risky)) = crate::gui::pages::preserving_panel::state_words(&item.item_id, item.quality) {
+                let shown = if risky { format!("{words} {}", t("preserving.state_botulism_more")) } else { words };
+                widgets::detail_row(ui, theme, t("preserving.card_preserved"), &shown);
+            }
         }
     });
     if let Some(d) = &details {
@@ -2952,6 +2957,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 };
                 ui.label(RichText::new(format!("{}: {}", c.name, c.line)).size(theme.font_size_small).color(color));
             }
+            // A medbay's treatment, while an illness it treats is on you (2026-11-21, botulism).
+            super::medbay::draw(ui, theme);
 
             } // ── end Status ──
             });

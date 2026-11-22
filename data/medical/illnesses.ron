@@ -22,6 +22,12 @@
 // is a baby, old or already ill yet, so the faster, more dangerous course
 // they would have is not modelled (docs/BUGS.md, BUG-162).
 //
+// BOTULISM (preserving rung 1, 2026-11-21) is the exception: a toxin that
+// paralyses, so it takes no water and harms through its status_effects.csv row
+// instead, and its notice says its length is the game's (`course_line`),
+// because in real life it is a medical emergency, not something that passes
+// on its own.
+//
 // Sources, each read on 2026-10-05:
 //   CDC, "About Norovirus", 24 April 2024,
 //     https://www.cdc.gov/norovirus/about/index.html: "Most people with
@@ -50,8 +56,9 @@
     // Settings > Gameplay > Illness. Forgiving, the default (the house rule
     // for deep systems): the course lasts this share as long and takes this
     // share of the water. Realistic is the whole of both. A GAME CHOICE: the
-    // same "half" the body heat and garden modes use.
-    forgiving: (course_share: 0.5, water_share: 0.5),
+    // same "half" the body heat and garden modes use. `harm_share`: of an
+    // illness's own harm (`health_per_h`, botulism), the same half.
+    forgiving: (course_share: 0.5, water_share: 0.5, harm_share: 0.5),
 
     illnesses: [
         (
@@ -93,6 +100,45 @@
             again: "You are already ill with Food Poisoning, so this does not start it over.",
             // A few words for the HUD row after the illness's name (2026-10-12).
             hud: "drink while it lasts",
+        ),
+        (
+            // Botulism (preserving rung 1, 2026-11-21, docs/design/preserving.md): from a low-acid
+            // jar not canned by the tested pressure process (crates/humanity-systems/src/
+            // preserving.rs). Sources, read 2026-11-21 (the refutation pass in
+            // docs/reference/findings/2026-11-21-preserving-safety-facts.md):
+            //   CDC, "Symptoms of Botulism" (April 1, 2024): "Difficulty swallowing", "Muscle
+            //     weakness", "Double vision", "Drooping eyelids", "Blurry vision", "Slurred speech",
+            //     "Difficulty breathing", "Difficulty moving the eyes"; "Botulism is a medical
+            //     emergency."
+            //   CDC, "Treatment of Botulism" (April 17, 2024): "Botulism is treated with antitoxin,
+            //     which prevents the toxin from causing any more harm."; "Some people need to stay
+            //     in the hospital for weeks or even months"; "Today, fewer than 5 of every 100
+            //     people with botulism die."
+            //   FDA, Bad Bug Book, 2nd ed. (2012): onset in adults "Usually 18 to 36 hours after
+            //     ingesting food containing the toxin, although times have varied from 4 hours to
+            //     8 days." (No current CDC botulism page gives an onset time.)
+            // THE SEVERITY FOLLOWS THE MODE (the operator's call, 2026-11-21, "Yes" to the
+            // orchestrator's recommendation): in Realistic it is fatal unless treated at a medbay;
+            // in Forgiving it is serious but survivable. Treated means reaching a medbay (a room of the
+            // `medbay` type: General Services' medbay today; the Medical Bay district has no rooms
+            // yet) and getting its treatment
+            // there within the course (crates/humanity-systems/src/medbay.rs), as in real life the
+            // antitoxin is given in hospital.
+            // GAME CHOICES, labelled so on screen ("in the game"): it starts when the jar is eaten
+            // (the 18 to 36 hours wait is rung 2); its course (7 game days, status_effects.csv);
+            // the weakness (speed halved, status_effects.csv); the harm, 1 health an hour in
+            // Realistic, so a full body's 100 health is gone in about 4 game days of the 7 and only
+            // the medbay saves it; in Forgiving half that, over half the course, and never below a
+            // quarter of full health. No source gives these: CDC's "fewer than 5 of every 100"
+            // dying is with hospital care, and the game's medbay stands for that care. It takes no
+            // water: the danger is paralysis, not drying out. Its words are by key, under
+            // `illness.botulism` in data/i18n/en.json.
+            effect: "botulism",
+            water_l_per_day: 0.0,
+            words: "illness.botulism",
+            health_per_h: 1.0,
+            forgiving_floor: 0.25,
+            medbay_treats: true,
         ),
     ],
 

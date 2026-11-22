@@ -657,6 +657,9 @@ pub(crate) fn run(state: &mut EngineState, event: winit::event::KeyEvent, egui_c
                     open_showroom(state, 1);
                 } else if opens("wardrobe") {
                     open_showroom(state, 2);
+                } else if opens(crate::engine::medbay::PAGE) {
+                    // A medbay's treatment (2026-11-21, systems::medbay): ends botulism.
+                    crate::gui::pages::medbay::ask();
                 }
             }
         }

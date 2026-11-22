@@ -102,6 +102,8 @@ cup_0,Cup,tool,kitchen,ceramic,0.3,5,150,Drinking cup,solid,0.3
 measuring_jug_0,Measuring Jug (1 L),tool,kitchen,plastic,0.2,5,200,Clear jug marked in millilitres up to one litre,solid,1.2
 cooking_pot_0,Cooking Pot,tool,kitchen,steel,1.5,1,300,Lidded steel pot for boiling water and cooking,solid,5.0
 canning_jar_0,Canning Jar (pint),tool,container,glass,0.35,12,200,Mason-type home-canning jar with its screw band,solid,0.5
+water_bath_canner_0,Boiling-Water Canner,tool,kitchen,steel,3.0,1,500,A deep lidded pot with a jar rack: boiling water at least an inch over the jars (USDA),solid,20.0
+pressure_canner_0,Pressure Canner (weighted gauge),tool,kitchen,aluminum,6.0,1,500,A locking-lid canner with a 5/10/15 lb weighted gauge: the only way to can low-acid food safely (USDA; CDC),solid,22.0
 canning_lid_0,Canning Lid,material,container,steel,0.01,50,0,New flat self-sealing canning lid: it seals once,solid,0.01
 furnace_filter_0,Furnace Filter,material,climate,plant_fiber,0.5,5,0,Disposable air filter for a forced-air furnace,solid,6.5
 furnace_0,Furnace,machine,climate,steel,70.0,1,400,Forced-air furnace that heats a home through ducts,solid,300.0
@@ -203,10 +205,15 @@ coffee_0,Coffee,food,drink,plant_fiber,0.25,20,0,Roasted coffee beans 250g,food,
 tea_0,Tea,food,drink,plant_fiber,0.1,30,0,Dried tea leaves 100g box,food,0.19
 juice_0,Juice,food,drink,plant_fiber,0.5,10,0,Fruit juice bottle 500ml,food,0.93
 canned_food_0,Canned Food,food,preserved,steel,0.4,20,0,Sealed tinned meal,solid,0.11
+applesauce_jar_0,Applesauce (pint jar),food,preserved,glass,0.79,12,0,Home-canned applesauce in a sealed pint canning jar,solid,0.5
+canned_carrots_0,Carrots (pint jar),food,preserved,glass,0.82,12,0,Home-canned carrots in a sealed pint canning jar,solid,0.5
+canned_potatoes_0,Potatoes (pint jar),food,preserved,glass,0.82,12,0,Home-canned potatoes in a sealed pint canning jar,solid,0.5
 mre_0,MRE,food,preserved,tarp_material,0.5,10,0,Meal ready to eat field ration,solid,1.17
 protein_bar_0,Protein Bar,food,snack,plant_fiber,0.08,30,0,High-protein nutrition bar,solid,0.15
 energy_drink_0,Energy Drink,food,drink,aluminum,0.35,20,0,Caffeinated performance beverage,food,0.29
 dried_fruit_0,Dried Fruit,food,preserved,plant_fiber,0.15,30,0,Dehydrated mixed fruit,solid,0.28
+dried_apples_0,Dried Apples,food,preserved,plant_fiber,0.09,30,0,Home-dried apple rings (a 90 g bag),solid,0.3
+dried_carrots_0,Dried Carrots,food,preserved,plant_fiber,0.05,30,0,Home-dried carrot slices (a 50 g bag),solid,0.15
 dried_meat_0,Dried Meat,food,preserved,plant_fiber,0.1,30,0,Salt-cured preserved meat,solid,0.19
 honey_0,Honey,food,preserved,glass,0.5,10,0,Natural bee honey jar,food,0.44
 spice_mix_0,Spice Mix,food,seasoning,plant_fiber,0.05,30,0,Assorted cooking spices,solid,0.09

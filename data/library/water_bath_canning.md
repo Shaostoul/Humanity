@@ -562,28 +562,27 @@ sugar and whether to sieve.
 
 ## How the game models it
 
-The game does not model water-bath canning.
+Water-bath canning is a procedure in the game since preserving rung 1
+(2026-11-21, `docs/design/preserving.md`).
 
-- **There is no canner.** No item in the game is a boiling-water canner,
-  a canning jar, a canning lid or a jar lifter (`data/items.csv`), and no
-  recipe has a headspace, a pack, an added acid or a processing time that
-  changes with altitude (`data/recipes.csv`).
-- **No recipe cans an acid food.** Apples and tomatoes are in the game
-  (`data/items.csv`), but the recipes that use apples make dried fruit,
-  juice and pie, the ones that use tomatoes make pizza and salad, and
-  none makes applesauce, jam, jelly, pickles, or canned fruit or tomatoes
-  (`data/recipes.csv`).
-- **Its canning is the low-acid kind.** The recipe called Can Food turns
-  potatoes and carrots into Canned Food at the home's Stove. In real life
-  those are low-acid vegetables for a pressure canner, and [Pressure
-  Canning](/library#pressure-canning) describes what the game does with them.
-  The food data also has a general canning row, making food keep a
-  hundred times as long, that draws no line between acid and low-acid
-  food; no code acts on it yet (`data/food_system.ron`).
+- **Can Applesauce** (Crafting page, at the home's Stove, a boiling-water
+  canner, a canning jar and a utility knife) follows the USDA guide's table
+  as NCHFP prints it: pints 15 minutes up to 1,000 ft, 20 to 6,000 ft, 25
+  above; quarts 20 to 35 (`data/food_system.ron`, `preserving`). Apples are
+  an acid food, so boiling water is enough for them.
+- **Acid or low-acid decides the canner.** The card says which a food is. A
+  low-acid food (Can Carrots, Can Potatoes) in a boiling-water canner comes
+  out with a botulism risk on the jar; see [Pressure
+  Canning](/library#pressure-canning).
+- **Under-processed applesauce spoils** as fast as fresh apples; it is not a
+  botulism risk, because it is an acid food.
+- **Settings > Gameplay > Preserving** decides who chooses: Simplified (the
+  default) lets the canner pick the tested time.
 
-What the game leaves out, so you do not learn it from the game: the
-difference between acid and low-acid food, every step in this guide, and
-the fact that the food in a jar can look perfect and still be unsafe.
+What the game leaves out, so you do not learn it from the game: headspace,
+hot packing and the water over the jars are words on the card, not steps;
+there are no lids, seals or added acid; and there is no jam, jelly, pickle
+or tomato yet.
 
 ## You own this when
 
@@ -695,10 +694,9 @@ were read on 4 October 2026.
   USGS 3DEP elevation data: `data/locales/silverdale_wa/locale.json`
   (`elevation_m`), shown in [Silverdale,
   Washington](/library#silverdale-wa).
-- The game's items and recipes: `data/items.csv` (Apple, Tomato, Canned
-  Food) and `data/recipes.csv` (Dry Fruit, Press Juice, Bake Pie, Bake
-  Pizza, Make Salad, Can Food); the canning row no code reads yet:
-  `data/food_system.ron`.
+- The game's items and recipes: `data/items.csv` (Apple, Applesauce, the
+  canners and the jar) and `data/recipes.csv` (Can Applesauce, Can Carrots,
+  Can Potatoes); the tested tables: `data/food_system.ron` (`preserving`).
 - [Why Canning Has Rules](/library#why-canning-has-rules), [Keeping What You
   Grew](/library#keeping-what-you-grew), [Pressure
   Canning](/library#pressure-canning), [Fermenting

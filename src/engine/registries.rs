@@ -59,6 +59,10 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     // cooking card's heat and time for the next craft of a dish.
     store.insert(humanity_systems::cooking::DATA_KEY, humanity_systems::cooking::Cooking::load(data_dir));
     store.insert(humanity_systems::cooking::CHOICE_KEY, std::sync::Mutex::new(Option::<humanity_systems::cooking::Choice>::None));
+    // Preserving (2026-11-21, rung 1): the drying and canning procedures of food_system.ron, and the
+    // preserving card's method and time for the next craft of one.
+    store.insert(humanity_systems::preserving::DATA_KEY, humanity_systems::preserving::Preserving::load(data_dir));
+    store.insert(humanity_systems::preserving::CHOICE_KEY, std::sync::Mutex::new(Option::<humanity_systems::preserving::Choice>::None));
 
     // Environment region kinds (v0.1329). Same loader as every other registry:
     // it is bytes in, parsed table out, so the RON gets disk-first modding and

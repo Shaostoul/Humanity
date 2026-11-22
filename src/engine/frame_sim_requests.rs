@@ -40,6 +40,18 @@ pub(crate) fn carry(gui: &mut GuiState, data: &mut DataStore, world: &mut hecs::
             }
         }
     }
+    // A preserving procedure's method and time (preserving rung 1, 2026-11-21), the same way.
+    if let Some(choice) = crate::gui::pages::preserving_panel::take_pending() {
+        if let Some(slot) = data.get::<std::sync::Mutex<Option<humanity_systems::preserving::Choice>>>(humanity_systems::preserving::CHOICE_KEY) {
+            if let Ok(mut s) = slot.lock() {
+                *s = Some(choice);
+            }
+        }
+    }
+    // The medbay's treatment (2026-11-21): the Inventory page's "Get treated" or [E] in a medbay.
+    if crate::gui::pages::medbay::take_asked() {
+        humanity_systems::medbay::request(data);
+    }
     if gui.dev_stock_materials {
         gui.dev_stock_materials = false;
         if let Some(slot) = data

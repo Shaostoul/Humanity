@@ -210,7 +210,10 @@ pub struct TemperatureZone {
 #[derive(Debug, Default, Deserialize)]
 pub struct FoodData {
     pub nutrition_profiles: Vec<NutritionProfile>,
-    pub preservation_methods: Vec<ron::Value>,
+    /// Drying and canning as procedures against spoilage (preserving rung 1, 2026-11-21,
+    /// `crate::preserving`; it replaced the unsourced `preservation_methods` multipliers).
+    #[serde(default)]
+    pub preserving: crate::preserving::PreservingData,
     /// The heat around the food, per method (cooking rung 1, 2026-11-21, `crate::cooking`).
     pub cooking_methods: Vec<crate::cooking::CookingMethod>,
     /// A hand-cooked dish's grade, acted on when it is eaten (cooking rung 1).
@@ -361,6 +364,9 @@ const CONDITION_LINGER: f32 = 3.0;
 /// poisoning's is its Realistic course in game seconds, two days (BUG-162).
 const FALLBACK_WELL_FED_S: f32 = 1800.0;
 const FALLBACK_FOOD_POISONING_S: f32 = 172_800.0;
+/// Botulism's Realistic course when status_effects.csv has no row for it (preserving rung 1):
+/// the row's own figure, a game choice said so there.
+const FALLBACK_BOTULISM_S: f32 = 604_800.0;
 const FALLBACK_RESTED_S: f32 = 3600.0;
 /// Energy lost per game second while awake (real scale): full to the fatigue line
 /// (`FATIGUED_THRESHOLD`, 25, a game choice) in 17 waking hours, the point at which being awake
@@ -491,6 +497,8 @@ enum Consume {
 struct MealEffects {
     /// A fresh course of food poisoning in this Illness mode, game seconds.
     poisoning_s: f32,
+    /// A fresh course of botulism in this Illness mode, game seconds (preserving rung 1).
+    botulism_s: f32,
     /// The Illness mode, for what a second exposure adds (`Illnesses::again`).
     illness_mode: crate::illness::Mode,
     well_fed_s: f32,
@@ -595,6 +603,10 @@ pub struct FoodSystem {
     /// food classes (what an unsafe one keeps of its raw food's risk, what an overcooked one loses)
     /// and the meal grades' effects, all read off food_system.ron with the rest.
     cooking: crate::cooking::Cooking,
+    /// The preserving tables (2026-11-21, `crate::preserving`): which items are preserved by hand,
+    /// the fresh food a spoiling one keeps as, which jars carry a botulism risk, the jar eating one
+    /// hands back.
+    preserving: crate::preserving::Preserving,
 }
 
 impl FoodSystem {
@@ -653,6 +665,7 @@ impl FoodSystem {
             }
         }
         let cooking = crate::cooking::Cooking::from_food_data(&data);
+        let preserving = crate::preserving::Preserving::from_food_data(&data);
         let illnesses = crate::illness::Illnesses::load(data_dir);
         let treatments = crate::treatment::Treatments::load(data_dir);
         let wounds = crate::wounds::Wounds::load(data_dir);
@@ -675,6 +688,7 @@ impl FoodSystem {
             wounds,
             draws: crate::sim_seed::Stream::new(crate::sim_seed::FOOD),
             cooking,
+            preserving,
         }
     }
 
@@ -748,6 +762,16 @@ impl FoodSystem {
         self.profile_for(item_id).map(|p| f64::from(p.spoilage_rate_hours) * 3600.0)
     }
 
+    /// How long a stack of `item_id` whose grade byte is `quality` stays fresh: a preserved food
+    /// that came out spoiling (not dry, an acid jar under-processed; preserving rung 1) keeps only
+    /// as long as its fresh food; everything else by its own profile.
+    fn freshness_of(&self, item_id: &str, quality: u8) -> Option<f64> {
+        match self.preserving.keeps_as(item_id, quality) {
+            Some(fresh) => self.freshness_secs(fresh).or_else(|| self.freshness_secs(item_id)),
+            None => self.freshness_secs(item_id),
+        }
+    }
+
     /// Eat or drink one `item_id` from the first living player (Inventory + Vitals +
     /// StatusEffects, no `Dead`) who carries it, applying the food's nutrition. Items that
     /// are not food, and non-beverages sent to Drink, are ignored; a dead body's
@@ -800,8 +824,8 @@ impl FoodSystem {
             .map(|p| p.raw_consumption_risk);
         let dish_keeps = made_by.and_then(|d| self.cooking.keeps_of(d));
 
-        // Spoiled = the stack's own clock past the food's time (§3).
-        let keeps = self.freshness_secs(item_id).unwrap_or(f64::INFINITY);
+        // Spoiled = the stack's own clock past the food's time (§3), read per stack below: a
+        // preserved food that came out spoiling keeps only as long as its fresh food.
         let mut dead_carrier = false;
         for (_e, (inv, vitals, effects, dead, ledger)) in world.query_mut::<(
             &mut Inventory,
@@ -833,7 +857,7 @@ impl FoodSystem {
                 .rev()
                 .flatten()
                 .find(|stack| stack.item_id == item_id)
-                .is_some_and(|stack| stack.age_s >= keeps);
+                .is_some_and(|stack| stack.age_s >= self.freshness_of(item_id, stack.quality).unwrap_or(f64::INFINITY));
             // The same stack's dish state (cooking::DishState on its grade byte), 0 when it was not
             // cooked by hand. Only an item a dish makes carries one.
             let dish = class.as_ref().and_then(|_| {
@@ -845,6 +869,12 @@ impl FoodSystem {
             let risk = match dish {
                 Some(d) if !d.safe => unsafe_risk.unwrap_or(risk).max(risk),
                 _ => risk,
+            };
+            // A low-acid jar not canned by the tested pressure process (preserving rung 1): its
+            // botulism risk, read off the same stack's grade byte.
+            let botulism_jar = {
+                let byte = inv.slots.iter().rev().flatten().find(|stack| stack.item_id == item_id).map_or(0, |stack| stack.quality);
+                self.preserving.botulism(item_id, byte)
             };
 
             inv.remove_item(item_id, 1);
@@ -923,13 +953,27 @@ impl FoodSystem {
                     // it lasts and what helps.
                     Some(ill) => {
                         effects.apply("food_poisoning", fx.poisoning_s);
-                        let msg = crate::illness::Illnesses::onset_notice(ill, fx.poisoning_s);
+                        let msg = crate::illness::Illnesses::onset_notice(ill, fx.poisoning_s, fx.illness_mode);
                         crate::sleep::notice(data, msg);
                     }
                     // No illness data (a broken install): the effect alone, and
                     // still never started over.
                     None if !already => effects.apply("food_poisoning", fx.poisoning_s),
                     None => {}
+                }
+            }
+            // Botulism from a jar that carries its risk (preserving rung 1): the chance is a game
+            // choice (food_system.ron `botulism_risk`), the illness a serious one
+            // (data/medical/illnesses.ron). Illness Off: never.
+            if botulism_jar
+                && fx.illness_mode != crate::illness::Mode::Off
+                && !effects.has("botulism")
+                && rand::Rng::random::<f32>(self.draws.rng(data)) < self.preserving.data.botulism_risk
+            {
+                log::info!("[Food] {item_id} consumed from a jar with a botulism risk -> botulism");
+                effects.apply("botulism", fx.botulism_s);
+                if let Some(ill) = self.illnesses.get("botulism") {
+                    crate::sleep::notice(data, crate::illness::Illnesses::onset_notice(ill, fx.botulism_s, fx.illness_mode));
                 }
             }
             // A satisfying meal grants well_fed (stamina regen) + well_nourished
@@ -1064,6 +1108,7 @@ impl System for FoodSystem {
                 // The Realistic course, or Forgiving's share of it.
                 poisoning_s: effect_s("food_poisoning", FALLBACK_FOOD_POISONING_S)
                     * self.illnesses.course_share(illness_mode),
+                botulism_s: effect_s("botulism", FALLBACK_BOTULISM_S) * self.illnesses.course_share(illness_mode),
                 illness_mode,
                 well_fed_s: effect_s("well_fed", FALLBACK_WELL_FED_S),
                 nourished_s: effect_s("well_nourished", FALLBACK_WELL_FED_S),
@@ -1076,8 +1121,21 @@ impl System for FoodSystem {
                     .collect(),
             };
             let fluids = data.get::<crate::fluids::FluidTable>("fluid_table");
+            // A drink hands back its vessel, an eaten jar its empty canning jar (preserving rung 1).
+            // (Owned, so the closure holds no borrow of the system across `consume`; built only on a
+            // frame with an eat or drink request.)
+            let jars: Vec<(String, String)> = self
+                .preserving
+                .data
+                .procedures
+                .iter()
+                .filter_map(|p| p.jar.clone().map(|j| (p.makes.clone(), j)))
+                .collect();
             let empty_of = |id: &str| {
-                fluids.and_then(|t| t.empty_of(id)).map(|e| (e.to_string(), item_registry.map_or(99, |r| r.max_stack_for(e))))
+                fluids
+                    .and_then(|t| t.empty_of(id))
+                    .or_else(|| jars.iter().find(|(made, _)| made == id).map(|(_, jar)| jar.as_str()))
+                    .map(|e| (e.to_string(), item_registry.map_or(99, |r| r.max_stack_for(e))))
             };
             if let Some(item_id) = consumed {
                 let back = empty_of(&item_id);
@@ -1106,6 +1164,18 @@ impl System for FoodSystem {
         //    data/medical/treatments.ron (systems::treatment).
         if let Some(item_id) = crate::treatment::take_request(data) {
             self.use_item(world, &item_id, registry, data);
+        }
+        // ── 1a'. THE MEDBAY (2026-11-21, systems::medbay): its treatment, asked for in a medbay,
+        //    ends the illnesses it treats (botulism); asked for anywhere else it is refused with
+        //    words that say where to go.
+        if crate::medbay::take_request(data) {
+            let at = crate::medbay::here(data);
+            for (_e, (effects, _c)) in world.query_mut::<(&mut StatusEffects, &humanity_core::ecs::components::Controllable)>() {
+                let (msg, treated) = crate::medbay::treat(&self.illnesses, effects, registry, at);
+                log::info!("[Food] medbay treatment (at a medbay: {at}, treated: {treated})");
+                crate::sleep::notice(data, msg);
+                break; // first player only
+            }
         }
 
         // ── 1b. REST: drain the rest_request channel (the Rest button): a short
@@ -1497,6 +1567,17 @@ impl System for FoodSystem {
             // A Controllable (the player) whose health reaches zero THIS tick
             // dies: recorded here, Dead inserted after the query borrow ends.
             if let Some(health) = health {
+                // ── AN ILLNESS'S OWN HARM (2026-11-21, systems::illness): by the Illness and
+                // injury mode, on the game clock. Botulism kills in Realistic unless a medbay
+                // treats it (systems::medbay); in Forgiving it never takes the body below its
+                // floor, so it is serious but survivable.
+                let after_others = (f64::from(health.current) - health_drain) as f32;
+                for (effect, amt) in self.illnesses.harm(effects, illness_mode, game_s, after_others, health.max) {
+                    health_drain += amt;
+                    if amt > worst.1 {
+                        worst = (registry.and_then(|r| r.get(&effect)).map_or("an illness", |d| d.name.as_str()), amt);
+                    }
+                }
                 // ── HEALING BY ITSELF (first-hour audit S8, systems::wounds):
                 // slowly when nothing took health this tick, faster asleep,
                 // slower while Hungry or Thirsty, never while bleeding,
@@ -1531,7 +1612,7 @@ impl System for FoodSystem {
                 for active in &effects.active {
                     if active.remaining - f64::from(step(&active.id)) <= 0.0 {
                         if let Some(ill) = self.illnesses.get(&active.id) {
-                            passed.push(ill.passed.clone());
+                            passed.push(ill.passed_words());
                         }
                     }
                 }
@@ -1586,7 +1667,7 @@ impl System for FoodSystem {
             for (slot_idx, stack) in inv.slots.iter_mut().enumerate() {
                 let Some(stack) = stack.as_mut() else { continue };
                 // Only food spoils, on its own profile's timescale.
-                let Some(keeps) = self.freshness_secs(&stack.item_id) else { continue };
+                let Some(keeps) = self.freshness_of(&stack.item_id, stack.quality) else { continue };
                 let before = stack.age_s;
                 stack.age_s += aged(carried);
                 if before < keeps && stack.age_s >= keeps {

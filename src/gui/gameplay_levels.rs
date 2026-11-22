@@ -184,6 +184,8 @@ pub fn understood(setting: &str, level: &str) -> bool {
         "skill_learning" => sys::skills::quality::LearningMode::from_level(level).is_some(),
         // Cooking (2026-11-21, rung 1): who picks a dish's heat and time.
         "cooking" => sys::cooking::Mode::from_level(level).is_some(),
+        // Preserving (2026-11-21, rung 1): who picks a procedure's method and time.
+        "preserving" => sys::preserving::Mode::from_level(level).is_some(),
         // Numbers, used as they are.
         "hostile_wildlife" | "vitals_drain" => setting_has_value(setting, level),
         // The share of a loss kept (0 Off, 1 Realistic): the systems clamp to 0..1, so a level

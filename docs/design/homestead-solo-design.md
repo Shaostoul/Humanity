@@ -235,8 +235,9 @@ calendula, aloe_vera`) for teas, seasoning, and folk remedies.
 
 ### Cooking/preservation (all real recipes in `recipes.csv`, machines in `structures.csv`)
 `oven` + `stove` (from structures.csv) run: `grind_flour` (grain_mill) →
-`cook_bread`, `cook_soup`, `cook_stew`, `cook_canned_food`,
-`cook_protein_bar`, `cook_dried_fruit`, `cook_dried_meat`, `cook_juice`.
+`cook_bread`, `cook_soup`, `cook_stew`, `can_applesauce`, `can_carrots`, `can_potatoes`,
+`cook_protein_bar`, `dry_apples`, `dry_carrots`, `cook_dried_meat`, `cook_juice` (the canning and
+drying procedures since preserving rung 1, 2026-11-21: docs/design/preserving.md).
 Preservation to survive the seasonal gap: canning/drying via those recipes
 + `pantry` + `freezer` (structures.csv). This closes the "preservation
 buffer" term self-sufficiency.md requires.

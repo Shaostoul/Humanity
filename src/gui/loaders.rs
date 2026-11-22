@@ -1259,6 +1259,12 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
                 &r.category,
                 &humanity_systems::crafting::Recipe::parse_ingredients(&r.outputs),
             ),
+            tools_at_home: tool_rules.kept_at_home(&tool_rules.tools_for(
+                &r.id,
+                r.station_required.trim(),
+                &r.category,
+                &humanity_systems::crafting::Recipe::parse_ingredients(&r.outputs),
+            )),
             id: r.id,
             name: r.name,
             category: r.category,

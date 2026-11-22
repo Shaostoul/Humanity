@@ -37,6 +37,12 @@
 //! of each in the shipped data, the same "half" as body heat's Forgiving mode. Settings >
 //! Gameplay > Illness, published to the DataStore under `MODE_KEY` by engine::survival_env.
 //!
+//! AN ILLNESS THAT HARMS (2026-11-21, botulism; the operator's call). An illness whose danger is
+//! not water carries its own harm in its row (`health_per_h`), by mode: Realistic the whole of it,
+//! Forgiving `forgiving.harm_share` of it and never below its `forgiving_floor` of full health, so
+//! botulism kills in Realistic unless a medbay treats it (`systems::medbay`) and is serious but
+//! survivable in Forgiving. Its words are by key (`Illness::words`), per mode.
+//!
 //! Pure data and math with no engine state, so it compiles in every feature set (the relay
 //! build includes `systems/`).
 
@@ -91,11 +97,13 @@ impl Mode {
     }
 }
 
-/// Forgiving's shares of the Realistic course and water loss.
+/// Forgiving's shares of the Realistic course, water loss and harm.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Shares {
     pub course_share: f32,
     pub water_share: f32,
+    /// Of an illness's own harm (`Illness::health_per_h`, 2026-11-21).
+    pub harm_share: f32,
 }
 
 /// One illness: a row of data/medical/illnesses.ron.
@@ -105,12 +113,33 @@ pub struct Illness {
     pub effect: String,
     /// Litres of the body's water it takes a day while it lasts, Realistic.
     pub water_l_per_day: f32,
+    /// The key prefix of its words in data/i18n/en.json (2026-11-21, botulism first; the one word
+    /// source): when set, what the player is told is read from `<words>.onset`, `.helps`,
+    /// `.passed`, `.again`, `.hud`, and `.course_realistic` / `.course_forgiving` (with {{time}}),
+    /// and the English fields below are left out of the row.
+    #[serde(default)]
+    pub words: String,
     /// What the player is told when they fall ill.
+    #[serde(default)]
     pub onset: String,
     /// What helps, told when they fall ill and when a medicine cannot help.
+    #[serde(default)]
     pub helps: String,
     /// What the player is told when it has passed.
+    #[serde(default)]
     pub passed: String,
+    /// Health it takes an hour of the game clock while it lasts, Realistic (2026-11-21): 0 for
+    /// an illness whose danger is the water it takes. Forgiving takes `forgiving.harm_share` of it,
+    /// and never below `forgiving_floor`.
+    #[serde(default)]
+    pub health_per_h: f32,
+    /// In Forgiving, the share of the body's full health this illness never takes it below:
+    /// serious but survivable (botulism, the operator's call of 2026-11-21).
+    #[serde(default)]
+    pub forgiving_floor: f32,
+    /// A medbay's treatment ends it (`systems::medbay`).
+    #[serde(default)]
+    pub medbay_treats: bool,
     /// The most a second exposure while it still lasts adds to the time left
     /// (2026-10-05): game hours of the Realistic course, of which Forgiving adds
     /// its `course_share`, and never past a fresh course. 0, or absent from the
@@ -125,6 +154,75 @@ pub struct Illness {
     /// while it lasts". Absent from the file: the name alone.
     #[serde(default)]
     pub hud: String,
+}
+
+impl Illness {
+    /// One part of what the player is told: from the word source when the row names its `words`,
+    /// else the row's English `field`.
+    fn part(&self, part: &str, field: &str) -> String {
+        if self.words.is_empty() {
+            field.to_string()
+        } else {
+            word(&format!("{}.{part}", self.words))
+        }
+    }
+
+    /// What the player is told when they fall ill.
+    pub fn onset_words(&self) -> String {
+        self.part("onset", &self.onset)
+    }
+
+    /// What helps.
+    pub fn helps_words(&self) -> String {
+        self.part("helps", &self.helps)
+    }
+
+    /// What the player is told when it has passed.
+    pub fn passed_words(&self) -> String {
+        self.part("passed", &self.passed)
+    }
+
+    /// What the player is told when it happens again while it lasts (empty: the game's line).
+    pub fn again_words(&self) -> String {
+        self.part("again", &self.again)
+    }
+
+    /// The HUD row's few words.
+    pub fn hud_words(&self) -> String {
+        self.part("hud", &self.hud)
+    }
+
+    /// How long it lasts in `mode`, `course_s` game seconds, said: a worded illness says it per
+    /// mode (botulism: fatal untreated in Realistic, survivable in Forgiving, a medbay treats it),
+    /// the others "It passes on its own in about ...".
+    pub fn course_words(&self, mode: Mode, course_s: f32) -> String {
+        if self.words.is_empty() {
+            return format!("It passes on its own in about {}.", duration_words(course_s));
+        }
+        let key = if mode == Mode::Realistic { "course_realistic" } else { "course_forgiving" };
+        word(&format!("{}.{key}", self.words)).replace("{{time}}", &duration_words(course_s))
+    }
+}
+
+/// The words for `key` from the one word source: the desktop's lookup (every language). The
+/// server build has no lookup and never shows these, so there the English is read from
+/// data/i18n/en.json, once (`crafting::home_store::words`'s rule); without it, the key.
+pub fn word(key: &str) -> String {
+    #[cfg(feature = "native")]
+    {
+        humanity_core::i18n::t_dyn(key).to_string()
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        static ENGLISH: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+        let english = ENGLISH.get_or_init(|| {
+            std::fs::read_to_string(humanity_core::storage::data_dir().join("i18n").join("en.json"))
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or(serde_json::Value::Null)
+        });
+        key.split('.').fold(english, |v, part| &v[part]).as_str().unwrap_or(key).to_string()
+    }
 }
 
 /// How much of a drink's water a body keeps while an illness is taking water.
@@ -151,7 +249,7 @@ impl Default for Illnesses {
     /// the whole course.
     fn default() -> Self {
         Self {
-            forgiving: Shares { course_share: 1.0, water_share: 1.0 },
+            forgiving: Shares { course_share: 1.0, water_share: 1.0, harm_share: 1.0 },
             illnesses: Vec::new(),
             drinks_while_ill: DrinksWhileIll { others: 1.0, kept: Vec::new() },
         }
@@ -201,6 +299,40 @@ impl Illnesses {
         }
     }
 
+    /// The share of an illness's Realistic harm this mode takes.
+    pub fn harm_share(&self, mode: Mode) -> f64 {
+        match mode {
+            Mode::Off => 0.0,
+            Mode::Realistic => 1.0,
+            Mode::Forgiving => f64::from(self.forgiving.harm_share.clamp(0.0, 1.0)),
+        }
+    }
+
+    /// The health the illnesses on a body take in `game_s` game seconds, in `mode`, as (effect,
+    /// amount), the body at `current` of `max` health: each one's `health_per_h` for at most the
+    /// time it has left, this mode's share of it, and in Forgiving never below its
+    /// `forgiving_floor` of `max` (2026-11-21, the operator's call: botulism kills in Realistic
+    /// unless a medbay treats it, and is serious but survivable in Forgiving).
+    pub fn harm(&self, effects: &StatusEffects, mode: Mode, game_s: f64, current: f32, max: f32) -> Vec<(String, f64)> {
+        let mut left = f64::from(current);
+        let mut out = Vec::new();
+        for active in &effects.active {
+            let Some(i) = self.get(&active.id) else { continue };
+            if i.health_per_h <= 0.0 {
+                continue;
+            }
+            let secs = game_s.max(0.0).min(active.remaining.max(0.0));
+            let mut amt = f64::from(i.health_per_h) / crate::time::SECONDS_PER_HOUR * secs * self.harm_share(mode);
+            if mode == Mode::Forgiving {
+                let floor = f64::from(i.forgiving_floor.clamp(0.0, 1.0) * max);
+                amt = amt.min((left - floor).max(0.0));
+            }
+            left -= amt;
+            out.push((active.id.clone(), amt));
+        }
+        out
+    }
+
     /// The illnesses on a body, in the order it caught them.
     pub fn on<'a>(&'a self, effects: &'a StatusEffects) -> impl Iterator<Item = &'a Illness> + 'a {
         effects.active.iter().filter_map(move |e| self.get(&e.id))
@@ -235,10 +367,11 @@ impl Illnesses {
     /// line and how long the illness still lasts, `before_s` and `after_s` game seconds being
     /// what was left before and after.
     pub fn again_notice(illness: &Illness, before_s: f64, after_s: f64) -> String {
-        let line = if illness.again.trim().is_empty() {
+        let again = illness.again_words();
+        let line = if again.trim().is_empty() {
             "You are already ill, so this does not start it over."
         } else {
-            illness.again.as_str()
+            again.as_str()
         };
         if after_s < 45.0 * 60.0 {
             return format!("{line} It passes on its own within the hour.");
@@ -258,9 +391,9 @@ impl Illnesses {
     }
 
     /// What the player is told when they fall ill: the data's onset line, how long it lasts
-    /// (`course_s` game seconds, in this mode) and what helps.
-    pub fn onset_notice(illness: &Illness, course_s: f32) -> String {
-        format!("{} It passes on its own in about {}. {}", illness.onset, duration_words(course_s), illness.helps)
+    /// (`course_s` game seconds, in `mode`) and what helps.
+    pub fn onset_notice(illness: &Illness, course_s: f32, mode: Mode) -> String {
+        format!("{} {} {}", illness.onset_words(), illness.course_words(mode, course_s), illness.helps_words())
     }
 
     /// What helps with each illness on a body, named, for a medicine that cannot help:
@@ -269,7 +402,7 @@ impl Illnesses {
         self.on(effects)
             .map(|i| {
                 let name = registry.and_then(|r| r.get(&i.effect)).map_or(i.effect.as_str(), |d| d.name.as_str());
-                format!("For {name}: {}", i.helps)
+                format!("For {name}: {}", i.helps_words())
             })
             .collect()
     }
@@ -371,10 +504,26 @@ mod tests {
             let def = reg.get(&i.effect).unwrap_or_else(|| panic!("{} is not a status effect", i.effect));
             assert_eq!(def.kind, DISEASE, "{} is an illness, so it is a disease row", i.effect);
             assert!(def.duration_s > 0.0, "{} passes: it has a course", i.effect);
-            assert_eq!(def.damage_per_tick, 0.0, "{} does no harm of its own: it takes water", i.effect);
-            assert!(i.water_l_per_day > 0.0 && !i.onset.is_empty() && !i.helps.is_empty() && !i.passed.is_empty());
+            // A stomach illness does no harm of its own: it takes water. A paralysing one (botulism,
+            // preserving rung 1) takes none and harms by its row here (`health_per_h`, by mode,
+            // never through status_effects.csv's mode-blind damage), and says its words by key,
+            // per mode, never "it passes on its own".
+            assert_eq!(def.damage_per_tick, 0.0, "{}: an illness's harm is its row here, by mode", i.effect);
+            let takes_water = i.water_l_per_day > 0.0 && i.health_per_h == 0.0;
+            let harms = i.water_l_per_day == 0.0 && i.health_per_h > 0.0 && !i.words.is_empty();
+            assert!(takes_water || harms, "{}: either it takes water and does no harm of its own, or it harms and says so by key", i.effect);
+            for (part, said) in [("onset", i.onset_words()), ("helps", i.helps_words()), ("passed", i.passed_words())] {
+                assert!(!said.is_empty() && said != format!("{}.{part}", i.words), "{}: no words for {part}", i.effect);
+            }
+            if !i.words.is_empty() {
+                for mode in [Mode::Realistic, Mode::Forgiving] {
+                    let said = i.course_words(mode, 3600.0);
+                    assert!(said.contains("an hour") && !said.contains(&i.words), "{}: the {mode:?} course words: {said}", i.effect);
+                }
+            }
         }
         assert!(ill.course_share(Mode::Forgiving) < 1.0 && ill.water_share(Mode::Forgiving) < 1.0, "Forgiving is milder");
+        assert!(ill.harm_share(Mode::Forgiving) < 1.0, "Forgiving harms less");
         assert_eq!(ill.course_share(Mode::Realistic), 1.0);
     }
 

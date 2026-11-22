@@ -143,6 +143,14 @@
         { "id": "guided", "words": "gameplay.level.guided", "says": "gameplay.cooking_guided" },
         { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.cooking_realistic" }
       ]
+    },
+    {
+      "id": "preserving", "words": "gameplay.preserving", "note": "gameplay.preserving_note", "default": "simplified",
+      "levels": [
+        { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.preserving_simplified" },
+        { "id": "guided", "words": "gameplay.level.guided", "says": "gameplay.preserving_guided" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.preserving_realistic" }
+      ]
     }
   ]
 }

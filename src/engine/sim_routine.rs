@@ -59,6 +59,10 @@ pub(crate) enum ActKind {
     PlantTower,
     /// The Inventory page's Compost button.
     Compost,
+    /// The Inventory page's "Stash to" on every stack of item `what` the backpack holds, into the
+    /// home-storage container labelled `into` (2026-11-21, preserving rung 1: the empty canning jars
+    /// eaten jars hand back go to the Barn, where a craft at home still takes them).
+    Store,
 }
 
 /// One act at an hour of the home's day.
@@ -74,6 +78,10 @@ pub(crate) struct Act {
     /// Only on this day of the run (0 = the day it starts on); None every day.
     #[serde(default)]
     pub day: Option<u32>,
+    /// Where a Store act puts things: a container's label in the Inventory page's Stash to list
+    /// ("Barn"); empty for the other acts.
+    #[serde(default)]
+    pub into: String,
 }
 
 /// data/sim/routines/<id>.ron.
@@ -129,6 +137,8 @@ pub(crate) struct RoutineLog {
     /// The acts that only ask (accept, view, read, craft, plant, compost), by what they asked:
     /// "craft mix_ors". What came of them is the systems' to show (the quests' tracker).
     pub asked: BTreeMap<String, u32>,
+    /// Items the Store acts took out of the backpack into home storage (measured from the backpack).
+    pub stored: u32,
     /// The lowest Energy the body read at the end of any step from the first morning after a night
     /// in bed, and the home's local hour then (2026-11-21): a regular sleeper's day must end above
     /// the fatigue line, so a soak holds this at 25 or more. Not before: a run's clock starts at the
@@ -184,6 +194,8 @@ enum Pending {
     Check { kind: ActKind, item: String, before: u32, from_garden: bool },
     /// Asked for the tank's Fill: the full vessels carried before.
     Filled { full_before: f64 },
+    /// Asked to store every `item` carried, `before` of them.
+    Stored { item: String, before: u32 },
 }
 
 /// A routine running through a soak.
@@ -247,7 +259,7 @@ impl RoutineRun {
         if self.pending.iter().all(|p| !matches!(p, Pending::Check { .. })) && !self.queue.is_empty() {
             let i = self.queue.remove(0);
             let act = self.routine.acts[i].clone();
-            self.start(world, data, gui, act.act, &act.what);
+            self.start(world, data, gui, act.act, &act.what, &act.into);
         }
     }
 
@@ -320,13 +332,21 @@ impl RoutineRun {
                         self.miss("the tank's Fill did nothing".to_string());
                     }
                 }
+                Pending::Stored { item, before } => {
+                    let now = carried(world, &item);
+                    if now < before {
+                        self.log.stored += before - now;
+                    } else {
+                        self.miss(format!("store request did nothing ({item})"));
+                    }
+                }
                 other => self.pending.push(other),
             }
         }
     }
 
     /// Start one act: fetch what it needs (its requests on `gui`), to eat or drink next step.
-    fn start(&mut self, world: &hecs::World, data: &DataStore, gui: &mut GuiState, kind: ActKind, what: &str) {
+    fn start(&mut self, world: &hecs::World, data: &DataStore, gui: &mut GuiState, kind: ActKind, what: &str, into: &str) {
         let pack = pack_counts(world);
         match kind {
             ActKind::Drink => {
@@ -394,6 +414,13 @@ impl RoutineRun {
                 gui.pending_plant_tower = Some((tower.id.clone(), cups));
             }
             ActKind::Compost => gui.pending_compost = true,
+            ActKind::Store => {
+                if !store_in(world, data, gui, what, into) {
+                    self.miss(format!("nothing to store ({what}) or no home storage called {into}"));
+                    return;
+                }
+                self.pending.push(Pending::Stored { item: what.to_string(), before: pack.get(what).copied().unwrap_or(0) });
+            }
         }
         if !matches!(kind, ActKind::Drink | ActKind::Eat | ActKind::Sleep | ActKind::Rest) {
             let asked = if what.is_empty() { act_word(kind).to_string() } else { format!("{} {what}", act_word(kind)) };
@@ -449,6 +476,7 @@ fn act_word(kind: ActKind) -> &'static str {
         ActKind::Plant => "plant",
         ActKind::PlantTower => "plant tower",
         ActKind::Compost => "compost",
+        ActKind::Store => "store",
     }
 }
 
@@ -545,6 +573,33 @@ pub(crate) fn ripe_crops(world: &hecs::World, data: &DataStore) -> Vec<u64> {
     let ents: Vec<hecs::Entity> = crops.iter().map(|c| c.0).collect();
     let picking = farming::picking::GuiView::for_crops(world, data, &ents);
     crops.into_iter().filter(|(e, mature)| picking.ready(*e, *mature)).map(|(e, _)| e.to_bits().into()).collect()
+}
+
+/// The Inventory page's "Stash to" on every stack of `item` the backpack holds, into the
+/// home-storage container labelled `into`, as the page sends it (inventory.rs: a removal from the
+/// backpack worn and graded as the stack is, and the stack into the container at the age it had).
+/// False when the backpack holds none or no container has that label.
+fn store_in(world: &hecs::World, data: &DataStore, gui: &mut GuiState, item: &str, into: &str) -> bool {
+    let containers = crate::gui::collect_containers(&gui.places);
+    let Some((target, _)) = containers.into_iter().find(|(_, label)| label == into) else { return false };
+    let stacks: Vec<(u32, u32, u8, f64)> = world
+        .query::<(&Inventory, &Controllable)>()
+        .iter()
+        .next()
+        .map(|(_, (inv, _))| inv.slots.iter().flatten().filter(|s| s.item_id == item).map(|s| (s.quantity, s.wear, s.quality, s.age_s)).collect())
+        .unwrap_or_default();
+    if stacks.is_empty() {
+        return false;
+    }
+    let name = data
+        .get::<humanity_systems::inventory::ItemRegistry>("item_registry")
+        .and_then(|r| r.items.get(item))
+        .map_or_else(|| item.to_string(), |d| d.name.clone());
+    for (qty, wear, quality, age_s) in stacks {
+        gui.pending_inventory_transfers.push(humanity_systems::inventory::TransferOp { item_id: item.to_string(), qty, add: false, wear, quality, age_s });
+        gui.placed_items.push(humanity_systems::inventory::placed::PlacedItem { key: item.to_string(), name: name.clone(), qty, container: target.clone(), wear, quality, age_s });
+    }
+    true
 }
 
 /// "Take to backpack" on one of the first food in `foods` home storage holds, as the Inventory

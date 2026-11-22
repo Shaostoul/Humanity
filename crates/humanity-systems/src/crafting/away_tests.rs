@@ -247,7 +247,7 @@ fn the_batch_in_flight_at_the_save_lands_and_the_machine_carries_on() {
     // As resume_home hands them over: the batch counted down by the time
     // away (restored_crafts), and when it was due.
     *data.get::<Mutex<Option<Vec<CraftSave>>>>("restore_active_crafts").unwrap().lock().unwrap() =
-        Some(vec![CraftSave { recipe_id: "mill".into(), time_remaining: 0.0, auto: true, machine_id: Some("mill_1".into()), pad: None, cook: None }]);
+        Some(vec![CraftSave { recipe_id: "mill".into(), time_remaining: 0.0, auto: true, machine_id: Some("mill_1".into()), pad: None, cook: None, preserve: None }]);
     let mut work = away_for(100.0);
     work.busy.insert("mill_1".into(), 5.0);
     away::hand_over(&data, Some(work));

@@ -2789,6 +2789,7 @@ mod tests {
             machine_id: Some("smelter_1".to_string()),
             pad: None,
             cook: None,
+            preserve: None,
         };
         save.crafts = vec![batch(7.0), batch(9_000.0)];
         let r: Vec<f32> = restored_crafts(&save, 3_600.0).iter().map(|c| c.time_remaining).collect();

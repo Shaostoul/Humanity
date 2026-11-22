@@ -536,24 +536,19 @@ leaves the chemistry out.
   Freezer, which keeps its food frozen (`keeps_zone` in
   `data/containers/types.csv`); [Cold Storage Without a
   Fridge](/library#cold-storage-without-a-fridge) has the detail.
-- **Preserving recipes.** Dry Fruit, Dry Meat, Make Jerky and Can Food
-  turn fresh ingredients into the longer-keeping foods (`data/recipes.csv`).
-  In the Normal play mode, where the game starts (Settings > Gameplay >
-  Play mode), a craft uses up its ingredients and wears any tool it needs,
-  such as the Utility Knife for Can Food and Make Jerky
-  (`crates/humanity-systems/src/crafting/mod.rs`, `data/crafting/tools.ron`). None of
-  them has a salt ratio, an acid, a temperature, a time or a seal to get
-  right, and Can Food makes potatoes and carrots, low-acid vegetables,
-  into canned food at a stove ([Pressure Canning](/library#pressure-canning)
-  says what that leaves out).
-- **The methods are only written down.** The food data lists eight
-  preservation methods with how much longer each makes food keep:
-  refrigeration 4 times, freezing 20, canning 100, drying 20, salting 15,
-  smoking 10, vacuum sealing 5 and irradiation 50. The game loads that
-  list but nothing uses it (`data/food_system.ron`,
-  `crates/humanity-systems/src/food.rs`), and its smoking
-  row credits smoke with antimicrobial compounds and drying where the
-  Pacific Northwest guide says smoke is no preservative on its own.
+- **Drying and canning are procedures** (preserving rung 1, 2026-11-21,
+  `docs/design/preserving.md`). Dry Apples and Dry Carrots dry on a model of
+  water leaving the food until it reaches about 20% water for fruit and 10%
+  for vegetables; taken off too soon, it spoils like fresh food. Can
+  Applesauce, Can Carrots and Can Potatoes follow the USDA guide's tested
+  tables; a low-acid food canned any way but the tested pressure process
+  carries a botulism risk, said on the jar ([Drying Food](/library#drying-food),
+  [Pressure Canning](/library#pressure-canning)). A dried or canned food keeps on
+  its own, far longer clock (`data/food_system.ron`, `preserving`).
+- **Salting is not yet a procedure.** Dry Meat and Make Jerky are plain
+  recipes; salting by weight waits for the long-process clock, because the
+  one complete home procedure found, a dry-cured country ham, cures for about
+  60 days below 4 C (40 F).
 - **Under the default settings.** In Normal, only the Dev play mode's
   tools take you off the ship, so the food you carry ages at the ship's
   room temperature (`src/config.rs`, `src/engine/survival_env.rs`). The

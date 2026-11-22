@@ -227,15 +227,15 @@
     },
     {
       "id": "preserving", "family": "food", "name": "Preserving: drying, salting, canning, cold storage", "skills": ["preserving"], "status": "partial",
-      "evidence": ["data/recipes.csv", "crates/humanity-systems/src/food.rs", "data/food_system.ron", "data/how_to/food/test_jar_seals.json"],
-      "features_heading": null,
-      "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
+      "evidence": ["crates/humanity-systems/src/preserving.rs", "crates/humanity-systems/src/food.rs", "data/food_system.ron", "data/recipes.csv", "data/how_to/food/test_jar_seals.json"],
+      "features_heading": "Preserving: drying and canning against spoilage (preserving rung 1, 2026-11-21)",
+      "design_doc": "docs/design/preserving.md", "levels_setting": "preserving", "tier": "T1",
       "real_life_twin": "Library guides on drying, canning and keeping food; the How-to 'Test jar seals'",
       "real_life_twin_path": "data/library/drying_food.md",
       "engagement_modes": ["direct", "trade", "automation"],
       "consumes": ["harvest", "salt", "jars", "heat"], "produces": ["food that keeps"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "Spoilage and its temperature zones run (food.rs) and cook_dried_fruit / cook_dried_meat exist; food_system.ron's preservation_methods are loaded and unused, and salting and canning are designed in quest-chains.md 2.2."
+      "note": "Rung 1 (2026-11-21, docs/design/preserving.md): drying (oven or sun) on a water curve to NCHFP's dryness, and water-bath and pressure canning against the USDA guide's tested tables; a low-acid jar canned any other way carries a botulism risk (a serious illness). Still partial: salting and fermenting wait for the long-process clock (rung 2), and the procedure happens within the craft, not on the game clock."
     },
     {
       "id": "fermenting", "family": "food", "name": "Fermenting", "skills": ["fermenting"], "status": "designed",

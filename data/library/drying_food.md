@@ -629,44 +629,36 @@ For the most nutrition, CSU suggests eating dried food within a year.
 
 ## How the game models it
 
-The simulation has dried food, but not yet the drying.
+Drying is a procedure in the game since preserving rung 1 (2026-11-21,
+`docs/design/preserving.md`), with a right way and wrong ways.
 
-- **Dried fruit** is made by the "Dry Fruit" recipe, which turns three apples
-  and two bananas into four portions of dried fruit in an oven, with no skill
-  required but a utility knife in the backpack (`data/recipes.csv`,
-  `cook_dried_fruit`; `data/crafting/tools.ron`).
-- **Jerky and dried meat** are made at the home's stove by "Make Jerky" (two
-  raw mutton, one salt and one spice mix into four jerky, with a utility
-  knife in the backpack) and "Dry Meat" (two raw mutton and one salt into
-  four dried meat, no tool), both level-1 cooking recipes, which anyone can
-  make (`data/recipes.csv`, `cook_jerky` and `cook_dried_meat`;
-  `data/crafting/tools.ron`). Make Jerky's description names the FSIS step,
-  "heat to 160 F then dry", but the craft has no heating step. The food
-  vendor also sells dried meat (`data/npcs.ron`), and it is listed as a
-  trade good (`data/trade_goods.ron`).
-- **How long they keep** comes from the USDA's FoodKeeper figures, taken at
-  the low end: at room temperature, jerky and dried meat keep 30 days
-  (FoodKeeper gives home-made jerky 1 to 2 months), and dried fruit 30 days
-  (FoodKeeper's figure for an opened package) (`data/food_system.ron`, the
-  `jerky` and `dried_fruit` rows). Spoiled food makes the player ill when
-  eaten; fresh jerky and dried fruit never do.
-- **Drying as a method** is written down in `data/food_system.ron` (a
-  preservation method that multiplies shelf life twenty times and needs the
-  cooking skill at level 2, and a "dehydrated" cooking method), but the file
-  itself notes that no code acts on those rows yet.
+- **Dry Apples and Dry Carrots** (Crafting page, at the home's Oven, a utility
+  knife in the backpack) dry on a model of water leaving the food: apples
+  start at USDA's 85.6% water, carrots at 88.3%, and they are dry at this
+  guide's 20% for fruit and 10% for vegetables (`data/food_system.ron`,
+  `preserving`). In the oven at 60 C (140 F) apples take about 10 hours and
+  carrots about 8, inside the 6 to 24 and 6 to 10 hours the guide gives.
+- **Settings > Gameplay > Preserving** decides who chooses. Simplified (the
+  default) lets the oven pick a time that dries the food. Guided and
+  Realistic let you choose the method (the oven, or the sun) and the hours;
+  Guided says before you start how it will come out.
+- **Taken off too soon, it spoils** as fast as the fresh food and makes you
+  ill once it has. **The sun** dries fruit only, and only when the air
+  around you is 29 C (85 F) or warmer; vegetables in the sun spoil.
+- **The weight follows the water:** five apples (1 kg) make two 90 g bags of
+  dried apples, ten carrots (1.5 kg) four 50 g bags.
+- **How long it keeps:** dried apples six months at room temperature (the
+  guide's 80 F figure), dried carrots half that; kept cool, longer.
+- **Jerky and dried meat** are still plain recipes ("Make Jerky" names the
+  heat-to-160 F step in its text): drying meat on the model waits for a
+  sourced dryness for jerky.
 
-What the game simplifies, so you do not learn it from the game: there is no
-dehydrator, drying rack or sun drying, and no temperature, humidity or time to
-get right; nothing can be under-dried, case-hardened or mouldy; there is no
-acid dip or blanching; the jerky and Dry Meat recipes start from raw mutton
-and their descriptions name the heating step, but nothing in the craft heats
-the meat or checks a temperature, so the rule this guide is built around
-exists in the game only as a line of text; every store aboard but the home's
-Freezer, which keeps food twenty times as long, is at room temperature, and
-dryness and darkness count for nothing, so the cool, dry, dark store this
-guide asks for makes no difference; and dried fruit spoils on the
-opened-package clock, where properly stored dried fruit really keeps six
-months to a year.
+What the game simplifies, so you do not learn it from the game: humidity
+does not count yet; there is no acid dip, and blanching is part of Dry
+Carrots rather than a step; nothing is case-hardened; conditioning, and
+pasteurising sun-dried fruit against insects, are words on the card, not
+steps; the drying happens within the craft, not over the hours on the
+clock.
 
 ## Sources
 

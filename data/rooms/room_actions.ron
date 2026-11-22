@@ -14,6 +14,8 @@
     "open_chat":            (label: "Open Chat", page: "chat"),
     "check_federation":     (label: "Federation Status", page: "members"),
     "shop_market":          (label: "Marketplace", page: "market"),
+    // medbay (2026-11-21, systems::medbay): [E] or the Inventory page's button asks for it
+    "medbay_treatment":     (label: "Get treated", page: "medbay"),
     // respawner
     "respawn":              (label: "Respawn", page: "respawn"),
     "select_character":     (label: "Select Character", page: "character_select"),

@@ -788,3 +788,10 @@ what we will say about it.
   FDA's Bad Bug Book on kidney beans (boil 30 minutes; slow cookers at 75 C or less fail), CDC's raw
   dough and raw egg, USDA's retention factors (Release 6) and SR Legacy 16028; the refutation pass's
   eleven corrections, and which numbers are game choices.
+- [`2026-11-21-preserving-safety-facts.md`](2026-11-21-preserving-safety-facts.md),
+  what preserving rung 1 teaches (docs/design/preserving.md) and from where: the USDA guide's tested
+  canning tables as NCHFP prints them (applesauce, carrots, potatoes, by jar size and altitude), the
+  pH 4.6 line and CDC's pressure-canner-only rule, CDC's botulism pages and FDA's onset, NCHFP's and
+  Colorado State's drying figures, USDA FoodData Central rows; the University of Kentucky country ham
+  recorded for salting's rung 2, and what no source gives (a home dry-salt ratio for salt fish); the
+  refutation pass's four corrections, and which numbers are game choices.

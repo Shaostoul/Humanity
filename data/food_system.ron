@@ -65,11 +65,12 @@
 //     half years at 27 C) and the DLA figure of 1,250 kcal at 13% protein,
 //     36% fat, 51% carbohydrate as quoted by mreinfo.com.
 //
-// Preservation methods multiply base shelf life. Multiple methods do NOT stack.
 // Cooking methods, food classes and dishes are the cooking procedure (heat, time
 // and doneness; docs/design/cooking.md), and meal quality grades a hand-cooked
-// dish (cooking rung 1, 2026-11-21). Preservation methods are loaded and not yet
-// acted on. The temperature zones scale the spoilage clock, see spoilage_rate_hours.
+// dish (cooking rung 1, 2026-11-21). Preserving (drying and canning as procedures,
+// docs/design/preserving.md) is the `preserving` table, read by
+// crates/humanity-systems/src/preserving.rs (preserving rung 1, 2026-11-21). The temperature zones
+// scale the spoilage clock, see spoilage_rate_hours.
 //
 // Status effect IDs reference status_effects.csv.
 
@@ -1111,109 +1112,265 @@
             raw_consumption_risk: 0.0,
             description: "A fortified high-protein nutrition bar. Compact, shelf-stable calories.",
         ),
+
+        // --- Preserved by hand (preserving rung 1, 2026-11-21, docs/design/preserving.md) ---
+        // Each row is a USDA FoodData Central SR Legacy row (publication date 4/1/2019, read
+        // 2026-11-21 through the FDC API), named on its line. The dried rows are scaled from USDA's
+        // commercial low-moisture rows to the home dryness NCHFP gives ("The moisture content of
+        // home dried fruit should be about 20 percent."; vegetables "should contain about 10 percent
+        // moisture", NCHFP, Packaging and Storing Dried Foods, from So Easy to Preserve, 6th ed.
+        // 2014): every figure times (100 - home water) / (100 - USDA water), our arithmetic. USDA's
+        // dried rows carry drying's own vitamin losses, which a straight concentration of the raw
+        // row would not. Vitamins as fractions of the FDA Daily Values as the rows above (A 900 ug,
+        // C 90 mg, D 20 ug, E 15 mg, K 120 ug; B the mean of thiamin 1.2, riboflavin 1.3, niacin 16,
+        // B6 1.7 mg, folate 400 ug, B12 2.4 ug).
+        // Keeps: dried fruit "can be stored for 1 year at 60ºF, 6 months at 80ºF", and "Vegetables
+        // have about half the shelf-life of fruits" (NCHFP, the same page). The clock counts at room
+        // temperature (the zones' baseline, 18 to 30 C, which holds 80 F = 26.7 C), so the 80 F
+        // figure is the row's; kept cool (8 to 18 C, which holds 60 F), the zone's 0.6 gives about 10
+        // months against the source's year, on the safe side. A home-canned jar keeps a year: "can
+        // no more food than you will use within a year" (NCHFP, Storing Home Canned Foods, from the
+        // USDA Complete Guide, 2015), a QUALITY limit; "Properly sterilized canned food will be free
+        // of spoilage if lids seal and jars are stored below 95°F" (NCHFP, Ensuring Safe Canned
+        // Foods). A jar that came out spoiling, or food taken off before it was dry, keeps only as
+        // long as its fresh food (preserving.rs, PreserveState::Spoils).
+
+        // Base: NDB 09009 "Apples, dehydrated (low moisture), sulfured, uncooked" (water 3 g),
+        // scaled to 20 g of water: x 0.8247 (346 kcal -> 285, vitamin C 2.2 mg -> 1.8).
+        (
+            id: "dried_apples_home",
+            name: "Home-Dried Apples",
+            category: "preserved",
+            calories_per_100g: 285,
+            protein_g: 1.09,
+            carbs_g: 77.14,
+            fat_g: 0.48,
+            fiber_g: 10.23,
+            water_g: 20.0, // NCHFP's home dryness for fruit; USDA 09009's own is 3
+            vitamins: (A: 0.0, B: 0.05, C: 0.02, D: 0.0, E: 0.04, K: 0.03),
+            minerals: (iron: 1.65, calcium: 15.67, zinc: 0.24, potassium: 527.84),
+            spoilage_rate_hours: 4380.0,
+            raw_consumption_risk: 0.0,
+            description: "Apple rings dried at home until soft, pliable and leathery, with no moist spot in the middle. About a fifth of the fresh weight, and they keep for months.",
+        ),
+
+        // Base: NDB 11683 "Carrot, dehydrated" (water 4 g), scaled to 10 g of water: x 0.9375.
+        (
+            id: "dried_carrots_home",
+            name: "Home-Dried Carrots",
+            category: "preserved",
+            calories_per_100g: 320,
+            protein_g: 7.59,
+            carbs_g: 74.6,
+            fat_g: 1.4,
+            fiber_g: 22.13,
+            water_g: 10.0, // NCHFP's home dryness for vegetables; USDA 11683's own is 4
+            vitamins: (A: 3.57, B: 0.3, C: 0.15, D: 0.0, E: 0.34, K: 0.84),
+            minerals: (iron: 3.68, calcium: 198.75, zinc: 1.47, potassium: 2381.25),
+            spoilage_rate_hours: 2190.0,
+            raw_consumption_risk: 0.0,
+            description: "Carrot slices blanched and dried at home until tough to brittle. Light, and they keep for months.",
+        ),
+
+        // Base: NDB 09019 "Applesauce, canned, unsweetened, without added ascorbic acid".
+        (
+            id: "applesauce_canned",
+            name: "Home-Canned Applesauce",
+            category: "preserved",
+            calories_per_100g: 42,
+            protein_g: 0.17,
+            carbs_g: 11.27,
+            fat_g: 0.1,
+            fiber_g: 1.1,
+            water_g: 88.22, // SR Legacy NDB 09019, the base above
+            vitamins: (A: 0.0, B: 0.01, C: 0.01, D: 0.0, E: 0.01, K: 0.0),
+            minerals: (iron: 0.23, calcium: 4.0, zinc: 0.03, potassium: 74.0),
+            spoilage_rate_hours: 8760.0,
+            raw_consumption_risk: 0.0,
+            description: "Applesauce canned at home in a boiling-water canner for the tested time. Apples are an acid food, so boiling water is enough for them.",
+        ),
+
+        // Base: NDB 11128 "Carrots, canned, regular pack, drained solids" (USDA's regular pack is
+        // salted: sodium 242 mg; the guide's salt is optional, so a home jar may carry less).
+        (
+            id: "carrots_canned",
+            name: "Home-Canned Carrots",
+            category: "preserved",
+            calories_per_100g: 25,
+            protein_g: 0.64,
+            carbs_g: 5.54,
+            fat_g: 0.19,
+            fiber_g: 1.5,
+            water_g: 92.95, // SR Legacy NDB 11128, the base above
+            vitamins: (A: 0.62, B: 0.03, C: 0.03, D: 0.0, E: 0.05, K: 0.08),
+            minerals: (iron: 0.64, calcium: 25.0, zinc: 0.26, potassium: 179.0),
+            spoilage_rate_hours: 8760.0,
+            raw_consumption_risk: 0.0,
+            description: "Carrots canned at home in a pressure canner. Carrots are a low-acid food: only a pressure canner gets them hot enough to destroy botulinum spores.",
+        ),
+
+        // Base: NDB 11376 "Potatoes, canned, drained solids" (no vitamin E or K row in the API).
+        (
+            id: "potatoes_canned",
+            name: "Home-Canned Potatoes",
+            category: "preserved",
+            calories_per_100g: 60,
+            protein_g: 1.41,
+            carbs_g: 13.61,
+            fat_g: 0.21,
+            fiber_g: 2.3,
+            water_g: 84.28, // SR Legacy NDB 11376, the base above
+            vitamins: (A: 0.0, B: 0.04, C: 0.06, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 1.26, calcium: 5.0, zinc: 0.28, potassium: 229.0),
+            spoilage_rate_hours: 8760.0,
+            raw_consumption_risk: 0.0,
+            description: "Potatoes canned at home in a pressure canner. A low-acid food: only a pressure canner makes them safe in a jar.",
+        ),
     ],
 
-    preservation_methods: [
+    preserving: (
         // =====================================================================
-        // PRESERVATION METHODS (8)
+        // PRESERVING (preserving rung 1, 2026-11-21, docs/design/preserving.md; read by
+        // crates/humanity-systems/src/preserving.rs). Drying and canning as procedures with right
+        // and wrong ways, against the spoilage clock. It replaced `preservation_methods`, eight
+        // rows of shelf-life and nutrition multipliers no source supported and no code read
+        // (refrigeration and freezing are the temperature zones below; smoking, vacuum sealing and
+        // irradiation are later rungs, each with its own sources).
+        //
+        // Every safety figure had a separate refutation pass before it shipped:
+        // docs/reference/findings/2026-11-21-preserving-safety-facts.md (sources read 2026-11-21,
+        // robots.txt first). GAME CHOICES are marked so.
         // =====================================================================
 
-        (
-            id: "refrigeration",
-            name: "Refrigeration",
-            shelf_life_multiplier: 4.0,
-            nutrition_retention: 0.95,
-            requires_power: true,
-            required_structure: Some("refrigerator"),
-            skill_required: None,
-            skill_level: 0,
-            description: "Cooling food to 1-4C slows bacterial growth. Requires powered refrigerator.",
-        ),
+        // DRYING METHODS. rate_share: the share of a procedure's oven rate (rate_per_h below) the
+        // method dries at. "Dry at 140 degrees F (60°C) in an oven or dehydrator." (Colorado State
+        // University Extension, "Drying Fruits", reviewed August 2025); "Dehydrators are efficiently
+        // designed to dry foods fast at 140ºF." (NCHFP, Food Dehydrators).
+        // The sun: "A minimum temperature of 85ºF is needed with higher temperatures being
+        // better."; "A humidity below 60 percent is best."; "It takes several days to dry foods
+        // out-of-doors."; "The high sugar and acid content of fruits make them safe to dry
+        // out-of-doors"; "Vegetables (with the exception of vine dried beans) and meats are not
+        // recommended for out-of-doors drying." (NCHFP, Sun Drying, from So Easy to Preserve, 6th ed.
+        // 2014). 29.4 C is our conversion of 85 F. Humidity is not modelled yet (the card says it).
+        // Its rate_share is a GAME CHOICE: about 66 hours of sun for apples, "several days".
+        drying_methods: [
+            (id: "oven", rate_share: 1.0, min_air_c: None, classes: []),
+            (id: "sun", rate_share: 0.15, min_air_c: Some(29.4), classes: ["fruit"]),
+        ],
+        // DRYING CLASSES. water_done: how dry it must be, a share of its weight (NCHFP, Packaging
+        // and Storing Dried Foods: fruit "about 20 percent"; vegetables "dried until they are brittle
+        // or "crisp."" and "about 10 percent moisture").
+        drying_classes: [
+            (id: "fruit", water_done: 0.20),
+            (id: "vegetables", water_done: 0.10),
+        ],
 
-        (
-            id: "freezing",
-            name: "Freezing",
-            shelf_life_multiplier: 20.0,
-            nutrition_retention: 0.90,
-            requires_power: true,
-            required_structure: Some("freezer"),
-            skill_required: None,
-            skill_level: 0,
-            description: "Reducing temperature below -18C nearly halts all spoilage processes.",
-        ),
+        // PROCEDURES: one row per preserving recipe.
+        //   fresh: the fresh food a spoiling result keeps as (its clock).
+        //   pick: the method the station picks in Simplified.
+        //   Drying: class, water_start (USDA's raw row, a share), rate_per_h (the drying rate per
+        //     hour in an oven at 60 C on the thin-layer curve: a GAME CHOICE sized so the time to dry
+        //     falls inside the source's range).
+        //   Canning: acid (pH 4.6 or lower), jar (handed back when eaten), tested: the USDA guide's
+        //     tables as NCHFP prints them, minutes per jar size and pounds by altitude band
+        //     (up_to_ft: None = every elevation above the band before). The game reads the band for
+        //     elevation_ft below; the card shows the whole table.
+        procedures: [
+            // Apples: "Cut in rings or slices 1/8 to 1/4 inch thick"; "Dip in ascorbic acid or other
+            // antidarkening/antimicrobial solution for 10 minutes." ("highly recommended"); "Dry until
+            // soft, pliable, and leathery; no moist area in center when cut (6-24 hours)." (Colorado
+            // State, "Drying Fruits", which NCHFP's drying page links to). Water 85.56 g per 100 g:
+            // USDA SR Legacy NDB 09003 "Apples, raw, with skin". rate 0.32: dry in 9.9 hours.
+            // Five apples (1.0 kg) dry to 1.0 x 0.1444 / 0.80 = 0.18 kg: two 90 g bags. (Colorado
+            // State's table, 12 lb of apples to 1 1/4 lb dried, counts the peel and core trimmed
+            // away, which rung 1 does not.)
+            (recipe: "dry_apples", makes: "dried_apples_0", kind: Dry, fresh: "fruit_apple_0", pick: "oven",
+                class: Some("fruit"), water_start: 0.8556, rate_per_h: 0.32),
+            // Carrots: "Cut in slices or strips 1/8″ thick."; blanch "4" minutes ("Water blanching
+            // is recommended"; "*Blanching times are for 3,000 to 5,000 feet. Times will be slightly
+            // shorter for lower altitudes" and, the refutation pass found, slightly longer for higher
+            // altitudes or for large quantities); dry "6-10" hours; "Tough to brittle" (Colorado
+            // State, "Drying Vegetables", Table 2). Water 88.29 g: NDB 11124 "Carrots, raw". rate 0.5:
+            // dry in 8.4 hours. Ten carrots (1.5 kg) dry to 1.5 x 0.1171 / 0.90 = 0.195 kg: four
+            // 50 g bags.
+            (recipe: "dry_carrots", makes: "dried_carrots_0", kind: Dry, fresh: "vegetable_carrot_0", pick: "oven",
+                class: Some("vegetables"), water_start: 0.8829, rate_per_h: 0.5),
 
-        (
-            id: "canning",
-            name: "Canning",
-            shelf_life_multiplier: 100.0,
-            nutrition_retention: 0.70,
-            requires_power: false,
-            required_structure: None,
-            skill_required: Some("cooking"),
-            skill_level: 4,
-            description: "Sealing food in airtight containers after heat sterilization. Lasts years.",
-        ),
-
-        (
-            id: "drying",
-            name: "Drying",
-            shelf_life_multiplier: 20.0,
-            nutrition_retention: 0.65,
-            requires_power: false,
-            required_structure: None,
-            skill_required: Some("cooking"),
-            skill_level: 2,
-            description: "Removing moisture through sun, wind, or heat to prevent bacterial growth.",
-        ),
-
-        (
-            id: "salting",
-            name: "Salting",
-            shelf_life_multiplier: 15.0,
-            nutrition_retention: 0.75,
-            requires_power: false,
-            required_structure: None,
-            skill_required: Some("cooking"),
-            skill_level: 2,
-            description: "Packing food in salt to draw out moisture and inhibit microbial activity.",
-        ),
-
-        (
-            id: "smoking",
-            name: "Smoking",
-            shelf_life_multiplier: 10.0,
-            nutrition_retention: 0.80,
-            requires_power: false,
-            required_structure: Some("smokehouse"),
-            skill_required: Some("cooking"),
-            skill_level: 3,
-            description: "Exposing food to wood smoke for antimicrobial compounds and dehydration.",
-        ),
-
-        (
-            id: "vacuum_sealing",
-            name: "Vacuum Sealing",
-            shelf_life_multiplier: 5.0,
-            nutrition_retention: 0.95,
-            requires_power: false,
-            required_structure: None,
-            skill_required: Some("cooking"),
-            skill_level: 3,
-            description: "Removing air from packaging to slow oxidation and bacterial growth.",
-        ),
-
-        (
-            id: "irradiation",
-            name: "Irradiation",
-            shelf_life_multiplier: 50.0,
-            nutrition_retention: 0.85,
-            requires_power: true,
-            required_structure: Some("irradiation_chamber"),
-            skill_required: Some("preserving"),
-            skill_level: 6,
-            description: "Exposing food to controlled radiation to kill pathogens. Space-age preservation.",
-        ),
-    ],
+            // Applesauce, hot pack, 1/2-inch headspace (NCHFP, "Applesauce", adapted from the USDA
+            // Complete Guide to Home Canning, 2015). "Table 1. Recommended process time for
+            // Applesauce in a boiling-water canner.": Hot, Pints 15 / 20 / 20 / 25 min, Quarts 20 /
+            // 25 / 30 / 35, at 0-1,000 / 1,001-3,000 / 3,001-6,000 / above 6,000 ft. Weighted gauge:
+            // Pints 8 min, Quarts 10, at 5 lb (0-1,000 ft) or 10 lb (above). Dial gauge: 8 / 10 min
+            // at 6 / 7 / 8 / 9 lb (0-2,000 / 2,001-4,000 / 4,001-6,000 / 6,001-8,000 ft). "Acid foods
+            // have a pH of 4.6 or lower. They include fruits" (NCHFP, Ensuring Safe Canned Foods; the
+            // refutation pass: most fruits, not all; figs and some tomatoes need acid added).
+            // Quantity: "an average of 13½ pounds is needed per canner load of 9 pints": 0.68 kg a
+            // pint, so three 0.2 kg apples (0.6 kg) to a jar.
+            (recipe: "can_applesauce", makes: "applesauce_jar_0", kind: Can, fresh: "fruit_apple_0", pick: "boiling_water",
+                acid: true, jar: Some("canning_jar_0"), tested: [
+                    (canner: "boiling_water",
+                        pints: [(up_to_ft: Some(1000.0), value: 15.0), (up_to_ft: Some(3000.0), value: 20.0), (up_to_ft: Some(6000.0), value: 20.0), (up_to_ft: None, value: 25.0)],
+                        quarts: [(up_to_ft: Some(1000.0), value: 20.0), (up_to_ft: Some(3000.0), value: 25.0), (up_to_ft: Some(6000.0), value: 30.0), (up_to_ft: None, value: 35.0)]),
+                    (canner: "pressure_weighted",
+                        pints: [(up_to_ft: None, value: 8.0)], quarts: [(up_to_ft: None, value: 10.0)],
+                        psi: [(up_to_ft: Some(1000.0), value: 5.0), (up_to_ft: None, value: 10.0)]),
+                    (canner: "pressure_dial",
+                        pints: [(up_to_ft: Some(8000.0), value: 8.0)], quarts: [(up_to_ft: Some(8000.0), value: 10.0)],
+                        psi: [(up_to_ft: Some(2000.0), value: 6.0), (up_to_ft: Some(4000.0), value: 7.0), (up_to_ft: Some(6000.0), value: 8.0), (up_to_ft: Some(8000.0), value: 9.0)]),
+                ]),
+            // Carrots, sliced or diced, hot or raw pack, 1-inch headspace, PRESSURE CANNER ONLY
+            // (NCHFP, "Carrots - Sliced or Diced", from the USDA guide, 2015): Pints 25 min, Quarts
+            // 30; weighted gauge 10 lb (0-1,000 ft), 15 lb (above); dial gauge 11 / 12 / 13 / 14 lb
+            // (0-2,000 / 2,001-4,000 / 4,001-6,000 / 6,001-8,000 ft). "Low-acid foods have pH values
+            // higher than 4.6. They include red meats, seafood, poultry, milk, and all fresh
+            // vegetables except for most tomatoes." (Ensuring Safe Canned Foods). "Pressure canning is
+            // the only recommended method for canning low-acid foods." (CDC, Home-Canned Foods, Apr.
+            // 25, 2024). No boiling-water row: there is none in the guide. Quantity: "an average of
+            // 11 pounds is needed per canner load of 9 pints": 0.55 kg a pint, four 0.15 kg carrots.
+            (recipe: "can_carrots", makes: "canned_carrots_0", kind: Can, fresh: "vegetable_carrot_0", pick: "pressure_weighted",
+                acid: false, jar: Some("canning_jar_0"), tested: [
+                    (canner: "pressure_weighted",
+                        pints: [(up_to_ft: None, value: 25.0)], quarts: [(up_to_ft: None, value: 30.0)],
+                        psi: [(up_to_ft: Some(1000.0), value: 10.0), (up_to_ft: None, value: 15.0)]),
+                    (canner: "pressure_dial",
+                        pints: [(up_to_ft: Some(8000.0), value: 25.0)], quarts: [(up_to_ft: Some(8000.0), value: 30.0)],
+                        psi: [(up_to_ft: Some(2000.0), value: 11.0), (up_to_ft: Some(4000.0), value: 12.0), (up_to_ft: Some(6000.0), value: 13.0), (up_to_ft: Some(8000.0), value: 14.0)]),
+                ]),
+            // White potatoes, hot pack only, 1-inch headspace, PRESSURE CANNER ONLY (NCHFP,
+            // "Potatoes, White - Cubed or Whole", from the USDA guide, 2015): Pints 35 min, Quarts 40;
+            // pressures as carrots. The times hold for the tested preparation (the refutation pass):
+            // "cut into 1/2-inch cubes" and "Cook 2 minutes in boiling water", or whole potatoes "1 to
+            // 2 inches in diameter" boiled 10 minutes, covered with "FRESH boiling water" ("Do not use
+            // the water you cooked the potatoes in; it contains too much starch."). Quantity: "an
+            // average of 13 pounds is needed per canner load of 9 pints": 0.66 kg a pint, two 0.3 kg
+            // potatoes.
+            (recipe: "can_potatoes", makes: "canned_potatoes_0", kind: Can, fresh: "vegetable_potato_0", pick: "pressure_weighted",
+                acid: false, jar: Some("canning_jar_0"), tested: [
+                    (canner: "pressure_weighted",
+                        pints: [(up_to_ft: None, value: 35.0)], quarts: [(up_to_ft: None, value: 40.0)],
+                        psi: [(up_to_ft: Some(1000.0), value: 10.0), (up_to_ft: None, value: 15.0)]),
+                    (canner: "pressure_dial",
+                        pints: [(up_to_ft: Some(8000.0), value: 35.0)], quarts: [(up_to_ft: Some(8000.0), value: 40.0)],
+                        psi: [(up_to_ft: Some(2000.0), value: 11.0), (up_to_ft: Some(4000.0), value: 12.0), (up_to_ft: Some(6000.0), value: 13.0), (up_to_ft: Some(8000.0), value: 14.0)]),
+                ]),
+        ],
+        not_procedures: [
+            ("cook_jerky", "jerky's own rule is heat to 160 F first, then dry (its text, F8); drying meat on the water curve waits for a sourced jerky dryness (rung 2)"),
+            ("cook_dried_meat", "salting is rung 2: the one complete home salt-by-weight procedure found (a country ham) cures for about 60 days below 40 F"),
+            ("cook_mre", "packing field rations is assembly, not a home preserving procedure"),
+        ],
+        // GAME CHOICE: the chance that eating one jar with a botulism risk gives Botulism. No source
+        // gives a chance per jar; CDC: "You cannot see, smell, or taste the toxin that causes
+        // botulism." and "If in doubt, throw it out! Never taste food to see if it's safe." (Home-
+        // Canned Foods, Apr. 25, 2024). Not every under-processed jar carries the toxin, so it is
+        // not certain; it is high, because the lesson is never to eat one.
+        botulism_risk: 0.5,
+        // The home's elevation in feet, which picks a tested table's band: 0, because the home's
+        // air is at sea-level pressure (the boiling point cooking uses, 100 C). Rung 3 reads a
+        // planet's ground. "Using the process time for canning food at sea level may result in
+        // spoilage if you live at elevations of 1,000 feet or more." (Ensuring Safe Canned Foods)
+        elevation_ft: 0.0,
+    ),
 
     cooking_methods: [
         // =====================================================================
@@ -1438,8 +1595,11 @@
     not_dishes: [
         ("cook_jerky", "drying meat is preserving's procedure (quest-chains.md, Dry It); its heat-first rule is in its text"),
         ("cook_dried_meat", "drying meat is preserving's procedure (quest-chains.md, Salt It)"),
-        ("cook_dried_fruit", "drying fruit is preserving's procedure (quest-chains.md, Dry It)"),
-        ("cook_canned_food", "canning is preserving's procedure and needs a pressure canner (quest-chains.md, Can It)"),
+        ("dry_apples", "drying is preserving's procedure (food_system.ron preserving, docs/design/preserving.md)"),
+        ("dry_carrots", "drying is preserving's procedure (food_system.ron preserving)"),
+        ("can_applesauce", "canning is preserving's procedure (food_system.ron preserving)"),
+        ("can_carrots", "canning is preserving's procedure (food_system.ron preserving)"),
+        ("can_potatoes", "canning is preserving's procedure (food_system.ron preserving)"),
         ("cook_cheese", "warming milk to culture it is cheesemaking, fermenting's procedure"),
         ("cook_coffee", "roasting coffee beans is not a dish and carries no food-safety line"),
         ("cook_sugar", "refining sugar is a process, not a dish"),

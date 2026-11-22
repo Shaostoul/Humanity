@@ -485,6 +485,12 @@ Rewards: XP cooking 10.
 
 **⚠ serious** on step 3. Rewards: XP cooking 20.
 
+Built 2026-11-21 with preserving rung 1 ([preserving.md](preserving.md)): 1 Learn the guide, 2
+`Preserve(dried_apples_0, 2)` "Dry apples until leathery: Crafting, Dry Apples" (the old Dry Fruit,
+now a procedure on the water curve; a bag taken off before it is dry counts nothing). The jerky step
+waits: no trading post sells raw mutton and the kit carries none, and drying meat on the model waits
+for a sourced jerky dryness. Rewards XP preserving 20 (the skill drying trains). Finished in the soak.
+
 #### `food_keep_salt` Salt It
 
 *After `food_keep`. Its facts were not found in this pass (USDA FSIS refused automated reading,
@@ -495,6 +501,12 @@ section 3.6): built after a dated finding on salt curing, not before.*
 | 1 | "Read: Salting, Curing and Smoking (Library)" | `Learn("library:salting_curing_and_smoking")` | exists | | still to find out |
 | 2 | "Collect salt at a salt flat: E" | `Gather(salt_food_0, 1)` | node exists | | |
 | 3 | "Salt and dry meat: Crafting > Dry Meat" | `Craft(cook_dried_meat, 1)` | exists, **fix** its "165 F for wild game" (3.5) | | F8 |
+
+Still not built (2026-11-21, preserving rung 1's finding): the one complete, sourced home salt-by-weight
+procedure found is a dry-cured country ham (University of Kentucky ASC-213: 8 lb salt and 2 lb sugar per
+100 lb, below 40 F for about 60 days, at least 4% salt and 18% weight lost), which needs the long-process
+clock (P7); no primary source gives a safe dry-salt ratio for shelf-stable home salt fish; and salt comes in
+500 g containers, so salt by weight needs a measured unit. Rung 2 of [preserving.md](preserving.md).
 
 #### `food_keep_ferment` Ferment It
 
@@ -525,6 +537,15 @@ quantities are derived from the ratio and say so. Rewards: XP cooking 25.
 **⚠ lethal** on steps 1 to 4: botulism; low-acid food only in a pressure canner, tested recipes
 only, and "if in doubt, throw it out" (F10, F12; planned how-to `dispose_of_a_spoiled_jar`).
 Rewards: XP cooking 30.
+
+Built 2026-11-21 with preserving rung 1 ([preserving.md](preserving.md)): 1 Learn the guide, 2
+`Preserve(applesauce_jar_0, 1)` (Can Applesauce, boiling-water canner, pints 15 minutes at 0 to
+1,000 ft), 3 `Preserve(canned_carrots_0, 1)` (Can Carrots, pressure canner vented 10 minutes, 25
+minutes at 10 lb; `cook_canned_food`, potatoes and carrots at a bare stove, became Can Carrots and Can
+Potatoes), 4 Learn the how-to. Only a jar that came out safe counts; a low-acid jar canned any other
+way carries a botulism risk on the jar and counts nothing. The kit carries both canners, two jars, and
+the apples and carrots. Rewards XP preserving 30. Finished in the soak. The facts and the refutation
+pass: [finding](../reference/findings/2026-11-21-preserving-safety-facts.md).
 
 #### `food_balance` Eat Across the Plate
 

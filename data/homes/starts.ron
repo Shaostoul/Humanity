@@ -129,6 +129,15 @@
                 // Cook It Through (data/quests/survival.ron) boils two of the eggs.
                 ("food_thermometer_0", 1),
                 ("egg_0", 6),
+                // Two canning jars and the last of the season's apples and carrots (preserving rung 1,
+                // 2026-11-21): Dry It dries five apples, Can It cans three apples in the boiling-water
+                // canner and four carrots in the pressure canner (data/quests/survival.ron). The two
+                // canners are not carried: 42 L of pots filled this kit to the backpack's 65 L, so
+                // they wait in the home's storage (data/places/seed.json, the Barn) and a craft at
+                // home takes them from there (data/crafting/tools.ron `at_home`).
+                ("canning_jar_0", 2),
+                ("fruit_apple_0", 8),
+                ("vegetable_carrot_0", 4),
                 ("trowel_0", 1),
                 ("hoe_0", 1),
                 ("knife_utility_0", 1),

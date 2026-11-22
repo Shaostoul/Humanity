@@ -647,6 +647,9 @@ pub struct GuiRecipe {
     pub description: String,
     /// Hand tools the craft needs in the backpack (data/crafting/tools.ron).
     pub tools: Vec<String>,
+    /// Of `tools`, those kept at home (the canners, 2026-11-21): home storage serves them too,
+    /// where it counts for a craft (tools.ron `at_home`).
+    pub tools_at_home: Vec<String>,
     /// Makes a durable good, so a hand craft grades it (2026-09-26).
     pub graded: bool,
     /// Litres of what it makes, vehicles that roll out left aside, and

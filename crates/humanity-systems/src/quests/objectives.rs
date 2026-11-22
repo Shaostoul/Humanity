@@ -107,4 +107,13 @@ pub enum QuestObjective {
         item_id: Option<String>,
         quantity: u32,
     },
+    /// Preserve (2026-11-21, preserving rung 1, docs/design/preserving.md): the crafting system
+    /// reports each unit of food a preserving procedure made that came out SAFE (dry enough, or
+    /// canned by the tested process; never one that spoils, never a botulism risk) as
+    /// `preserved_<item_id>` (`preserving::credit`). `item_id` None counts any, Some only that one.
+    Preserve {
+        #[serde(default)]
+        item_id: Option<String>,
+        quantity: u32,
+    },
 }

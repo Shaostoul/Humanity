@@ -126,7 +126,9 @@
             { "label": "Wire", "kind": "item", "item": "wire_0", "qty": 30 },
             { "label": "Coal", "kind": "item", "item": "coal_0", "qty": 5 },
             { "label": "Salt blocks (livestock)", "kind": "item", "item": "salt_block_0", "qty": 4 },
-            { "label": "Hay bales", "kind": "item", "item": "hay_0", "qty": 30 }
+            { "label": "Hay bales", "kind": "item", "item": "hay_0", "qty": 30 },
+            { "label": "Boiling-water canner", "kind": "item", "item": "water_bath_canner_0", "qty": 1 },
+            { "label": "Pressure canner", "kind": "item", "item": "pressure_canner_0", "qty": 1 }
           ]
         }
       ]

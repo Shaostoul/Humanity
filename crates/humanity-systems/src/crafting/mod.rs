@@ -51,6 +51,10 @@ pub struct Recipe {
     /// (2026-09-26, data/crafting/tools.ron via `RecipeRegistry::with_tools`).
     #[serde(default)]
     pub tools: Vec<String>,
+    /// Of `tools`, those kept at home (a canner): the craft takes one from the
+    /// home's storage too, where that storage counts (tools.ron `at_home`).
+    #[serde(default)]
+    pub tools_at_home: Vec<String>,
 }
 
 impl Recipe {
@@ -145,6 +149,7 @@ impl RecipeRegistry {
                     skill_level: row.skill_level,
                     category: row.category,
                     tools: Vec::new(),
+                    tools_at_home: Vec::new(),
                 },
             );
         }
@@ -156,6 +161,7 @@ impl RecipeRegistry {
         for r in self.recipes.values_mut() {
             let station = r.required_station.clone().unwrap_or_default();
             r.tools = rules.tools_for(&r.id, &station, &r.category, &r.outputs);
+            r.tools_at_home = rules.kept_at_home(&r.tools);
         }
         self
     }
@@ -418,6 +424,10 @@ pub struct CraftSave {
     /// started, from the heat and time chosen then, and kept through a save to its end.
     #[serde(default)]
     pub cook: Option<crate::cooking::CookResult>,
+    /// How a preserving procedure will come out (preserving rung 1, 2026-11-21): decided when the
+    /// craft started, from the method and time chosen then, and kept through a save to its end.
+    #[serde(default)]
+    pub preserve: Option<crate::preserving::PreserveResult>,
 }
 
 /// Put the save channels in the DataStore (lib.rs, at boot): craft batches
@@ -468,6 +478,9 @@ pub struct ActiveCraft {
     /// How a hand-cooked dish will come out (cooking rung 1, `cooking::start`); None for every
     /// craft that is not a dish.
     pub cook: Option<crate::cooking::CookResult>,
+    /// How a preserving procedure will come out (preserving rung 1, `preserving::start`); None for
+    /// every craft that is not one.
+    pub preserve: Option<crate::preserving::PreserveResult>,
 }
 
 impl ActiveCraft {
@@ -480,6 +493,7 @@ impl ActiveCraft {
             machine_id: self.machine_id.clone(),
             pad: self.pad.map(|(p, r)| (p.to_array(), r.to_array())),
             cook: self.cook.clone(),
+            preserve: self.preserve.clone(),
         }
     }
 }
@@ -1004,6 +1018,7 @@ impl System for CraftingSystem {
                         waiting_notified: false,
                         pause_notified: false,
                         cook: c.cook,
+                        preserve: c.preserve,
                     });
                 }
             }
@@ -1235,6 +1250,7 @@ impl System for CraftingSystem {
                     waiting_notified: false,
                     pause_notified: false,
                     cook: None,
+                    preserve: None,
                 });
             }
         }
@@ -1356,14 +1372,18 @@ impl System for CraftingSystem {
                 }
 
                 // Hand tools (2026-09-26): each must be in the backpack. Not
-                // spent; worn by one use below. Creative mode skips it.
+                // spent; worn by one use below. Creative mode skips it. A tool
+                // kept at home (a canner, 2026-11-21) may instead be in the
+                // home's storage, where that storage counts for this craft.
                 if !creative {
+                    let at_home = |t: &String| recipe.tools_at_home.contains(t) && store.count(t) > 0;
                     let lacking = world
                         .get::<&Inventory>(request.crafter)
                         .ok()
-                        .and_then(|inv| recipe.tools.iter().find(|t| inv.count_item(t) == 0).cloned());
+                        .and_then(|inv| recipe.tools.iter().find(|t| inv.count_item(t) == 0 && !at_home(t)).cloned());
                     if let Some(t) = lacking {
-                        notice(format!("{} needs a {} in your backpack.", recipe.name, name_of(&t)));
+                        let place = if recipe.tools_at_home.contains(&t) { "your backpack or home storage" } else { "your backpack" };
+                        notice(format!("{} needs a {} in {place}.", recipe.name, name_of(&t)));
                         continue;
                     }
                 }
@@ -1413,7 +1433,10 @@ impl System for CraftingSystem {
                     if owed > 0.0 {
                         crate::fluids::draw_from_tanks(world, owed);
                     }
-                    // Each tool loses one use; one that is used up breaks.
+                    // Each tool loses one use; one that is used up breaks. A
+                    // tool kept at home and used from storage is not worn yet
+                    // (`wear_item` finds none in the backpack): rung 2 of
+                    // docs/design/preserving.md.
                     if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
                         for t in &recipe.tools {
                             let base = item_registry.map(|r| r.durability_for(t)).unwrap_or(0);
@@ -1435,6 +1458,9 @@ impl System for CraftingSystem {
                 // A dish (cooking rung 1, 2026-11-21): how it will come out, from the heat and
                 // time the cooking card chose (or the station's pick in Simplified).
                 let cook = crate::cooking::start(world, data, &recipe.id, recipe.skill_required.as_deref(), request.crafter);
+                // A preserving procedure (preserving rung 1, 2026-11-21): how it will come out, from
+                // the method and time the preserving card chose (or the station's pick in Simplified).
+                let preserve = crate::preserving::start(data, &recipe.id);
 
                 // If instant craft (time <= 0), produce outputs immediately
                 if recipe.craft_time <= 0.0 {
@@ -1451,6 +1477,7 @@ impl System for CraftingSystem {
                         crate::notices::reply,
                         self.draws.rng(data),
                         cook.as_ref(),
+                        preserve.as_ref(),
                     );
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
@@ -1465,6 +1492,7 @@ impl System for CraftingSystem {
                         waiting_notified: false,
                         pause_notified: false,
                         cook,
+                        preserve,
                     });
                     log::debug!(
                         "Started crafting {} ({:.1}s)",
@@ -1610,6 +1638,7 @@ impl System for CraftingSystem {
                             crate::notices::world,
                             self.draws.rng(data),
                             craft.cook.as_ref(),
+                            craft.preserve.as_ref(),
                         );
                         log::debug!("Craft complete: {}", recipe.id);
                     }
@@ -1733,8 +1762,10 @@ impl CraftingSystem {
         rng: &mut rand::rngs::StdRng,
         // How a hand-cooked dish came out (cooking rung 1); None for every other craft.
         cook: Option<&crate::cooking::CookResult>,
+        // How a preserving procedure came out (preserving rung 1); None for every other craft.
+        preserve: Option<&crate::preserving::PreserveResult>,
     ) {
-        let graded = Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say, rng, cook);
+        let graded = Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say, rng, cook, preserve);
         match cook {
             // A burnt dish made nothing: no quest counts it, but the cook still practised.
             Some(c) if c.doneness == crate::cooking::Doneness::Burnt => {
@@ -1746,6 +1777,9 @@ impl CraftingSystem {
                 Self::on_craft_complete(data, recipe, graded);
                 if let Some(c) = cook {
                     crate::cooking::credit(data, c, &recipe.outputs);
+                }
+                if let Some(p) = preserve {
+                    crate::preserving::credit(data, p, &recipe.outputs);
                 }
             }
         }
@@ -1766,6 +1800,7 @@ impl CraftingSystem {
         say: fn(&DataStore, String),
         rng: &mut rand::rngs::StdRng,
         cook: Option<&crate::cooking::CookResult>,
+        preserve: Option<&crate::preserving::PreserveResult>,
     ) -> Option<f32> {
         // The hand craft's grade as a 0..1 quality, for the skill XP it teaches (skills.md
         // section 3: a good result teaches more than a careless one). None: not graded.
@@ -1848,7 +1883,16 @@ impl CraftingSystem {
                 }
                 say(data, crate::cooking::finished_line_for(data, &recipe.id, &recipe.name, c));
             }
-            let food_state = cook.and_then(|c| c.state()).and_then(|st| st.to_byte()).unwrap_or(0);
+            // A preserving procedure (preserving rung 1): its food goes out with its state on the
+            // grade byte (preserving::PreserveState), and the person is told how it came out.
+            if let Some(p) = preserve {
+                say(data, crate::preserving::finished_line(&recipe.name, p));
+            }
+            let food_state = cook
+                .and_then(|c| c.state())
+                .and_then(|st| st.to_byte())
+                .or_else(|| preserve.map(|p| p.byte()))
+                .unwrap_or(0);
             if !inv_recipe.outputs.is_empty() && to_storage {
                 if let Some(slot) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs") {
                     if let Ok(mut out) = slot.lock() {
@@ -2187,6 +2231,63 @@ mod skill_xp_tests {
         assert!(notices(&data).iter().any(|n| n.contains("wore out")), "{:?}", notices(&data));
     }
 
+    /// A tool kept at home (tools.ron `at_home`, 2026-11-21): a canner in the home's storage serves a
+    /// craft where that storage counts, as the craft's ingredients do, and is not taken out of it; a
+    /// carried tool (the knife) in storage does not, and neither does the canner where the home's
+    /// storage does not count. Seen red 2026-11-21 with the `at_home` closure made to answer false:
+    /// "a canner in home storage serves the craft: ["Can Carrots needs a Utility Knife in your
+    /// backpack.", "Can Carrots needs a Pressure Canner in your backpack or home storage."]".
+    #[test]
+    fn a_tool_kept_at_home_serves_from_home_storage() {
+        use std::collections::HashMap;
+        use std::sync::Mutex;
+        let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
+             can_carrots,Can Carrots,cooking,carrot_0:1,canned_carrots_0:1,0,,,0,test\n";
+        let mut rules = tools::ToolRules::default();
+        rules.recipes.insert("can_carrots".into(), vec!["knife_utility_0".into(), "pressure_canner_0".into()]);
+        rules.at_home = vec!["pressure_canner_0".into()];
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", RecipeRegistry::from_csv(recipe_csv.as_bytes()).unwrap().with_tools(&rules));
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(
+                b"id,name,weight_kg,stack_size,volume_l,durability\ncarrot_0,Carrot,0.1,99,0.3,0\ncanned_carrots_0,Canned Carrots,0.5,12,0.5,0\nknife_utility_0,Utility Knife,0.2,1,0.07,120\npressure_canner_0,Pressure Canner,6,1,22,500\n",
+            )
+            .unwrap(),
+        );
+        data.insert("dev_stock_materials", Mutex::new(false));
+        data.insert("craft_request", Mutex::new(Option::<String>::None));
+        data.insert(home_store::HOME_STORAGE_HERE, Mutex::new(true));
+        data.insert("home_stock", Mutex::new(HashMap::from([("pressure_canner_0".to_string(), 1u32), ("knife_utility_0".to_string(), 1u32)])));
+        crate::notices::register(&mut data);
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("carrot_0", 3, 99);
+        let player = world.spawn((inv, Controllable));
+        let craft = |world: &mut hecs::World| {
+            *data.get::<Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() = Some("can_carrots".into());
+            CraftingSystem::new().tick(world, 0.016, &data);
+        };
+        let count = |world: &hecs::World, id: &str| world.get::<&Inventory>(player).unwrap().count_item(id);
+        let stored = |id: &str| data.get::<Mutex<HashMap<String, u32>>>("home_stock").unwrap().lock().unwrap().get(id).copied().unwrap_or(0);
+
+        craft(&mut world);
+        assert_eq!(count(&world, "canned_carrots_0"), 0, "the knife is a carried tool: in storage it does not serve");
+        assert!(notices(&data).iter().any(|n| n.contains("needs a Utility Knife in your backpack.")), "{:?}", notices(&data));
+
+        world.get::<&mut Inventory>(player).unwrap().add_item("knife_utility_0", 1, 1);
+        craft(&mut world);
+        assert_eq!(count(&world, "canned_carrots_0"), 1, "a canner in home storage serves the craft: {:?}", notices(&data));
+        assert_eq!(stored("pressure_canner_0"), 1, "a tool is not spent: the canner stays in storage");
+        assert_eq!(count(&world, "pressure_canner_0"), 0, "and it is not put in the backpack");
+
+        // Where the home's storage does not count (a guest's craft), the stored canner does not serve.
+        *data.get::<Mutex<bool>>(home_store::HOME_STORAGE_HERE).unwrap().lock().unwrap() = false;
+        craft(&mut world);
+        assert_eq!(count(&world, "canned_carrots_0"), 1, "away from home the stored canner does not serve");
+        assert!(notices(&data).iter().any(|n| n.contains("Pressure Canner in your backpack or home storage")), "{:?}", notices(&data));
+    }
+
     /// Station power (2026-09-26): a craft at an electric station is refused,
     /// with a notice and nothing spent, while the station has no power; once
     /// powered it runs, and the station draws its working watts only while
@@ -2399,6 +2500,7 @@ mod skill_xp_tests {
             waiting_notified: false,
             pause_notified: false,
             cook: None,
+            preserve: None,
         });
         sys.tick(&mut world, 5.0, &data);
         assert_eq!(sys.active_crafts.len(), 1, "held: its machine has no power");

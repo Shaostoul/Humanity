@@ -689,14 +689,10 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         ui.add_space(theme.spacing_sm);
         widgets::card_with_header(ui, theme, t("crafting.tools"), |ui| {
             for tool in &recipe.tools {
-                let have = in_backpack(state, tool) > 0;
+                let (have, words) = tool_place(state, recipe, tool);
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(pretty_id(tool)).size(theme.font_size_body).color(theme.text_primary()));
-                    ui.label(
-                        RichText::new(if have { t("crafting.tool_in_backpack") } else { t("crafting.tool_not_in_backpack") })
-                            .size(theme.font_size_small)
-                            .color(if have { theme.success() } else { theme.danger() }),
-                    );
+                    ui.label(RichText::new(t(words)).size(theme.font_size_small).color(if have { theme.success() } else { theme.danger() }));
                 });
             }
         });
@@ -740,6 +736,8 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
 
     // A dish's method, heat and time (cooking rung 1, 2026-11-21).
     crate::gui::pages::cooking_panel::draw(ui, theme, state, recipe);
+    // A preserving procedure's method and time (preserving rung 1, 2026-11-21).
+    crate::gui::pages::preserving_panel::draw(ui, theme, state, recipe);
 
     ui.add_space(theme.spacing_md);
 
@@ -767,7 +765,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             .unwrap_or(&recipe.station_required);
         state.home_machines.is_none() || state.stations_here.contains(machine_type)
     };
-    let missing_tool = recipe.tools.iter().find(|tool| in_backpack(state, tool) == 0).cloned();
+    let missing_tool = recipe.tools.iter().find(|tool| !tool_place(state, recipe, tool).0).cloned();
     // Power (2026-09-26): lib.rs publishes the electric station types that
     // have no powered machine, mirroring CraftingSystem::station_unpowered.
     let unpowered = recipe
@@ -832,6 +830,8 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             state.pending_craft_recipe = Some(recipe.id.clone());
             // A dish goes with the heat and time its cooking card set (None: the station picks).
             state.pending_cook_choice = crate::gui::pages::cooking_panel::choice_for(state, &recipe.id);
+            // A preserving procedure goes with the method and time its card set (none: the station picks).
+            crate::gui::pages::preserving_panel::send_choice(state, &recipe.id);
             state.craft_status = tf("crafting.crafting_status", &[("name", &recipe.name)]);
             with_local(|local| {
                 local.queue.push(CraftQueueItem {
@@ -851,7 +851,8 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         } else if no_room {
             tf("crafting.no_room", &[("why", &not_here.unwrap_or(t("crafting.make_room")))])
         } else if let Some(tool) = &missing_tool {
-            tf("crafting.needs_tool", &[("tool", &pretty_id(tool))])
+            let key = if recipe.tools_at_home.contains(tool) { "crafting.needs_tool_at_home" } else { "crafting.needs_tool" };
+            tf(key, &[("tool", &pretty_id(tool))])
         } else if unpowered {
             let station = recipe.station_required.trim_end_matches("_0").replace('_', " ");
             match &state.stations_where {
@@ -937,6 +938,24 @@ fn in_home_storage(state: &GuiState, item_id: &str) -> u32 {
         state.home_stock.get(item_id).copied().unwrap_or(0)
     } else {
         0
+    }
+}
+
+/// Whether a hand tool of `recipe` serves the craft here, and the words for where it is: the
+/// backpack anywhere, or for a tool kept at home (a canner, 2026-11-21, tools.ron `at_home`) home
+/// storage where it counts, the same rule the crafting system applies, so the page never greys a
+/// craft the system would make or offers one it would refuse.
+fn tool_place(state: &GuiState, recipe: &GuiRecipe, tool: &str) -> (bool, &'static str) {
+    if in_backpack(state, tool) > 0 {
+        return (true, "crafting.tool_in_backpack");
+    }
+    if !recipe.tools_at_home.iter().any(|t| t == tool) {
+        return (false, "crafting.tool_not_in_backpack");
+    }
+    if in_home_storage(state, tool) > 0 {
+        (true, "crafting.tool_in_home_storage")
+    } else {
+        (false, "crafting.tool_not_at_home")
     }
 }
 

@@ -5830,6 +5830,120 @@ fn the_cooking_card_says_what_the_level_allows() {
     }
 }
 
+/// The preserving card's state (preserving rung 1, 2026-11-21): Can Carrots selected at `level`,
+/// the kit's carrots, jars and knife in the backpack, and the pressure canner in the backpack or, as the
+/// homestead keeps it (data/crafting/tools.ron `at_home`), in home storage at home.
+fn preserving_card_state(state: &mut GuiState, level: &str) {
+    preserving_card_state_with(state, level, false);
+}
+
+fn preserving_card_state_with(state: &mut GuiState, level: &str, canner_at_home: bool) {
+    if state.craft_selected.is_some() {
+        return;
+    }
+    let idx = state.craft_recipes.iter().position(|r| r.id == "can_carrots").expect("the carrot canning recipe ships");
+    state.craft_selected = Some(idx);
+    state.settings.set_level("preserving", level);
+    for (id, name, n) in [("vegetable_carrot_0", "Carrot", 4), ("canning_jar_0", "Canning Jar (pint)", 2), ("knife_utility_0", "Utility Knife", 1), ("pressure_canner_0", "Pressure Canner", 1)] {
+        if id == "pressure_canner_0" && canner_at_home {
+            state.home_storage_here = true;
+            state.home_stock.insert(id.to_string(), n);
+            continue;
+        }
+        state.inventory_items.push(Some(GuiItemSlot { item_id: id.into(), name: name.into(), quantity: n, ..Default::default() }));
+    }
+}
+
+/// The preserving card in Guided with carrots put in a boiling-water canner: the tested table, the
+/// lethal hazard, and the red "BOTULISM RISK" before the start.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_crafting_preserving() {
+    crate::gui::pages::preserving_panel::set_choice(humanity_systems::preserving::Choice {
+        recipe: "can_carrots".into(),
+        method: "boiling_water".into(),
+        time: 60.0,
+        psi: 0.0,
+        vented: false,
+    });
+    render_page_png("crafting_preserving", 1280, 1200, |ctx, theme, state| {
+        preserving_card_state(state, "guided");
+        crate::gui::pages::crafting::draw(ctx, theme, state);
+    });
+}
+
+/// The same card in Simplified (the default): the canner picks the tested process, no controls;
+/// the pressure canner in home storage, as the homestead keeps it ("in home storage (it stays at
+/// home)", and the craft offered).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_crafting_preserving_simplified() {
+    render_page_png("crafting_preserving_simplified", 1280, 1200, |ctx, theme, state| {
+        preserving_card_state_with(state, "simplified", true);
+        crate::gui::pages::crafting::draw(ctx, theme, state);
+    });
+}
+
+/// The same card in Realistic with carrots put in a boiling-water canner: the tested table and the
+/// lethal hazard, and no verdict before the start (2026-11-21, the third level's snapshot).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_crafting_preserving_realistic() {
+    crate::gui::pages::preserving_panel::set_choice(humanity_systems::preserving::Choice {
+        recipe: "can_carrots".into(),
+        method: "boiling_water".into(),
+        time: 60.0,
+        psi: 0.0,
+        vented: false,
+    });
+    render_page_png("crafting_preserving_realistic", 1280, 1200, |ctx, theme, state| {
+        preserving_card_state(state, "realistic");
+        crate::gui::pages::crafting::draw(ctx, theme, state);
+    });
+}
+
+/// THE PRESERVING CARD SAYS WHAT THE LEVEL ALLOWS, read back from the drawn frame (no GPU): every
+/// level shows the tested pressure table and the lethal hazard for a low-acid food; Simplified says
+/// the station picks; Guided with carrots in a boiling-water canner says BOTULISM RISK before the
+/// start; Realistic, choosing the same, judges nothing. Seen red with the card's Guided verdict
+/// shown at every level: "Realistic judges nothing before the start". Seen red again 2026-11-21 with
+/// food_system.ron's Can Carrots marked an acid food (scratchpad pres1-faults2.js): "the lethal hazard
+/// shows in simplified".
+#[test]
+fn the_preserving_card_says_what_the_level_allows() {
+    crate::gui::pages::preserving_panel::set_choice(humanity_systems::preserving::Choice {
+        recipe: "can_carrots".into(),
+        method: "boiling_water".into(),
+        time: 60.0,
+        psi: 0.0,
+        vented: false,
+    });
+    let drawn = |level: &str| {
+        let mut state = demo_state();
+        preserving_card_state(&mut state, level);
+        let ctx = snapshot_ctx();
+        let theme = load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut out = None;
+        for _ in 0..3 {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 4000.0))), ..Default::default() };
+            out = Some(ctx.run(input, |ctx| crate::gui::pages::crafting::draw(ctx, &theme, &mut state)));
+        }
+        out.expect("frames ran").shapes
+    };
+    let has = |shapes: &[egui::epaint::ClippedShape], q: &str| crate::gui::screen_surface::find_text_in_shapes(shapes, q).is_some();
+    let simple = drawn("simplified");
+    let guided = drawn("guided");
+    let real = drawn("realistic");
+    for (level, shapes) in [("simplified", &simple), ("guided", &guided), ("realistic", &real)] {
+        assert!(has(shapes, "Weighted-gauge pressure canner: pints 25 min"), "the tested table shows in {level}");
+        assert!(has(shapes, "Lethal if done wrong"), "the lethal hazard shows in {level}");
+    }
+    assert!(has(&simple, "The station picks"), "Simplified says the station picks");
+    assert!(has(&guided, "BOTULISM RISK"), "Guided says before the start that carrots in boiling water carry a botulism risk");
+    assert!(!has(&real, "It will come out"), "Realistic judges nothing before the start");
+}
+
 /// The Tools card and the line under a greyed Craft button name a tool the
 /// way the Ingredients and Produces cards name a part ("Wrench Adjustable"),
 /// never by its item id. Headless (no GPU): the drawn text is read back from
@@ -6080,6 +6194,19 @@ fn snapshot_quests_cook_it_through() {
         tracked: Some("food_cook".into()),
     };
     quest_chain_png("quests_cook_it_through", 1100, tracker, "food_cook", humanity_systems::quests::chain::Reveal::All);
+}
+
+/// Can It (preserving rung 1, 2026-11-21) in its chain window, every step shown: Keep It done, the
+/// guide read, the applesauce jar next.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_quests_can_it() {
+    let tracker = humanity_systems::quests::QuestTracker {
+        active_quests: vec![humanity_systems::quests::ActiveQuest { quest_id: "food_keep_can".into(), current_step: 1, progress: Default::default() }],
+        completed_quests: vec!["food_first".into(), "food_keep".into()],
+        tracked: Some("food_keep_can".into()),
+    };
+    quest_chain_png("quests_can_it", 1100, tracker, "food_keep_can", humanity_systems::quests::chain::Reveal::All);
 }
 page_snapshot!(snapshot_calendar, "calendar", calendar, 1280, 900);
 page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);

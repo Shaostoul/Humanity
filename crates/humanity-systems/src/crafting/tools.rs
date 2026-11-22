@@ -6,6 +6,13 @@
 //! tools must be in the backpack (you carry the hammer to the bench). An
 //! automated machine needs none: the machine is the tool.
 //!
+//! The exception is equipment that lives where it is used (`at_home`,
+//! 2026-11-21, preserving rung 1): a canner is a 20 L pot that stays in the
+//! home and goes on its stove, so a craft takes it from the home's storage
+//! wherever that storage counts for a craft (`home_store::HomeStore`, BUG-147's
+//! reach), as it takes the craft's ingredients, and from the backpack anywhere.
+//! A canner used from storage is not worn yet (rung 2 wears it there).
+//!
 //! Which recipes need which tools is data (`data/crafting/tools.ron`): rules
 //! by station and category, and per-recipe lists that override them. The
 //! same resolution serves the crafting system and the Crafting page, so the
@@ -33,10 +40,19 @@ pub struct ToolRules {
     /// Recipe id to its tools, overriding the rules (an empty list = none).
     #[serde(default)]
     pub recipes: HashMap<String, Vec<String>>,
+    /// Tools kept at home rather than carried: a craft takes one from the home's
+    /// storage where that storage counts (see the module comment).
+    #[serde(default)]
+    pub at_home: Vec<String>,
 }
 
 impl ToolRules {
     pub const FILE: &'static str = "crafting/tools.ron";
+
+    /// The tools of `tools` a craft may take from the home's storage.
+    pub fn kept_at_home(&self, tools: &[String]) -> Vec<String> {
+        tools.iter().filter(|t| self.at_home.contains(t)).cloned().collect()
+    }
 
     pub fn from_ron(bytes: &[u8]) -> Result<Self, String> {
         let s = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
@@ -93,6 +109,25 @@ mod tests {
         // A recipe that makes a tool never needs that tool.
         let makes_hammer = vec![("hammer_0".to_string(), 1)];
         assert!(!r.tools_for("x", "forge_0", "crafting", &makes_hammer).contains(&"hammer_0".to_string()));
+    }
+
+    /// Every tool kept at home is one a recipe needs (no stale entry), and the
+    /// homestead's storage holds each at the start, not its kit (2026-11-21: the
+    /// canners in the kit filled the 65 L backpack to the litre). Seen red 2026-11-21 with the hammer
+    /// listed as kept at home: "hammer_0: the homestead's storage (places/seed.json) holds none at the
+    /// start".
+    #[test]
+    fn the_tools_kept_at_home_start_at_home() {
+        let r = rules();
+        assert!(!r.at_home.is_empty(), "tools.ron names the canners kept at home");
+        let named: std::collections::BTreeSet<String> = r.recipes.values().flatten().chain(r.rules.iter().flat_map(|x| x.tools.iter())).cloned().collect();
+        let seed = String::from_utf8(data("places/seed.json")).unwrap();
+        let starts = String::from_utf8(data("homes/starts.ron")).unwrap();
+        for t in &r.at_home {
+            assert!(named.contains(t), "{t} is kept at home but no recipe needs it");
+            assert!(seed.contains(&format!("\"item\": \"{t}\"")), "{t}: the homestead's storage (places/seed.json) holds none at the start");
+            assert!(!starts.contains(&format!("(\"{t}\"")), "{t} is kept at home, so no start's kit carries it");
+        }
     }
 
     /// The web Crafting page reads data/recipes.json, which
@@ -156,6 +191,8 @@ mod tests {
         let vendor = String::from_utf8(data("trade_goods.ron")).unwrap();
         // Every start's kit (ship homes increment 6 moved the starting kit into the starts).
         let kit = String::from_utf8(data("homes/starts.ron")).unwrap();
+        // And what a home's storage holds at the start (the canners, 2026-11-21).
+        let stored = String::from_utf8(data("places/seed.json")).unwrap() + &String::from_utf8(data("places/cabin_seed.json")).unwrap();
 
         let per_recipe: Vec<(Vec<String>, Vec<String>)> = recipes
             .iter()
@@ -173,7 +210,7 @@ mod tests {
         }
         let mut have: std::collections::HashSet<String> = needed
             .iter()
-            .filter(|t| vendor.contains(&format!("id: \"{t}\"")) || kit.contains(&format!("(\"{t}\"")))
+            .filter(|t| vendor.contains(&format!("id: \"{t}\"")) || kit.contains(&format!("(\"{t}\"")) || stored.contains(&format!("\"item\": \"{t}\"")))
             .cloned()
             .collect();
         loop {

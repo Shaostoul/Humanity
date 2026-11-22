@@ -635,22 +635,41 @@ pub struct CareLine {
 /// Every wound and illness on the player, for the HUD and the Inventory page (the lib.rs vitals
 /// bridge copies them into `GuiVitals::care`), read with the data as shipped (disk first).
 pub fn care_lines(effects: &StatusEffects, registry: Option<&StatusEffectRegistry>) -> Vec<CareLine> {
+    care_lines_in(effects, registry, Mode::Realistic)
+}
+
+/// `care_lines` in the Illness and injury mode the body runs in (2026-11-21): an illness whose
+/// course reads differently by mode (botulism kills in Realistic unless a medbay treats it) says
+/// this mode's words. The vitals bridge (engine::frame_mirrors) passes the Settings mode.
+pub fn care_lines_in(effects: &StatusEffects, registry: Option<&StatusEffectRegistry>, mode: Mode) -> Vec<CareLine> {
     let (wounds, illnesses, _) = shipped();
     let mut lines = wounds.lines(effects, registry);
-    lines.extend(illness_lines(illnesses, effects, registry));
+    lines.extend(illness_lines(illnesses, effects, registry, mode));
     lines
 }
 
-/// Each illness on a body, the way `Wounds::lines` gives each wound.
-pub fn illness_lines(ill: &Illnesses, effects: &StatusEffects, registry: Option<&StatusEffectRegistry>) -> Vec<CareLine> {
+/// Whether anything on the player is an illness a medbay treats, with the data as shipped (the
+/// vitals bridge, for the Inventory page's "Get treated", systems::medbay).
+pub fn medbay_treats_any(effects: &StatusEffects) -> bool {
+    crate::medbay::treatable(&shipped().1, effects)
+}
+
+/// Each illness on a body, the way `Wounds::lines` gives each wound, in `mode`. One that can kill
+/// in this mode (its own harm, Realistic) is a danger line, not an attention one.
+pub fn illness_lines(ill: &Illnesses, effects: &StatusEffects, registry: Option<&StatusEffectRegistry>, mode: Mode) -> Vec<CareLine> {
     effects
         .active
         .iter()
         .filter_map(|e| {
             let i = ill.get(&e.id)?;
             let name = registry.and_then(|r| r.get(&e.id)).map_or(e.id.clone(), |d| d.name.clone());
-            let line = format!("It passes on its own in about {}. {}", time_words(e.remaining), i.helps);
-            Some(CareLine { kind: "Ill", name, short: i.hud.clone(), line, severity: 1 })
+            let line = if i.words.is_empty() {
+                format!("It passes on its own in about {}. {}", time_words(e.remaining), i.helps)
+            } else {
+                format!("{} {}", i.course_words(mode, e.remaining as f32), i.helps_words())
+            };
+            let severity = if i.health_per_h > 0.0 && mode == Mode::Realistic { 2 } else { 1 };
+            Some(CareLine { kind: "Ill", name, short: i.hud_words(), line, severity })
         })
         .collect()
 }
