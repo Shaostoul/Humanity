@@ -1752,6 +1752,11 @@
       "date": "2026-11-21",
       "decision": "OPERATOR, 2026-11-21, on the signed-requests merge timing: 'Why not just release it when website and desktop app both work? I don't mind doing a third release or more today.' So the daily limit of two releases is lifted for today. Plan: when signed requests round 6 reports, run a targeted review while building and testing the release on the merged tree locally (unpushed); if the review is clean, push the merge and the release together so the relay, the website and the desktop app update within minutes (archive the operator's exe at once); then the live-server changes (nginx Host $http_host on both servers with nginx -t and reload, the time-sync drop-in via the deploy plus systemd-time-wait-sync with a 90 s cap, relay restart) and an outside check of sign-in. A serious finding holds the push.",
       "why": "The operator wants the server and app to change together, and allowed extra releases today."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Owner round 7 FINISHED (worktree-agent-af56ae1d347892b87, fafcff7c6): a person's own fingerprint only in Settings > Account and the website's chat menu, from the device's own key at startup; check prompts drawn only after their signed action verifies against the owner the member list shows, held until the list arrives, honest names, no fingerprint; every relay system line drawn as 'From this server'; the whole hide one spawned task owning SealingNow, sealing under the held lock with the card read there; refused keys per server and key (desktop until restart, website 24 h localStorage); channel words; a poison-recovering writer lock. BUGs 344-394 (main ends at 343). Gates: lib tests 6,723 passed, verify-relay exit 0, KATs, held fixtures, web 754/754, snapshots looked at; just verify exit 1 only on the lib-tests-policy watchdog flake being fixed separately. SEVENTH review dispatched.",
+      "why": "Merge after a clean review."
     }
   ],
   "active_scopes_to_avoid": [
