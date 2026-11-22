@@ -48,7 +48,8 @@ async fn a_member_who_is_not_an_admin_cannot_change_the_figures() {
 #[tokio::test]
 async fn an_admins_figures_are_saved_stamped_and_served() {
     let state = std::sync::Arc::new(RelayState::new(Storage::open_temp("funding_figures_admin")));
-    state.db.set_role("op", "owner").unwrap();
+    // Only a claim or a handover makes an owner (the owner branch: set_role refuses the role).
+    assert!(state.db.claim_owner("op", 0).unwrap(), "op claims the empty owner role");
     super::server_settings_update::handle(&state, "op", frame(update(patreon_20()))).await;
     let saved = state.db.get_server_settings().unwrap().funding_figures;
     assert_eq!(saved.channels.len(), 1, "the owner's figures are saved");
