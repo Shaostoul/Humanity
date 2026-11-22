@@ -1717,6 +1717,11 @@
       "date": "2026-11-21",
       "decision": "Merged the arrival follow-ups (b8e44cddf): crew_seen by a shown/hidden picture difference inside each crew member's drawn box (passes in all three copresence orders); every shared floor, street, alley and corridor reads as a place by key; the one-person homestead's death screen says why it draws no General Services pod (its figures add up every machine in its file). Dispatched (wk-smallfix2.txt): Medbay/Barracks names by key, and the walker-first meet_figure_visible timing race. Asked the operator: should a household's figures count only its own machines (honest numbers, every home can draw the ship's pods, the family home's food figure drops because it now counts the Commons garden)? Recommended yes.",
       "why": "Arrival rungs' follow-ups; one modeling question is the operator's."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Preserving rung 1 HANDED OFF (worktree-agent-ab31088b34297af9b, f1d8c034b): drying (oven and sun, water content per NCHFP, Colorado State ranges), canning per the USDA 2015 tested tables shown in full for every jar size and altitude, a low-acid jar canned any other way marked BOTULISM RISK and never looking safe (a new serious illness, CDC words), dried and canned foods with their own USDA nutrition and long spoilage clocks, Simplified/Guided/Realistic levels, a Preserve quest objective, Dry It and Can It after Keep It; refutation pass 18 confirmed, 4 corrected for a dropped condition, none refuted (finding 2026-11-21-preserving-safety-facts). Not mergeable: the soak's person starves because canners and jars fill the 36-slot pack and the routine cannot put things away. Continuation dispatched (wk-preserve2.txt: a Store act, possibly the canner as a station item, the card's red run, gates). MY CALL: salting next rung as the country ham on the long-process clock with salt in grams. ASKED THE OPERATOR: botulism's game numbers (0.5 chance per bad jar, 7-day course, can kill a hurt body) or certainly fatal in Realistic? Recommended: in Realistic, fatal unless treated at a medbay; in Simplified, serious but survivable.",
+      "why": "Game work in the activities order; one stakes decision is the operator's."
     }
   ],
   "active_scopes_to_avoid": [
