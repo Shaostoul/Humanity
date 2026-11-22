@@ -257,6 +257,28 @@
   border-radius: 0;
 }
 
+/* The app's own voice (app.js addSystemMessage, the owner branch's seventh review H1 (a)): an accent
+   bar and a diamond no line from the network carries. The native twin is
+   src/gui/widgets/app_line.rs. The server's lines (.server-line, marked "From this server:") and
+   every member's row never get them. */
+.message.system.app-line,
+.notice.app-line {
+  border-left: 3px solid var(--accent);
+  padding-left: var(--space-sm);
+}
+.message.system.app-line::before,
+.notice.app-line::before {
+  content: '';
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: var(--space-xs);
+  background: var(--accent);
+  transform: rotate(45deg);
+  vertical-align: middle;
+}
+.message.system.skill-verify .skill-verify-note { margin: var(--space-xs) var(--space-xs) var(--space-xs) 0; }
+
 /* Ephemeral notices, color-coded, auto-dismiss */
 .notice {
   padding: var(--space-md) var(--space-lg);

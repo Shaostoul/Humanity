@@ -308,6 +308,9 @@
     for (const raw of Array.isArray(msg.cards) ? msg.cards : []) {
       const card = window.HosKeyCard ? window.HosKeyCard.parseCard(raw) : null;
       if (!card) continue;
+      // Only a card this page asked for is taken (the owner branch's third review, W1: a relay
+      // pushed cards nobody asked for, and they were pinned on first sight).
+      if (!mail.asked.has(card.key)) { console.warn('orgs: dropped a key card this page never asked for'); continue; }
       mail.asked.delete(card.key);
       if (!(await window.HosKeyCard.cardFor(card, card.key, (p, x, s) => window.pqVerifyMessage(p, x, s)))) continue;
       if (window.HosKeyCard.take(kept.pins, card).dirty) dirty = true;

@@ -253,7 +253,8 @@ function handleMarketMessage(msg) {
       var me = msg.peers.find(function(p) { return p.public_key_hex === marketMyKey || p.public_key === marketMyKey; });
       if (me) { marketMyRole = me.role || ''; }
     }
-    marketCanList = marketMyRole === 'admin' || marketMyRole === 'mod' || marketMyRole === 'verified' || marketMyRole === 'donor';
+    // Who may list for sale, as the relay's listing gate: staff (the owner too, /shared/roles.js), verified, donor.
+    marketCanList = HosRoles.isStaffRole(marketMyRole) || marketMyRole === 'verified' || marketMyRole === 'donor';
     var btn = document.getElementById('market-create-btn');
     var onDirectory = _marketSection === 'directory';
     if (btn) btn.style.display = (marketCanList && !onDirectory) ? 'inline-flex' : 'none';
@@ -363,7 +364,7 @@ function renderDetailReviews(listingId, data) {
   var l = marketListings.find(function(x) { return x.id === listingId; });
   var isMine = l && l.seller_key === marketMyKey;
   var reviews = data.reviews || listingReviews[listingId] || [];
-  var isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
+  var isAdmin = HosRoles.isStaffRole(marketMyRole);
   var alreadyReviewed = reviews.some(function(r) { return r.reviewer_key === marketMyKey; });
   var canReview = !isMine && !alreadyReviewed && marketMyKey && marketMyKey.indexOf('viewer_') !== 0;
 
@@ -577,7 +578,7 @@ function renderMarketListings() {
 function renderListingCard(l, showActions) {
   var catColor = categoryColor(l.category);
   var isMine = l.seller_key === marketMyKey;
-  var isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
+  var isAdmin = HosRoles.isStaffRole(marketMyRole);
   var sr = sellerRatings[l.seller_key];
   var ratingHtml = sr && sr.count > 0
     ? '<div class="listing-rating">' + renderStars(sr.avg, 11) + '<span class="listing-rating-count">(' + sr.count + ')</span></div>'

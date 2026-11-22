@@ -217,8 +217,8 @@
 
     var isMe = key === myKey;
     var role = myRole();
-    var amMod = role === 'mod' || role === 'admin' || role === 'owner';
-    var amAdmin = role === 'admin' || role === 'owner';
+    var amMod = HosRoles.isStaffRole(role);
+    var amAdmin = HosRoles.isAdminRole(role);
 
     // STANDARD (red): local audio + personal actions.
     var std = section(modal, 'You', 'vmodal-tier-standard');

@@ -13,7 +13,12 @@
 //      (asks first, says it cannot be undone), Export (this browser opens the sealed parts with the
 //      owner's own Kyber768 key straight into one .zip file the owner saves, never drawn) and
 //      Restore (opens each file here and uploads it again; the relay checks every byte against what
-//      it held, then puts the post back and deletes the held copy).
+//      it held, then puts the post back and deletes the held copy). Every request to a held part
+//      route is signed as me (`callerHeaders`, the owner review's finding 1): a grant alone fetches
+//      nothing.
+//   3. The server owner's part of Held copies (Claim ownership while there is no owner, the
+//      successor, the owner log, and the owner's Hand over and Successor controls) is drawn by
+//      chat-owner.js, loaded after this file (window.ownerHeldNodes, window.ownerRefusalNodes).
 //
 // Built as DOM: createElement, textContent and addEventListener only. No innerHTML and no data-*
 // handlers, so it does not depend on /shared/safe-markup.js. Words by key (data/i18n/en.json).
@@ -71,7 +76,7 @@
   }
 
   function myRole() { return typeof reportsMyRole === 'function' ? reportsMyRole() : (window.myPeerRole || ''); }
-  function amAdmin() { const r = myRole(); return r === 'admin' || r === 'owner'; }
+  function amAdmin() { return HosRoles.isAdminRole(myRole()); }
   function socketOpen() { return typeof ws !== 'undefined' && ws && ws.readyState === 1; }
   function hexToBytes(hex) {
     const a = new Uint8Array(hex.length / 2);
@@ -166,7 +171,9 @@
     box.appendChild(make('div', 'held-refusal-title', t('held.cannot_keep_title')));
     if (held.keep.why) box.appendChild(make('div', 'held-refusal-why', held.keep.why));
     box.appendChild(make('div', 'held-refusal-instead', t('held.instead')));
-    box.appendChild(make('div', 'held-refusal-today', t('held.no_owner_today')));
+    // What to do today (chat-owner.js): claim the server when it has no owner, or wait for the
+    // owner's key card.
+    if (typeof window.ownerRefusalNodes === 'function') for (const n of window.ownerRefusalNodes()) box.appendChild(n);
     return box;
   }
 
@@ -234,11 +241,69 @@
     render();
   }
 
-  /** A part of `item` under the grant `grant`, still sealed. */
+  // ── Who asks (2026-11-20, the owner review's finding 1) ──
+  //
+  // A grant alone fetches nothing: the relay serves a held part only to the key the grant belongs
+  // to, so every request to a held part route carries my key, the time and my Dilithium3 signature
+  // over `purpose\ntime` (/shared/held-seal.js callerPurpose; the desktop's net/held.rs `Caller`).
+  // chat-owner.js signs its re-wrap and check requests through `window.heldCallerHeaders` too.
+
+  let lastSignedAt = 0;
+  /** Unix ms, strictly later than the last request's, so a retried request is never a replay. */
+  function nextMs() {
+    lastSignedAt = Math.max(Date.now(), lastSignedAt + 1);
+    return lastSignedAt;
+  }
+
+  /** The three headers proving I asked for `purpose`, signed now. */
+  async function callerHeaders(purpose) {
+    if (typeof myKey !== 'string' || !myKey || typeof myDilithiumSecret === 'undefined' || !myDilithiumSecret || typeof window.pqSignMessage !== 'function') {
+      throw new Error(t('held.need_key'));
+    }
+    const { seal } = await mods();
+    const ts = nextMs();
+    const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(purpose + '\n' + ts));
+    if (!sig) throw new Error(t('held.need_key'));
+    let hex = '';
+    for (let i = 0; i < sig.length; i++) hex += sig[i].toString(16).padStart(2, '0');
+    return { [seal.CALLER_KEY]: myKey, [seal.CALLER_TIME]: String(ts), [seal.CALLER_SIG]: hex };
+  }
+
+  /** A part of `item` under the grant `grant`, still sealed, asked for as me. */
   async function fetchPart(item, part, grant) {
-    const r = await fetch('/api/held/' + item.id + '/' + part + '?grant=' + grant, { cache: 'no-store' });
+    const { seal } = await mods();
+    const headers = await callerHeaders(seal.callerPurpose('part', grant, item.id, part, 0));
+    const r = await fetch('/api/held/' + item.id + '/' + part + '?grant=' + grant, { cache: 'no-store', headers });
     if (!r.ok) throw new Error(t('held.not_granted'));
     return new Uint8Array(await r.arrayBuffer());
+  }
+
+  /** The most one restore piece carries: the relay's RESTORE_PIECE_MAX, under nginx's 1 MB limit
+   *  on /api/. */
+  const PIECE_MAX = 768 * 1024;
+
+  /** Send file part `part` of `item` back on a restore, opened here: in pieces of at most
+   *  PIECE_MAX, each signed for its own offset, from wherever the relay says it has got to (a 409
+   *  names the byte to send from). */
+  async function putPart(item, part, grant, restoreKey, bytes) {
+    const { seal } = await mods();
+    let offset = 0;
+    const tries = Math.ceil(bytes.length / PIECE_MAX) * 4 + 8;
+    for (let n = 0; n < tries; n++) {
+      const piece = bytes.subarray(offset, Math.min(bytes.length, offset + PIECE_MAX));
+      const headers = Object.assign({ 'x-held-restore-key': restoreKey }, await callerHeaders(seal.callerPurpose('restore', grant, item.id, part, offset)));
+      const r = await fetch('/api/held/' + item.id + '/' + part + '?grant=' + grant + '&offset=' + offset, { method: 'PUT', headers, body: piece });
+      const answer = await r.json().catch(() => ({}));
+      if (r.status === 409 && Number.isSafeInteger(answer.offset) && answer.offset >= 0 && answer.offset < bytes.length) {
+        offset = answer.offset;
+        continue;
+      }
+      if (!r.ok) throw new Error(answer.error || t('held.not_granted'));
+      if (answer.done === true) return;
+      if (!Number.isSafeInteger(answer.offset) || answer.offset <= offset || answer.offset > bytes.length) throw new Error(t('held.not_granted'));
+      offset = answer.offset;
+    }
+    throw new Error(t('held.not_granted'));
   }
 
   function kyberSecret() {
@@ -275,6 +340,18 @@
     return target.fallbackName;
   }
 
+  /** Throws the words unless the opened `manifest` is the item the owner chose (its package and
+   *  report as the list showed them; /shared/held-seal.js manifestIs, the third review's W7: a relay
+   *  could hand over another item's copy under the one clicked; and its post's author and time, the
+   *  fourth review's finding 8: one report can hold several posts). Nothing is written or sent then. */
+  function chosen(seal, manifest, item) {
+    if (seal.manifestIs(manifest, item)) return;
+    if (manifest && Number(manifest.report_id) === Number(item.report_id) && String(manifest.package) === String(item.package)) {
+      throw new Error(t('held.not_the_post', { id: item.id, report: item.report_id }));
+    }
+    throw new Error(t('held.not_the_item', { id: item.id, report: item.report_id, got: manifest && manifest.report_id }));
+  }
+
   async function exportItem(item) {
     if (held.busy) return;
     let target;
@@ -287,6 +364,7 @@
       const { noble, seal } = await mods();
       const secret = kyberSecret();
       const manifest = await seal.openManifest(noble, secret, item.package, await fetchPart(item, 0, signed.objectId));
+      chosen(seal, manifest, item);
       const files = new Map();
       for (const f of manifest.files || []) {
         for (const p of [f.part, f.poster_part]) {
@@ -314,15 +392,17 @@
       const { noble, seal } = await mods();
       const secret = kyberSecret();
       const manifest = await seal.openManifest(noble, secret, item.package, await fetchPart(item, 0, signed.objectId));
-      const headers = { 'x-held-restore-key': String(manifest.restore_key || '') };
+      chosen(seal, manifest, item);
+      const restoreKey = String(manifest.restore_key || '');
       for (const f of manifest.files || []) {
         for (const p of [f.part, f.poster_part]) {
           if (p == null) continue;
           const plain = await seal.openPart(noble, secret, seal.partContext(item.package, p), await fetchPart(item, p, signed.objectId));
-          const r = await fetch('/api/held/' + item.id + '/' + p + '?grant=' + signed.objectId, { method: 'PUT', headers, body: plain });
-          if (!r.ok) throw new Error(await r.text().catch(() => '') || t('held.not_granted'));
+          await putPart(item, p, signed.objectId, restoreKey, plain);
+          plain.fill(0);
         }
       }
+      const headers = Object.assign({ 'x-held-restore-key': restoreKey }, await callerHeaders(seal.callerPurpose('finish', signed.objectId, item.id, 0, 0)));
       const r = await fetch('/api/held/' + item.id + '/restore?grant=' + signed.objectId, { method: 'POST', headers });
       const answer = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(answer.error || t('held.not_granted'));
@@ -345,11 +425,14 @@
     const head = make('div', 'held-item-title', t('held.item_line', { id: item.id, report: item.report_id }));
     head.style.fontWeight = '600';
     box.appendChild(head);
+    // Which post it is: one report can hold several (the fourth review's finding 8).
+    line(t('held.post_line', { when: when(item.stamp), name: item.author_name || '' }));
     line(t('held.held_line', { when: when(item.held_at), name: item.held_by_name || '' }));
     line(t('held.expires_line', { when: when(item.deleted_at || item.delete_after) }));
     line(item.legal_hold_until ? t('held.hold_line', { when: when(item.legal_hold_until) }) : t('held.no_hold'));
     line(t('held.size_line', { files: item.file_count, size: size(item.sealed_bytes), exports: item.exported_count }));
     if (!item.sealed_to_owner) line(t('held.not_owner_sealed'), 'held-earlier-owner');
+    if (item.sealed_to_successor) line(t('chat_owner.item_sealed_to_successor'), 'held-successor-sealed');
     if (!owner) return box;
 
     const reason = make('input', 'held-reason');
@@ -444,6 +527,9 @@
     const counted = (typeof i18n !== 'undefined' && i18n && typeof i18n.tn === 'function') ? i18n.tn('held.count', items.length) : String(items.length);
     nodes.push(make('p', 'held-count', counted));
     nodes.push(make('p', 'held-counts', t('held.counts_line', { held: c.held || 0, exported: c.exported || 0, holds: c.legal_holds || 0, destroyed: c.destroyed || 0, restored: c.restored || 0 })));
+    // Hides whose copy is not sealed yet, said in words (the fourth review's finding 5a).
+    if (c.waiting > 0) nodes.push(make('p', 'held-waiting', t('held.waiting_line', { n: c.waiting })));
+    if (c.unidentified > 0) nodes.push(make('p', 'held-unidentified', t('held.unidentified_line', { n: c.unidentified })));
     if (!d.i_am_owner) nodes.push(make('p', 'held-owner-only', t('held.owner_only')));
     if (!items.length) nodes.push(make('p', 'held-none', t('held.none')));
     for (const item of items) nodes.push(itemNode(item, !!d.i_am_owner));
@@ -456,6 +542,9 @@
       row.style.fontSize = 'var(--text-sm)';
       nodes.push(row);
     }
+    // The server owner (chat-owner.js): the successor and the owner log for every admin, Claim
+    // ownership while there is no owner, and the owner's Hand over and Successor controls.
+    if (typeof window.ownerHeldNodes === 'function') for (const n of window.ownerHeldNodes(d)) nodes.push(n);
     return nodes;
   }
 
@@ -509,6 +598,10 @@
   window.closeHeldView = closeHeldView;
   window.heldDecorateReports = decorateReports;
   window.heldHideAndKeep = hideAndKeep;
+  // chat-owner.js draws its part of the view and asks for a fresh drawing when its state changes.
+  window.heldRender = render;
+  // chat-owner.js signs its requests to the held part routes the same way (finding 1).
+  window.heldCallerHeaders = callerHeaders;
   // For scripts/tests/held-chat-web.test.js: the state, read only by the test.
   window.__heldState = held;
 })();

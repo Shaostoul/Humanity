@@ -42,6 +42,7 @@
 
   const NODE = typeof module === 'object' && module && module.exports;
   const DROP = NODE ? require('../shared/drop-overlay.js') : root.HosDropOverlay;
+  const HosRoles = NODE ? require('../shared/roles.js') : root.HosRoles;
 
   const MIB = 1024 * 1024;
   /** A word by its key (data/i18n/en.json), or the key where no words are loaded. */
@@ -139,7 +140,8 @@
     function roleDef() {
       if (session && typeof session.roleDef === 'function') return session.roleDef();
       const s = state();
-      return s && Array.isArray(s.roles) ? s.roles.find((r) => r && r.id === s.role) || null : null;
+      // The owner reads as the Admin row (/shared/roles.js roleDefId).
+      return s && Array.isArray(s.roles) ? s.roles.find((r) => r && r.id === HosRoles.roleDefId(s.role)) || null : null;
     }
     /** Signed in with a role that may upload (the relay's upload_role_check): unknown counts as no. */
     function canUpload() {

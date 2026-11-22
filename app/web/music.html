@@ -39,6 +39,10 @@
     .mp .tabs { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin: var(--space-md) 0; border-bottom: 1px solid var(--border); }
     .mp .tabs button { border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; }
     .mp .tabs button[aria-selected=true] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .mp .transport { display: flex; gap: var(--space-xs); flex-wrap: wrap; align-items: center; margin: var(--space-md) 0 var(--space-xs); }
+    .mp .transport button { display: inline-flex; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; padding: 0; }
+    .mp .transport button.main { width: 3.25rem; height: 3.25rem; border-radius: 50%; background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .mp .transport button:disabled { opacity: 0.6; cursor: default; }
     .mp ul { list-style: none; padding: 0; margin: var(--space-md) 0 0; display: grid; gap: var(--space-sm); }
     .mp li { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); }
     .mp li.chosen { border-color: var(--accent); }
@@ -65,6 +69,7 @@
 <script src="/shared/i18n-en.js"></script>
 <script src="/shared/i18n.js"></script>
 <script src="/shared/icons.js"></script>
+<script src="/shared/transport-icons.js"></script>
 <script src="/shared/shell.js" data-active="music"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
@@ -72,7 +77,7 @@
   <h1 data-i18n="music_page.web_title">Music</h1>
   <p data-i18n="music_page.intro">The game composes its own music as it plays: a genre's rules and a number, the seed, make a piece. Explore the pieces, change them, keep the ones you love, and take them anywhere.</p>
   <div class="tabs" role="tablist">
-    <button type="button" role="tab" id="mp-tab-listen" aria-controls="mp-panel-listen" data-i18n="music_page.tab_listen" data-i18n-tip="music_page.tab_listen_hint" data-tip-desc="What plays, how it is tuned, and the piece as it moves.">Listen</button>
+    <button type="button" role="tab" id="mp-tab-now-playing" aria-controls="mp-panel-now-playing" data-i18n="music_page.tab_now_playing" data-i18n-tip="music_page.tab_now_playing_hint" data-tip-desc="What plays and how it sounds: the parts, the piano roll and the sound settings.">Now playing</button>
     <button type="button" role="tab" id="mp-tab-explore" aria-controls="mp-panel-explore" data-i18n="music_page.tab_explore" data-i18n-tip="music_page.tab_explore_hint" data-tip-desc="A card for each genre and mood in plain words, the seed, and the pieces you heard.">Explore</button>
     <button type="button" role="tab" id="mp-tab-written" aria-controls="mp-panel-written" data-i18n="music_page.tab_written" data-i18n-tip="music_page.tab_written_hint" data-tip-desc="Every written piece, to search, sort and play, with where each came from.">Written music</button>
     <button type="button" role="tab" id="mp-tab-yours" aria-controls="mp-panel-yours" data-i18n="music_page.tab_yours" data-i18n-tip="music_page.tab_yours_hint" data-tip-desc="Your favourites, the music for each mood, share codes and audio files.">Your music</button>
@@ -80,12 +85,23 @@
   <details class="keys" id="mp-keys">
     <summary data-i18n="music_page.keys_title" data-i18n-tip="music_page.keys_hint" data-tip-desc="Shows the keys that work on this page.">Keyboard shortcuts</summary>
     <dl>
-      <dt data-i18n="music_page.key_tabs">1, 2, 3, 4</dt><dd data-i18n="music_page.key_tabs_does">Listen, Explore, Written music, Your music</dd>
+      <dt data-i18n="music_page.key_tabs">1, 2, 3, 4</dt><dd data-i18n="music_page.key_tabs_does">Now playing, Explore, Written music, Your music</dd>
       <dt data-i18n="music_page.key_search">/</dt><dd data-i18n="music_page.key_search_does">Search Written music</dd>
     </dl>
     <p class="muted" data-i18n="music_page.web_keys_note">They work whenever you are not typing in a box. In the desktop app, Space, N, P and L also pause, skip and like the music it plays.</p>
   </details>
-  <section id="mp-panel-listen" role="tabpanel" aria-labelledby="mp-tab-listen">
+  <section id="mp-panel-now-playing" role="tabpanel" aria-labelledby="mp-tab-now-playing">
+    <div class="transport" id="mp-transport" role="group" aria-label="Music controls" data-i18n-aria-label="music_page.web_transport">
+      <button type="button" disabled data-icon="previous" aria-label="Previous" data-i18n-aria-label="music_page.t_prev" data-i18n-tip="music_page.t_prev_hint" data-tip-desc="Plays the item before this one again: the last one in what you heard from your list."></button>
+      <button type="button" disabled data-icon="play" class="main" aria-label="Play" data-i18n-aria-label="music_page.t_play" data-i18n-tip="music_page.t_play_hint" data-tip-desc="Turns the music on, everywhere: on every page and in the world."></button>
+      <button type="button" disabled data-icon="next" aria-label="Next" data-i18n-aria-label="music_page.t_next" data-i18n-tip="music_page.t_next_hint" data-tip-desc="Plays the next item in Up next, or the station when Up next is empty. The same for written pieces, composed pieces and stations."></button>
+      <button type="button" disabled data-icon="shuffle" aria-label="Shuffle: off" data-i18n-aria-label="music_page.t_shuffle_off" data-i18n-tip="music_page.t_shuffle_off_hint" data-tip-desc="Up next plays in order. Press to play it in a random order."></button>
+      <button type="button" disabled data-icon="repeat" aria-label="Repeat: off" data-i18n-aria-label="music_page.t_repeat_off" data-i18n-tip="music_page.t_repeat_off_hint" data-tip-desc="Each item plays once; after Up next, the station. Press to repeat the whole list."></button>
+      <button type="button" disabled data-icon="heart" aria-label="Like" data-i18n-aria-label="music_page.t_like" data-i18n-tip="music_page.like_hint" data-tip-desc="Keeps this piece, with every change you made to it, in your favourites with a name made for you. Rename it under Your music. Nothing leaves this computer."></button>
+      <button type="button" disabled data-icon="up_next" aria-label="Up next" data-i18n-aria-label="music_page.t_up_next" data-i18n-tip="music_page.t_up_next_hint" data-tip-desc="Shows or hides the list of what plays after this: move items, play one now, or remove it."></button>
+      <button type="button" disabled data-icon="speaker" aria-label="Silence the music" data-i18n-aria-label="music_page.t_mute" data-i18n-tip="music_page.t_mute_hint" data-tip-desc="Turns the Music Volume down to nothing. Press again to bring it back."></button>
+    </div>
+    <p class="muted" data-i18n="music_page.web_transport_note">These are the desktop app's music controls, along the bottom of its Music page: previous, play or pause, next, shuffle, repeat, like, Up next and the volume, with a seek bar above them. They work there; this website plays no music yet.</p>
     <h2 data-i18n="music_page.what_plays">What plays</h2>
     <p data-i18n="music_page.web_what_plays">In the desktop app this page is the one place that chooses what the music plays: let the game choose, or your own genre, mood and seed, played on every page and in the world until you choose again. Settings &gt; Music there sets only how the music sounds.</p>
     <p data-i18n="music_page.web_listen">The desktop app plays the music here: what plays, its tuning, the piano roll and the mixer. Choose a genre and a mood under Explore and a written piece under Written music to see what each is; the app plays them.</p>

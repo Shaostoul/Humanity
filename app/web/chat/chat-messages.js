@@ -150,6 +150,9 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
     if (!newContent || newContent.length > getMaxMsgLength()) return;
     // Never my recovery phrase (step F, chat-warnings.js): the edit stays open to fix.
     if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(newContent, 'Your edit was not saved.')) return;
+    // An edit that is a /claim line never reaches the room: the claim goes to the server alone, or
+    // the claim help shows, and the message stays as it was (the second review, W5).
+    if (typeof takeTypedClaim === 'function' && takeTypedClaim(newContent)) return;
     // Send edit via WebSocket; never from a group, whose text is encrypted (BUG-178).
     if (privateViewOpen()) return;
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -278,7 +281,7 @@ function renderPinBar() {
 
   // Determine if user is admin/mod for showing server unpin buttons.
   const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
-  const isStaff = myRole === 'admin' || myRole === 'mod';
+  const isStaff = HosRoles.isStaffRole(myRole); // the owner too (/shared/roles.js)
 
   // Server pins.
   if (currentPins.length > 0) {
@@ -897,16 +900,19 @@ async function uploadPrepared(file, ready) {
     if (!resp.ok) {
       const text = await resp.text();
       // Make error messages more user-friendly
-      let friendly = text;
+      // The server's own words stay the server's: drawn marked (the owner branch's seventh review,
+      // H1 (c)); only the page's own replacements below are drawn in the app's voice.
+      let friendly = null;
       if (resp.status === 413 || text.includes('too large')) {
         // The server says the person's own limit in its words (2026-10-10);
         // a refusal from in front of it (an HTML page) gets plain words here.
         const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-        friendly = text.includes('your limit on this server') ? text : `"${file.name}" (${sizeMB} MB) is too large for this server.`;
+        friendly = text.includes('your limit on this server') ? null : `"${file.name}" (${sizeMB} MB) is too large for this server.`;
       } else if (text.includes('Unsupported')) {
         friendly = `File type not allowed. Supported: images (png, jpg, gif, webp), documents (pdf, txt), audio (mp3, ogg, wav), video (mp4, webm).`;
       }
-      addSystemMessage(`Upload failed: ${friendly}`);
+      if (friendly === null) addServerMessage(`Upload failed: ${text}`);
+      else addSystemMessage(`Upload failed: ${friendly}`);
       return null;
     }
 
@@ -1054,7 +1060,7 @@ async function sendEncryptedAttachment(file) {
     const fd = new FormData();
     fd.append('file', sealed, 'attachment.enc');
     const resp = await uploadPost(uploadBase, fd, (f) => { if (indicator) indicator.textContent = uploadingWords(file.name, f); });
-    if (!resp.ok) { addSystemMessage(`Upload failed: ${await resp.text()}`); return; }
+    if (!resp.ok) { addServerMessage(`Upload failed: ${await resp.text()}`); return; } // the server's words, marked (H1 (c))
     const data = await resp.json();
     // The fields in the desktop app's order (src/net/dm_pq.rs DmAttachment), so both apps build
     // the same marker; `unchecked` only when its sender's app could not check it and the person
@@ -1311,7 +1317,15 @@ function renderThreadMessages(messages) {
 async function sendThreadReply() {
   const input = document.getElementById('thread-input');
   const content = input.value.trim();
-  if (!content || !ws || ws.readyState !== WebSocket.OPEN || !currentThread) return;
+  if (!content) return;
+  // A typed /claim line goes to the server alone, never into the room as a reply (app.js
+  // takeTypedClaim; the owner branch's third review, W3: this composer skipped it). The desktop's
+  // replies all pass chat.rs send_composed_content, which asks typed_claim first.
+  if (typeof takeTypedClaim === 'function' && takeTypedClaim(content)) {
+    input.value = '';
+    return;
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN || !currentThread) return;
   // Never my recovery phrase (step F, chat-warnings.js): the reply stays in its box to edit.
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return;
   // /friend-code and /redeem <code> typed here would reach the relay as commands

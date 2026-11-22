@@ -358,13 +358,15 @@
     return ids.map((id) => known.find((l) => l && l.id === id) || { id, label: id, desc: '' });
   }
 
+  // Who counts as an admin or a moderator, the owner an admin (BUG-332's sweep).
+  const ROLES = typeof module === 'object' && module && module.exports ? require('../shared/roles.js') : root.HosRoles;
   function isAdminRole(role) {
-    return role === 'admin' || role === 'owner';
+    return ROLES.isAdminRole(role);
   }
 
   /** Admins and moderators: the people who may keep an item on the server (media.rs keep_core). */
   function isStaffRole(role) {
-    return isAdminRole(role) || role === 'mod' || role === 'moderator';
+    return ROLES.isStaffRole(role);
   }
 
   /**
@@ -1032,7 +1034,7 @@
     function roleDef() {
       const s = sessionState();
       if (!s || !Array.isArray(s.roles)) return null;
-      return s.roles.find((r) => r && r.id === s.role) || null;
+      return s.roles.find((r) => r && r.id === ROLES.roleDefId(s.role)) || null;
     }
     /**
      * Whether the person may upload at all: the relay refuses anyone with no

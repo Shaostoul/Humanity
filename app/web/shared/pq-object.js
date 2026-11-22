@@ -169,7 +169,16 @@ export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
 export const MOD_ACTIONS = [
   'ban', 'unban', 'mute', 'unmute', 'hide', 'unhide', 'grant_role', 'revoke_role', 'revoke',
   'hide_and_keep', 'held_restore', 'held_export', 'held_legal_hold', 'held_destroy',
+  'owner_handover', 'owner_successor', 'owner_successor_remove', 'owner_change_accept',
 ];
+
+/** The server owner's own actions. Mirrors moderation.rs::OWNER_ACTIONS. */
+export const OWNER_ACTIONS = ['owner_handover', 'owner_successor', 'owner_successor_remove'];
+
+/** A recipient's acceptance of an owner change (the owner review's finding 5): it names the change's
+ *  signed action by its object id (target_kind object), carries no end date, and its reason is
+ *  `checked <digest>` (/shared/held-seal.js acceptanceDigest). Mirrors moderation.rs::OWNER_ACCEPT. */
+export const OWNER_ACCEPT = 'owner_change_accept';
 
 /** What a target names. Mirrors moderation.rs::TARGET_KINDS. */
 export const TARGET_KINDS = ['identity', 'object', 'report', 'held'];
@@ -215,6 +224,14 @@ export function modActionV1Payload({ action, target, targetKind, reason, rule, e
   }
   if (heldKind && action !== 'held_legal_hold' && (Number(expiresAt) || 0) !== 0) {
     throw new Error('mod_action_v1: of the held actions only held_legal_hold carries an end date');
+  }
+  if (OWNER_ACTIONS.includes(action)) {
+    if (targetKind !== 'identity') throw new Error('mod_action_v1: the owner\'s actions name a person');
+    if ((Number(expiresAt) || 0) !== 0) throw new Error('mod_action_v1: of the held and owner actions only held_legal_hold carries an end date');
+  }
+  if (action === OWNER_ACCEPT) {
+    if (targetKind !== 'object') throw new Error('mod_action_v1: an acceptance names the change it accepts, a signed object');
+    if ((Number(expiresAt) || 0) !== 0) throw new Error('mod_action_v1: of the held and owner actions only held_legal_hold carries an end date');
   }
   // Key ORDER does not matter: cborMap sorts, and the Rust side canonicalizes
   // with the identical rule. Listed in the schema's reading order regardless.

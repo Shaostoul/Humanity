@@ -64,10 +64,21 @@
     return plan.rooms.filter((r) => r.level === ordinal);
   }
 
-  /** Whether a room is named on the plan: the data gives it a name (the app's `room_is_named`);
-   *  a corridor tube or a zone's leftover floor carries only its id. */
+  /** Whether a room is named on the plan (the app's `room_is_named`): the data gives it a name,
+   *  and it is a room, not a corridor tube (`corridor_0` has a name since 2026-11-21, "Corridor
+   *  between ...", but the plan draws it as the tube it is). A zone's own floor (`commons:room_1`)
+   *  reads as its zone, and is named once (`zoneFloor`). */
   function roomIsNamed(r) {
-    return r.name !== r.id;
+    return r.name !== r.id && !String(r.id).startsWith('corridor_');
+  }
+
+  /** Whether a room is a shared zone's own floor (the app's `zone_floor`): `<zone>:room_N` or
+   *  `<zone>:home`. A zone whose walls cut its floor into pockets is one place: named once. */
+  function zoneFloor(r) {
+    const at = String(r.id).indexOf(':');
+    if (at < 0) return false;
+    const rest = String(r.id).slice(at + 1);
+    return rest.startsWith('room_') || rest === 'home';
   }
 
   /** The ship's box in x and z: [min x, min z, max x, max z]. */
@@ -122,9 +133,11 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const taken = [];
+      const namedZones = new Set();
       const sorted = rooms.slice().sort((a, b) => (b.max[0] - b.min[0]) * (b.max[1] - b.min[1]) - (a.max[0] - a.min[0]) * (a.max[1] - a.min[1]));
       for (const r of sorted) {
         if (!roomIsNamed(r)) continue;
+        if (zoneFloor(r) && namedZones.has(r.name)) continue;
         const w = ctx.measureText(r.name).width;
         const roomW = (r.max[0] - r.min[0]) * view.scale;
         if (w > roomW * 0.95) continue;
@@ -137,6 +150,7 @@
         for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) ctx.fillText(r.name, x + dx, y + dy);
         ctx.fillStyle = colours.label;
         ctx.fillText(r.name, x, y);
+        if (zoneFloor(r)) namedZones.add(r.name);
         named++;
       }
     }
@@ -148,7 +162,7 @@
     return fetch('/data/maps/ship_plan.json').then((r) => (r.ok ? r.json() : Promise.reject(new Error(`ship_plan.json: ${r.status}`))));
   }
 
-  const api = { storeyIndex, wallInStorey, levelAt, wallsAt, roomsOn, roomIsNamed, bounds, draw, loadPlan };
+  const api = { storeyIndex, wallInStorey, levelAt, wallsAt, roomsOn, roomIsNamed, zoneFloor, bounds, draw, loadPlan };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   } else {

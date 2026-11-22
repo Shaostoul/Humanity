@@ -1190,6 +1190,14 @@
       if (!input) return;
       const text = (input.value || '').trim();
       if (!text) return;
+      // A typed /claim goes to the server alone, never to the group (app.js takeTypedClaim, loaded
+      // before this file, the owner review's finding 6; were it missing, this throws and nothing
+      // is sent).
+      if (takeTypedClaim(text)) {
+        input.value = '';
+        input.style.height = 'auto';
+        return;
+      }
       // Never my recovery phrase (step F, chat-warnings.js): stopped, the text stays to edit.
       if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text)) return;
       if (!p2pGroupCanSend()) return;

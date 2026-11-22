@@ -72,7 +72,7 @@ function startCall(targetKey, targetName) {
   setTimeout(() => {
     if (callState === 'ringing-out') {
       hangupCall();
-      addSystemMessage(`${targetName} didn't answer.`);
+      addSystemMessage(`${shownName(targetName)} didn't answer.`);
     }
   }, 30000);
 }
@@ -394,7 +394,7 @@ function handleVoiceCallMessage(msg) {
         // caller's ring does. An automatic "reject" used to go back, which told a caller who
         // cannot see us online (hidden status) that we were there after all (BUG-177,
         // 2026-10-10; the desktop app's engine/call_relay.rs `on_ring` does the same).
-        addSystemMessage(`Missed call from ${fromName}: you were in another call or a voice room.`);
+        addSystemMessage(`Missed call from ${shownName(fromName)}: you were in another call or a voice room.`);
         return;
       }
       callState = 'ringing-in';
@@ -418,13 +418,13 @@ function handleVoiceCallMessage(msg) {
       break;
     case 'reject':
       if ((callState === 'ringing-out') && msg.from === callPeerKey) {
-        addSystemMessage(`${callPeerName} rejected the call.`);
+        addSystemMessage(`${shownName(callPeerName)} rejected the call.`);
         resetCallState();
       }
       break;
     case 'hangup':
       if (msg.from === callPeerKey) {
-        addSystemMessage(`${callPeerName} hung up.`);
+        addSystemMessage(`${shownName(callPeerName)} hung up.`);
         cleanupCall();
       }
       break;

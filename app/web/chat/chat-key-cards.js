@@ -16,7 +16,17 @@
 // someone it may seal to (conversations, follows, followers, requests), when a
 // conversation is opened, when something is about to be sealed to them, or when
 // a list shows a card newer than the pinned one. Each `key_cards` answer is
-// checked card by card. A newer card with a DIFFERENT key is a change: nothing
+// checked card by card, and ONLY a card for a key this page asked for (a
+// `key_card_request` it sent, matched by key, `_sent`) is taken into the pins:
+// any other card in the frame is dropped and logged (the owner branch's third
+// review, W1, 2026-11-21: a relay pushed its own key's card unasked and the page
+// pinned it on first sight). A contact card pasted by the person (chat-p2p.js) is
+// their own ask and goes through `ingest` directly. A pin is what a DM is sealed
+// to; it is NOT trust in who the person is (the owner picker asks for four
+// groups of the person's fingerprint at random positions, read out from their
+// own screen, for every handover and successor, chat-owner.js `judgeGroups`,
+// whoever the person is).
+// A newer card with a DIFFERENT key is a change: nothing
 // is sealed to that person until I accept it (the notice with "Accept the new
 // key", drawn in the conversation like the reach notices, chat-privacy.js).
 //
@@ -30,9 +40,12 @@
 const KEY_CARD_ASK_AGAIN_MS = 60000;
 /** How long a send waits for a card it asked for (ms). */
 const KEY_CARD_WAIT_MS = 8000;
+/** How long an answer to a request this page sent is taken (ms); later, the card is dropped. */
+const KEY_CARD_ANSWER_MS = 5 * 60 * 1000;
 
 const hosKeyCards = {
   _asked: new Map(),    // person -> when last asked (ms)
+  _sent: new Map(),     // person -> when a request naming them was SENT (ms): the only cards taken from a frame
   _queue: [],           // people to ask for, in order
   _noCard: new Set(),   // people the server holds no good card for
   _waiters: new Map(),  // person -> [resolve]
@@ -77,8 +90,14 @@ const hosKeyCards = {
       const batch = this._queue.splice(0, HosKeyCard.REQUEST_MAX);
       ws.send(JSON.stringify({ type: 'key_card_request', keys: batch }));
       const now = Date.now();
-      for (const k of batch) this._asked.set(k, now);
+      for (const k of batch) { this._asked.set(k, now); this._sent.set(k, now); }
     }
+  },
+
+  /** Was a request naming `person` sent within KEY_CARD_ANSWER_MS (W1: only then is their card taken). */
+  _wasAskedFor(person) {
+    const at = this._sent.get(person);
+    return at !== undefined && Date.now() - at <= KEY_CARD_ANSWER_MS;
   },
 
   /** The people I may seal to: conversations, follows, followers, requests, the open conversation. */
@@ -120,14 +139,24 @@ const hosKeyCards = {
     if (this._people().has(person)) { this._noCard.delete(person); this.want(person, false); }
   },
 
-  /** A `key_cards` answer, from the server I am on: every card checked, then taken by the pin rule. */
+  /** A `key_cards` answer, from the server I am on: each card for a key this page asked for
+   *  checked, then taken by the pin rule; a card nobody asked for is dropped and logged (W1). */
   async onFrame(msg) {
     let pinned = false;
+    const answered = new Set();
     for (const raw of (msg && Array.isArray(msg.cards)) ? msg.cards : []) {
+      const key = raw && typeof raw.key === 'string' ? raw.key : '';
+      if (!this._wasAskedFor(key)) {
+        console.warn('key cards: dropped a card this page never asked for (' + key.slice(0, 12) + '...)');
+        continue;
+      }
+      answered.add(key);
       if ((await this.ingest(raw)) === 'first') pinned = true;
     }
+    for (const k of answered) this._sent.delete(k);
     for (const k of (msg && Array.isArray(msg.missing)) ? msg.missing : []) {
       if (typeof k !== 'string') continue;
+      this._sent.delete(k);
       this._asked.delete(k);
       if (!this.sealingKey(k)) this._noCard.add(k);
       this._settle(k);
@@ -196,7 +225,10 @@ const hosKeyCards = {
 
   _name(person) {
     const p = typeof peerData !== 'undefined' ? peerData[person] : null;
-    return (p && p.display_name) || (typeof shortKey === 'function' ? shortKey(person) : String(person).slice(0, 8));
+    // A member-list name in the app's own sentence: an honest name, or the refused-name words
+    // (app.js shownName; the owner branch's seventh review, H1 (c)).
+    if (p && p.display_name) return typeof shownName === 'function' ? shownName(p.display_name) : String(p.display_name);
+    return typeof shortKey === 'function' ? shortKey(person) : String(person).slice(0, 8);
   },
 
   /** The sentence for `refusal`, naming them the way the page does. */

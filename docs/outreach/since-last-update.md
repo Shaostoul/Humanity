@@ -56,6 +56,17 @@ Each line is written the way a player would hear it; the release notes and
 - The desktop's pages no longer stall before Play, and the progress card while the 3D world is prepared stays smooth.
 - Text sent by a server or another person can no longer crash the app or a server's connection handler.
 
+### v0.1569.0 (22 November 2026)
+
+- A server has one owner, claimed from the desktop app with a one-time code from the server's own log; reports kept under "hide and keep" open only for the owner (and a successor the owner names).
+- Handing a server over happens only in the desktop app, checked on your own device; the website says why it cannot do that.
+- The app's own messages carry their own mark, server lines say "From this server", and names like "System" are refused.
+- The Music page has one list (written pieces, composed pieces and endless stations) with Up next, shuffle, repeat and a player bar at the bottom with drawn icons; danger music still breaks in.
+- Cooking is a real activity (heat, time, doneness, real food-safety temperatures), and preserving teaches drying and canning from the USDA tables, with botulism fatal in Realistic unless a medbay treats it.
+- The bedroom mirror reflects the room and your own body, even in first person.
+- Each server declares its gameplay rules; united-humanity.us plays Forgiving.
+- A home's figures count only its own household's machines; the Library tells the ship's story, and General Services has a Medbay and Barracks.
+
 ### Next release
 
 
