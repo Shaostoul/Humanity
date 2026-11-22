@@ -60,7 +60,7 @@ fn the_rolls_section_letters_never_overprint() {
     let mood = lib.mood_index("mothership_calm").unwrap() as u16;
     let ctx_m = humanity_music::MusicContext { mood, genre_a: g, genre_b: g, piece_s: lib.endless_minutes * 60.0, ..Default::default() };
     state.music_dev.readout.playing = Some(crate::gui::pages::dev_music::Playing { choice: None, seed: 4242, ctx: ctx_m, res, lib: lib.clone() });
-    state.music_page.tab = Tab::Listen;
+    state.music_page.tab = Tab::NowPlaying;
     let mut wrong = Vec::new();
     for size in [egui::vec2(PHONE.x, 3000.0), egui::vec2(2560.0, 1440.0)] {
         let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));

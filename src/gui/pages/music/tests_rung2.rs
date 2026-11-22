@@ -95,7 +95,7 @@ fn the_mixers_solo_silences_the_other_parts_in_what_plays() {
     let solo = rects
         .iter()
         .filter(|(w, _)| w == super::role_words(1))
-        .filter_map(|(_, b)| solos.iter().find(|s| (s.center().x - b.center().x).abs() < super::mixer::STRIP_W * 0.5 && s.top() > b.top() && s.top() - b.top() < 120.0).copied())
+        .filter_map(|(_, b)| solos.iter().find(|s| (s.center().x - b.center().x).abs() < super::parts::STRIP_W * 0.5 && s.top() > b.top() && s.top() - b.top() < 120.0).copied())
         .next()
         .expect("the bass's strip draws a Solo button");
     frames(&mut state, vec![vec![], vec![], click(solo.center())], |_, _| {});
@@ -225,5 +225,5 @@ fn the_shortcuts_do_nothing_while_a_text_box_has_the_keyboard() {
     assert_eq!(state.music_page.tab, Tab::Written, "1 while typing leaves the tab");
     frames(&mut state, vec![vec![], vec![], key(Key::Space), key(Key::Num1)], |_, _| {});
     assert!(!state.settings.music.music_on, "Space with nothing focused pauses the music");
-    assert_eq!(state.music_page.tab, Tab::Listen, "1 opens Listen");
+    assert_eq!(state.music_page.tab, Tab::NowPlaying, "1 opens Now playing");
 }

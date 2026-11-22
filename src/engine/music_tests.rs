@@ -15,6 +15,11 @@ use super::*;
 #[path = "music_tests_back.rs"]
 mod back;
 
+// Version 3 of the Music page (the one list, the transport bar, danger breaking in): each control heard
+// in the runtime.
+#[path = "music_tests_v3.rs"]
+mod v3;
+
 /// Kira's place in the tests: every score and bed started, rendered offline on demand.
 #[derive(Default)]
 struct Offline {
@@ -514,15 +519,20 @@ fn a_favourite_assigned_to_danger_plays_when_the_mood_turns_to_danger() {
 /// ONE PLACE CHOOSES THE MUSIC (2026-11-14, docs/design/music-page.md section 4; the operator: "When
 /// I go to the settings it plays one music and when I go to the music page it goes to another. We
 /// should have one place ideally"). Drawn for real (headless): the game's own piece plays; on the
-/// Music page the person presses Next; then they LEAVE the page (nothing reads the page any more,
-/// only the settings it wrote) and the score plays that choice, and keeps playing it through danger.
-/// Back on the page, "Let the game choose" brings the game's moods back: danger turns the music to
-/// tension, a new piece.
+/// Music page the person presses Next (version 3: the station of what plays, its next piece); then they
+/// LEAVE the page (nothing reads the page any more, only the settings it wrote) and the score plays that
+/// choice on another page and in the world alike; danger BREAKS IN (the operator, 2026-11-21: "We still
+/// want danger music breaking in but, generally the music should be consistent regardless of which page
+/// we're on."): the same piece goes into tension, and comes back out of it when the danger passes. Back
+/// on the page, "Let the game choose" brings the game's moods back: danger turns the music to tension, a
+/// new piece.
 ///
 /// Seen RED 2026-11-14 with the old rule put back in `choice_now` (the choice heard only while the
 /// page is open, `inp.analyse`): "not reached in 3000 frames" at the step after leaving the page
 /// (the score went back to the game's piece). And RED with `choice_now` ignoring `game_chooses`
-/// (the choice always played): "not reached in 3000 frames" at the tension step.
+/// (the choice always played): "not reached in 3000 frames" at the tension step. Version 3 (2026-11-21):
+/// seen RED with a chosen piece's intensity never following the game's (`context_of`'s `danger` arm
+/// switched off, the 2026-11-14 rule): "not reached in 3000 frames" at the step where danger breaks in.
 #[test]
 fn a_choice_made_on_the_music_page_plays_after_leaving_it() {
     use crate::gui::pages::music::tests::{click, frame};
@@ -541,22 +551,34 @@ fn a_choice_made_on_the_music_page_plays_after_leaving_it() {
     let theme = crate::gui::theme::load_theme();
     let size = egui::vec2(1600.0, 6000.0);
     let page = |gui: &mut crate::gui::GuiState, events: Vec<egui::Event>| frame(size, events, |ctx| crate::gui::pages::music::draw(ctx, &theme, gui));
-    let out = page(&mut gui, Vec::new());
-    let next = *texts_at(&out, humanity_core::i18n::t("music_page.next")).first().expect("the page has Next");
-    page(&mut gui, click(next.center()));
+    page(&mut gui, Vec::new());
+    page(&mut gui, crate::gui::pages::music::tests_v3::key(egui::Key::N));
     assert!(!gui.settings.music.game_chooses, "Next picks the person's own choice");
-    assert_eq!(gui.settings.music.seed, 20261115, "the next seed after the one playing");
+    let seed = crate::gui::pages::music::queue::next_station_seed(20261114);
+    assert_eq!(gui.settings.music.seed, seed, "the station of what plays, its next piece");
     // Leave the page: the score reads only the settings the page wrote.
     inp.settings = gui.settings.music.clone();
     inp.analyse = false;
-    run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed == 20261115 && s.seconds > 0.0));
+    run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed == seed && s.seconds > 0.0));
     assert_eq!(rt.score_genres, vec![gui.settings.music.genre.clone()], "in the person's genre");
-    // It keeps playing: many phrases on, and danger rising, it is still the person's piece.
+    let pieces = rt.pieces;
+    // On another page and back in the world, the same piece plays on: nothing rebuilt, nothing new.
+    for hearing in [Hearing::Page, Hearing::OverWorld, Hearing::World] {
+        inp.hearing = hearing;
+        run(&mut rt, &mut mix, &inp, 60 * 4);
+        let r = rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
+        assert_eq!(r.score.map(|s| s.piece_seed), Some(seed), "the person's piece plays on ({hearing:?})");
+    }
+    assert_eq!(rt.pieces, pieces, "no new score started on another page or in the world");
+    // Danger breaks in: the same piece goes into tension (version 3, section 28.6).
     inp.intensity = 0.5;
-    run(&mut rt, &mut mix, &inp, 60 * 20);
-    let r = rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
-    assert_eq!(r.score.map(|s| s.piece_seed), Some(20261115), "still the person's choice after leaving the page");
-    assert_ne!(r.mood, "tension", "the person's mood, not the game's danger");
+    let r = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.mood == "tension");
+    assert_eq!(r.score.map(|s| s.piece_seed), Some(seed), "danger breaks in over the person's piece: the same piece, in tension");
+    // And passes: the person's mood comes back, the piece still theirs.
+    inp.intensity = 0.0;
+    let r = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.mood != "tension" && !r.mood.is_empty());
+    assert_eq!(r.score.map(|s| s.piece_seed), Some(seed), "the person's piece comes back out of the danger");
+    inp.intensity = 0.5;
     // Back on the page: Let the game choose.
     gui.music_dev.readout = r;
     let out = page(&mut gui, Vec::new());
@@ -953,7 +975,7 @@ fn an_audition_plays_20_seconds_then_the_piece_before_comes_back() {
     let reached = r.score.unwrap().form_pos;
     assert!(reached >= 2, "the person's piece has played some phrases: {reached}");
     let prior = r.playing.as_ref().and_then(|p| p.choice.clone());
-    let audition = MusicChoice { genre: settings.genre.clone(), mood: None, intensity: Some(0.3), seed: 991, tune: humanity_music::tune::Tune::default(), written: None, style: None };
+    let audition = MusicChoice { genre: settings.genre.clone(), mood: None, intensity: Some(0.3), seed: 991, tune: humanity_music::tune::Tune::default(), written: None, style: None, length_s: None };
     inp.audition = Some(audition);
     let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.audition_s.is_some());
     assert_eq!(r.playing.as_ref().map(|p| p.seed), Some(991), "the audition plays");

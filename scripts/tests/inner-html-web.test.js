@@ -41,9 +41,11 @@ const BUDGET = path.join(__dirname, 'fixtures', 'inner-html-web-budget.txt');
 const VENDOR = /[\\/]vendor[\\/]|qrcode\.js$/;
 
 // Calls whose result is safe to write into markup: the escapes, and producers of known markup
-// (hosOn.attr writes only data-on-<type>="<token>", the token hex, BUG-331).
+// (hosOn.attr writes only data-on-<type>="<token>", the token hex, BUG-331; TransportIcons.svg,
+// web/shared/transport-icons.js, only its own fixed shapes and nothing for a name it does not know,
+// like hosIcon).
 const ESCAPES = ['hosEsc', 'esc', 'escHtml', 'escapeHtml', 'equip_esc', 'log_esc', 'quest_esc', 'vault_esc', 'vault_escAttr'];
-const PRODUCERS = ['hosIcon', 'hosOn.attr', 'hosArg', 'hosNum', 'i18n.html', 'Number', 'parseInt', 'parseFloat', 'Math.round', 'Math.floor', 'Math.ceil', 'Math.min', 'Math.max', 'Math.abs'];
+const PRODUCERS = ['hosIcon', 'TransportIcons.svg', 'hosOn.attr', 'hosArg', 'hosNum', 'i18n.html', 'Number', 'parseInt', 'parseFloat', 'Math.round', 'Math.floor', 'Math.ceil', 'Math.min', 'Math.max', 'Math.abs'];
 
 function walk(dir, out = []) {
   for (const f of fs.readdirSync(dir)) {

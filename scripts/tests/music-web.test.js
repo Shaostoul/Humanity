@@ -127,7 +127,7 @@ test('a card for every genre and mood, with its plain sentence', () => {
 test('the page: tabs, cards, the list and the details', async () => {
   const { els } = await page();
   const visible = () => app.TABS.filter((t) => !els['mp-panel-' + t].hidden);
-  assert.deepStrictEqual(visible(), ['listen'], 'Listen first, as in the app');
+  assert.deepStrictEqual(visible(), ['now-playing'], 'Now playing first, as in the app');
   els['mp-tab-explore'].fire('click');
   assert.deepStrictEqual(visible(), ['explore']);
   assert.strictEqual(els['mp-tab-explore'].getAttribute('aria-selected'), 'true');
@@ -239,4 +239,26 @@ test('a card for every sound style, As written first, each with its plain senten
   assert.ok(HTML.includes('data-i18n="music_page.web_tune"') && word('music_page.web_tune').includes('432'), 'Listen names the tuning, A = 432 by default');
   const community = { styles: [{ id: 'chiptune', name: 'Chiptune', plain: 'Square waves and a noise channel.' }] };
   assert.strictEqual(app.styleCards(community)[1].plain, 'Square waves and a noise channel.', 'a community style gives plain words');
+});
+
+// Version 3 (docs/design/music-page.md section 28.11): the Now playing tab shows the app's transport bar
+// as our own drawn icons (web/shared/transport-icons.js), each button named for a screen reader and
+// greyed, since this website plays no music yet. Seen RED 2026-11-21 before the bar was added: "the bar
+// names its t_prev button".
+test('the transport bar: our own drawn icons, each button named and greyed', () => {
+  const icons = require(path.join(ROOT, 'web', 'shared', 'transport-icons.js'));
+  for (const n of ['previous', 'play', 'pause', 'next', 'shuffle', 'repeat', 'up_next', 'heart', 'speaker']) {
+    const s = icons.svg(n, 22);
+    assert.ok(s.startsWith('<svg') && /<(polygon|rect|polyline|path)/.test(s), `${n} is drawn as shapes`);
+    assert.ok(!/<text/.test(s), `${n} draws no text`);
+  }
+  const at = HTML.indexOf('id="mp-transport"');
+  const bar = HTML.slice(at, HTML.indexOf('</div>', at));
+  for (const k of ['t_prev', 't_play', 't_next', 't_shuffle_off', 't_repeat_off', 't_like', 't_up_next', 't_mute']) {
+    assert.ok(bar.includes(`data-i18n-aria-label="music_page.${k}"`), `the bar names its ${k} button`);
+    assert.ok(typeof word('music_page.' + k) === 'string', `with words for ${k}`);
+  }
+  assert.strictEqual((bar.match(/<button/g) || []).length, 8, 'eight buttons');
+  assert.strictEqual((bar.match(/ disabled /g) || []).length, 8, 'each greyed: the website plays no music yet');
+  assert.ok(typeof word('music_page.web_transport_note') === 'string', 'and the sentence saying so');
 });

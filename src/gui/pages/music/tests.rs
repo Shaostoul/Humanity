@@ -328,7 +328,7 @@ fn the_music_page_credits_each_written_piece_and_draws_the_one_playing() {
             None => missing.push(format!("{title:?}: no credit in its details")),
         }
     }
-    state.music_page.tab = super::Tab::Listen;
+    state.music_page.tab = super::Tab::NowPlaying;
     let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
     let plain = filled_rects(&out);
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");

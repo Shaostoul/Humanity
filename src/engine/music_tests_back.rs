@@ -116,20 +116,25 @@ fn with_a_written_piece_playing_a_mood_card_plays_composed_music() {
     assert_eq!(r.playing.as_ref().and_then(|p| p.choice.as_ref()).and_then(|c| c.mood.clone()).as_deref(), Some("tension"), "composed music in the mood clicked");
 }
 
-/// THE STRIP'S WAY BACK: with Ode to Joy playing, the Now playing strip offers Back to composed music
-/// (on every tab: here Listen), and a click on it makes the runtime play composed music.
+/// THE WAY BACK IS NEXT (version 3, music-page.md section 28.3: "Back to composed music" became
+/// choosing a station or a composed piece, or Next): with Ode to Joy playing and nothing up next, the
+/// transport bar's Next (on every tab: here Now playing) makes the runtime play composed music, the
+/// station of the genre and mood chosen.
 ///
-/// Seen RED 2026-11-21 against the strip before the fix (it had no such control): "the strip offers
-/// Back to composed music while a written piece plays".
+/// Seen RED 2026-11-21 (BUG-343's version, against the strip before its fix: "the strip offers Back to
+/// composed music while a written piece plays"); version 3's form seen RED with Next playing the
+/// written piece again (`Queue::next` replaying the item on an empty Up next, no station): "the
+/// transport bar's Next: composed music never played in 3000 frames; the runtime still plays the written
+/// piece Some(\"ode_to_joy\")".
 #[test]
-fn with_a_written_piece_playing_the_strips_back_control_plays_composed_music() {
-    let (_t, mut inp, mut rt, mut mix, r) = ode_to_joy_playing("music_back_strip");
-    let mut gui = page_over(&r, &inp.settings, Tab::Listen);
-    let out = draw(&mut gui, Vec::new());
-    let back = *texts_at(&out, humanity_core::i18n::t("music_page.composed_back")).first().expect("the strip offers Back to composed music while a written piece plays");
-    draw(&mut gui, click(back.center()));
+fn with_a_written_piece_playing_next_plays_the_station() {
+    let (_t, mut inp, mut rt, mut mix, r) = ode_to_joy_playing("music_back_next");
+    let mut gui = page_over(&r, &inp.settings, Tab::NowPlaying);
+    let (_, ctx) = crate::gui::pages::music::tests_v3::draw_kept(&mut gui, egui::vec2(1600.0, 1000.0), Vec::new(), None);
+    let next = ctx.read_response(crate::gui::pages::music::transport::button_id(crate::gui::pages::music::transport::NEXT)).expect("the transport bar draws Next").rect;
+    crate::gui::pages::music::tests_v3::draw_kept(&mut gui, egui::vec2(1600.0, 1000.0), click(next.center()), Some(ctx));
     inp.settings = gui.settings.music.clone();
-    run_until_composed(&mut rt, &mut mix, &inp, "the strip's Back to composed music");
+    run_until_composed(&mut rt, &mut mix, &inp, "the transport bar's Next");
     assert!(gui.settings_dirty, "the choice is saved");
 }
 

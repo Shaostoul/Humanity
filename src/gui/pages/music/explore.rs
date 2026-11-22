@@ -224,7 +224,7 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                 }
             });
             match listen_row(ui, theme, &c.name, auditioning.as_deref(), audition_s) {
-                Some(true) => listen = Some(Audition { choice: MusicChoice { genre: c.id.clone(), mood: Some(sh.mood.clone()), intensity: Some(intensity(&sh.mood)), seed: sh.seed.max(1), tune: Tune::default(), written: None, style: None }, words: c.name.clone() }),
+                Some(true) => listen = Some(Audition { choice: MusicChoice { genre: c.id.clone(), mood: Some(sh.mood.clone()), intensity: Some(intensity(&sh.mood)), seed: sh.seed.max(1), tune: Tune::default(), written: None, style: None, length_s: None }, words: c.name.clone() }),
                 Some(false) => stop = true,
                 None => {}
             }
@@ -272,7 +272,7 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                     }
                 });
                 match listen_row(ui, theme, &name, auditioning.as_deref(), audition_s) {
-                    Some(true) => listen = Some(Audition { choice: MusicChoice { genre: sh.genre.clone(), mood: Some(m.id.clone()), intensity: Some(explore_intensity(l, &m.id)), seed: sh.seed.max(1), tune: Tune::default(), written: None, style: None }, words: name.clone() }),
+                    Some(true) => listen = Some(Audition { choice: MusicChoice { genre: sh.genre.clone(), mood: Some(m.id.clone()), intensity: Some(explore_intensity(l, &m.id)), seed: sh.seed.max(1), tune: Tune::default(), written: None, style: None, length_s: None }, words: name.clone() }),
                     Some(false) => stop = true,
                     None => {}
                 }
@@ -385,6 +385,7 @@ fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown,
     let list = state.music_page.heard.clone();
     let mut play: Option<Heard> = None;
     let mut like: Option<Heard> = None;
+    let mut add: Option<Heard> = None;
     let mut clear = false;
     let now = super::history::now_s();
     widgets::subsection_header(ui, theme, accent, t("music_page.heard_title"), "");
@@ -425,6 +426,9 @@ fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown,
                 if h.written.is_none() && ui.button(t("music_page.like")).hint("music_page.like_hint").clicked() {
                     like = Some(h.clone());
                 }
+                if ui.button(t("music_page.q_add")).hint("music_page.q_add_hint").clicked() {
+                    add = Some(h.clone());
+                }
             });
         }
     });
@@ -446,11 +450,25 @@ fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown,
                 sh.mood = h.mood.clone();
                 sh.seed = h.seed.max(1);
                 sh.tune = tune_of(&h);
+                // The composed piece it was (version 3, queue.rs), applied after the page's controls.
+                state.music_page.choose_composed = true;
             }
         }
     }
+    // Add to Up next (version 3): the piece heard as the item it was.
+    if let Some(h) = add {
+        let e = super::transport::endless(state);
+        let item = match &h.written {
+            Some(id) => super::queue::Item::Written { id: id.clone() },
+            None => super::queue::Item::Composed { genre: h.genre.clone(), mood: h.mood.clone(), seed: h.seed.max(1), tune: h.tune.clone(), minutes: super::queue::composed_minutes(&state.settings.music, e) },
+        };
+        let words = super::transport::item_words(state, &item);
+        state.music_page.queue.add(item);
+        state.music_page.queue_msg = Some(t("music_page.q_added").replace("{{what}}", &words));
+        state.music_page.save_queue();
+    }
     if let Some(h) = like {
         let tune = tune_of(&h);
-        super::strip::like(state, &Shown { genre: h.genre, mood: h.mood, seed: h.seed, tune });
+        super::like::like(state, &Shown { genre: h.genre, mood: h.mood, seed: h.seed, tune });
     }
 }

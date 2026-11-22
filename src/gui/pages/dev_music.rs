@@ -58,13 +58,16 @@ pub struct MusicChoice {
     /// None: its own instruments). A change rebuilds the piece through the new style
     /// (docs/design/music-page.md section 15a, rung 3a).
     pub style: Option<String>,
+    /// A composed piece's set length, seconds (docs/design/music-page.md section 28: an item of the
+    /// Music page's queue has one, and the piece's arc is planned over it); None: it plays on.
+    pub length_s: Option<f32>,
 }
 
 impl MusicChoice {
     /// Whether `other` composes the same piece (a level or a mute is heard at once; anything else
     /// starts the piece again with the change, at the next bar).
     pub fn composes_like(&self, other: &MusicChoice) -> bool {
-        self.genre == other.genre && self.mood == other.mood && self.intensity.map(f32::to_bits) == other.intensity.map(f32::to_bits) && self.seed == other.seed && self.tune.composes_like(&other.tune) && self.written == other.written && self.style == other.style
+        self.genre == other.genre && self.mood == other.mood && self.intensity.map(f32::to_bits) == other.intensity.map(f32::to_bits) && self.seed == other.seed && self.tune.composes_like(&other.tune) && self.written == other.written && self.style == other.style && self.length_s.map(f32::to_bits) == other.length_s.map(f32::to_bits)
     }
 }
 
@@ -140,6 +143,9 @@ pub struct MusicReadout {
     /// played, and whether it has played them all (the page then ends it).
     pub audition_s: Option<f64>,
     pub audition_done: bool,
+    /// The game's danger is breaking in over the person's choice (music-page.md section 28.6): the
+    /// Music page's queue waits (nothing of the queue ends while the danger plays) and says so.
+    pub danger: bool,
 }
 
 /// The score's music memory, for the Dev page's line.

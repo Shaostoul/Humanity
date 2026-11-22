@@ -1,9 +1,10 @@
-//! THE MUSIC PAGE'S KEYBOARD SHORTCUTS (docs/design/music-page.md section 16, rung 2): Space pause or
-//! play, N or Right the next piece, P or Left the previous, L like, 1 to 4 the tabs, [ and ] fewer or
-//! more bars in the piano roll, F follow the music, / the Written music search. Only while no text box
+//! THE MUSIC PAGE'S KEYBOARD SHORTCUTS (docs/design/music-page.md sections 16 and 28): Space pause or
+//! play, N or Right the next item, P or Left the previous (through the one list, the same for every
+//! kind: queue.rs), S shuffle, R repeat (off, all, one), U Up next, L like, 1 to 4 the tabs, [ and ]
+//! fewer or more bars in the piano roll, F follow the music, / the Written music search. Only while no text box
 //! has the keyboard (egui's `wants_keyboard_input`): typing a seed, a name or a search never plays,
 //! skips or likes anything, and only with no modifier held (Ctrl+N stays the app's). Listed in the
-//! page's own help under the strip, words by key.
+//! page's own help under the title, words by key.
 
 use egui::{Key, Modifiers, RichText};
 use humanity_core::i18n::t;
@@ -14,10 +15,13 @@ use crate::gui::widgets::Hint;
 use crate::gui::GuiState;
 
 /// Each shortcut as the help lists it: its keys' words and what it does, by key.
-pub const HELP: [(&str, &str); 8] = [
+pub const HELP: [(&str, &str); 11] = [
     ("music_page.key_space", "music_page.key_space_does"),
     ("music_page.key_next", "music_page.key_next_does"),
     ("music_page.key_prev", "music_page.key_prev_does"),
+    ("music_page.key_shuffle", "music_page.key_shuffle_does"),
+    ("music_page.key_repeat", "music_page.key_repeat_does"),
+    ("music_page.key_up_next", "music_page.key_up_next_does"),
     ("music_page.key_like", "music_page.key_like_does"),
     ("music_page.key_tabs", "music_page.key_tabs_does"),
     ("music_page.key_bars", "music_page.key_bars_does"),
@@ -33,20 +37,26 @@ pub(super) fn handle(ctx: &egui::Context, state: &mut GuiState, sh: &mut Shown) 
     }
     let pressed = |k: Key| ctx.input_mut(|i| i.consume_key(Modifiers::NONE, k));
     if pressed(Key::Space) {
-        state.settings.music.music_on = !state.settings.music.music_on;
-        state.settings_dirty = true;
+        super::transport::play_pause(state);
     }
-    let next = pressed(Key::N) | pressed(Key::ArrowRight);
-    let prev = pressed(Key::P) | pressed(Key::ArrowLeft);
-    if next || prev {
-        if state.settings.music.written.is_empty() {
-            sh.seed = if next { sh.seed.saturating_add(1) } else { sh.seed.saturating_sub(1).max(1) };
-        } else if super::strip::step_written(state, next) {
-            state.settings_dirty = true;
-        }
+    // Next and Previous through the one list, the same for every kind of music (queue.rs).
+    if pressed(Key::N) | pressed(Key::ArrowRight) {
+        super::transport::next(state);
+    }
+    if pressed(Key::P) | pressed(Key::ArrowLeft) {
+        super::transport::previous(state);
+    }
+    if pressed(Key::S) {
+        super::transport::toggle_shuffle(state);
+    }
+    if pressed(Key::R) {
+        super::transport::cycle_repeat(state);
+    }
+    if pressed(Key::U) {
+        state.music_page.up_next_open = !state.music_page.up_next_open;
     }
     if pressed(Key::L) && state.settings.music.written.is_empty() {
-        super::strip::like(state, sh);
+        super::like::like(state, sh);
     }
     for (k, tab) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4].into_iter().zip(Tab::ALL) {
         if pressed(k) {
@@ -72,7 +82,7 @@ pub(super) fn handle(ctx: &egui::Context, state: &mut GuiState, sh: &mut Shown) 
     }
 }
 
-/// The page's help for its keys: a fold-out under the strip listing each shortcut.
+/// The page's help for its keys: a fold-out under the title listing each shortcut.
 pub(super) fn help(ui: &mut egui::Ui, theme: &Theme) {
     let r = egui::CollapsingHeader::new(RichText::new(t("music_page.keys_title")).size(theme.font_size_small).color(theme.text_secondary())).id_salt("music_page_keys").default_open(false).show(ui, |ui| {
         egui::Grid::new("music_page_keys_grid").num_columns(2).spacing([theme.spacing_md, theme.spacing_xs]).show(ui, |ui| {

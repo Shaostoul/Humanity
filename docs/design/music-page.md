@@ -5,7 +5,10 @@
 > asked for a condensed layout, the whole piece in the piano roll, written music as a searchable
 > list, a plainer Explore, a Like button and an orchestra (section 1). The whole feature is planned
 > once and built in rungs (CLAUDE.md, "Plan the whole feature, build it in rungs"); section 20 lists
-> them. The engine it steers is [music.md](music.md) (the live score, genres as data, pieces by seed
+> them. **Version 3 planned 2026-11-21** (section 28): one list of written pieces, composed pieces
+> and stations, the transport bar at the bottom with drawn icons, your choice holding on every page
+> and in the world with danger still breaking in, and Now playing laid out the operator's way.
+> The engine it steers is [music.md](music.md) (the live score, genres as data, pieces by seed
 > in section 7c, the budget in section 14), the written pieces are [score-player.md](score-player.md),
 > and the crate's card is [humanity-music.md](../crates/humanity-music.md).
 
@@ -861,3 +864,385 @@ RUNTIME plays is read from its readout: `with_a_written_piece_playing_a_genre_ca
 in `src/gui/pages/music/tests_back.rs`, `the_page_says_which_kind_of_music_plays_and_the_keys_follow_it`.
 The GPU snapshots `music_listen_written` (the strip and the Listen tab with Für Elise as the choice) and
 `music` (a composed piece) show both kinds.
+
+## 28. Version 3 (planned 2026-11-21): one list, the transport at the bottom, your choice everywhere
+
+### 28.1 Why, in the operator's words
+
+On 2026-11-21: "I still think we need to work on the music page. The layout isn't quite right. I feel
+like we need to do better. Let's start with figuring out all of the elements we need. Like we need the
+controls for play, pause, forward, back, etc. We need a playlist of music. We have the premade music and
+we have procedural music which are kind of the same but, different." His answers the same day:
+
+- One list: "I think one list would be better."
+- The choice holds everywhere: "Yes. We still want danger music breaking in but, generally the music
+  should be consistent regardless of which page we're on."
+- The transport at the bottom: "Bottom would probably be best for phone users and most consistent
+  across all other media players like VLC."
+- Icons: "Let's add icons for the buttons too. Like play, fastword, etc."
+- **The layout of Now playing:** "What if we have the piano roll at the bottom like it is now, then
+  just above that we have a row for that kind of music section. Then instead of having two sections
+  that kind of show the same thing we move those volume bars in the mixer next to the actual kind of
+  music section so we waste less vertical space on kind of similar elements?"
+
+The orchestrator's call on the icons: drawn by us as vector shapes in theme colours (egui painter
+shapes in the app, inline SVG we draw ourselves on the website): no icon licence, no download, no font
+glyph (`tests/icon_glyph_lint.rs` fails on glyphs egui draws as boxes).
+
+### 28.2 Three kinds of music, one model
+
+Everything that can play is an **item** (`gui/pages/music/queue.rs` `Item`, saved as JSON with a
+`kind` tag):
+
+| Kind | What it is | Fields | Its length |
+|---|---|---|---|
+| `written` | A score note by note: a shipped piece in `data/music/scores`, or a MIDI file the person imported (`own:` ids) | `id` | The file's own (`length_s` in the index, the timeline for an import) |
+| `composed` | One composed piece, fixed and reproducible: since the seekable composer (section 26) any bar of it is computed from its seed | `genre`, `mood`, `seed`, `tune` (a `SavedTune`, by ids), `minutes` | `minutes`, set when it is made: the "A new piece" length (the game's options on the Music page), or the endless round (`pieces.ron` `endless_minutes`) when that is Never |
+| `station` | A genre and a mood composed without end: a new piece every "A new piece" minutes, like a radio station | `genre`, `mood`, `seed` (the piece playing now), `tune` | None: it plays on, and the page says so |
+
+A composed piece and a station are "kind of the same but different", as the operator put it: the same
+rules make both, but a composed piece is ONE piece you can come back to, seek in and keep, and a
+station is a stream of them. A written piece and a composed piece behave alike in the list: both end,
+both seek, both repeat.
+
+### 28.3 One queue: Up next, the station at the end, and history
+
+`Queue` (`music/queue.json` beside the favourites, the person's own data like the pieces heard,
+written through a temporary file and a rename when it changes, never a cache; an unreadable file is
+set aside as `queue.unreadable.json` and said in words):
+
+- `now`: the item playing (none before the person has chosen anything);
+- `up_next`: the items to play after it, in order, any mix of the three kinds;
+- `station`: the station that plays when Up next runs out, sitting at the end of the list like a radio
+  (none set: the station of the genre and mood last chosen);
+- `history`: the items played, oldest first, at most 50 (Previous walks back through it);
+- `shuffle` (on or off), `repeat` (off, one, all) and the shuffle's own seed, so a shuffled order is
+  reproducible in a test.
+
+**The rules, the same for every kind:**
+
+- **Next**: the item playing goes into history; the next item of Up next plays (with shuffle on, one
+  drawn at random from Up next); with Up next empty, the station plays its next piece. With repeat
+  all, an item that finishes goes to the end of Up next, so the list comes round again and the
+  station waits.
+- **Previous**: the item playing goes back to the front of Up next and the last item of history plays
+  again. Always the previous item (no "back to the start after three seconds": the seek bar's start
+  does that, so the two buttons never mean two things). A station piece goes into history as the
+  composed piece it was, so Previous brings back exactly what was heard.
+- **An item ending** (a written piece's last bar played, a composed piece's minutes played): repeat
+  one plays it again from its start; otherwise Next. A station piece ending starts the station's next
+  piece (a new seed), staying the station.
+- **Choosing music anywhere plays it now** (a written piece's Play, a genre or mood card, a seed, a
+  favourite opened, a piece heard played again, a pasted share code): the item playing goes into
+  history and the choice becomes `now`; Up next is kept. A genre or mood card chooses the STATION of
+  that genre and mood (and it becomes the station at the end); a seed, a favourite or a piece heard is
+  a COMPOSED piece; a written piece is WRITTEN. This is what "Back to composed music" (section 27)
+  becomes: choosing a station or a composed piece, or pressing Next with nothing up next.
+- **Add to Up next** on every item wherever it is listed (written pieces, favourites, pieces heard,
+  stations, playlists).
+
+How it reaches the music: the item playing is written into the person's settings
+(`MusicSettings::written`, `genre`, `mood`, `seed`, `tune`, and the new `minutes`, the composed
+piece's length), which the score reads every frame as before (section 4). The queue also OBSERVES the
+settings each frame (`Queue::observe`), so any control that writes them (the cards, the seed row,
+Tune) is adopted as "play now" with no second path to keep in step: a new seed is a composed piece, a
+new genre or mood with the seed unchanged is a station, a tuning change retunes the item playing.
+
+### 28.4 Playlists and Like (rung 2)
+
+A **playlist** is a named list of items of any kind (`music/playlists/<id>.json`: its name, when it
+was made, its items). Make one, rename it, add to it from anywhere an item is listed, reorder it, play
+it (it replaces Up next) or add it to Up next. **Like** saves the item playing to the **Liked**
+playlist, whatever its kind: a written piece too, which waited for playlists (section 6). A composed
+piece liked is also a favourite as today (Your music, "my music" for a mood, share codes, exports); a
+station liked keeps its genre and mood.
+
+### 28.5 The transport bar, at the bottom
+
+One bar along the bottom of the Music page on every tab, always in view (VLC, phone players and the
+operator's choice): left to right on a wide screen,
+
+```
+| [|<] ( > ) [>|]  [shuffle] [repeat]  0:42 ======o=================== 4:00  Ode to Joy, written    [heart] [list]  [speaker] ====o== |
+```
+
+- **Previous, Play or Pause, Next** (Play/Pause is `MusicSettings::music_on`, Settings' own switch);
+- **Shuffle** and **Repeat** (off, all, one: one button that steps through them, its icon and its
+  name saying which);
+- **the seek bar** with the position and the length (a written or composed piece; a click or a drag
+  moves to that bar, through the same seek the piano roll uses); for a station there is no end, and
+  the bar says so in words ("A station plays on: a new piece every 4 minutes") in place of a length;
+- **what plays, in words**: the item's title (a written piece's title, "Electro swing, seed 4242", a
+  station's genre and mood) and its kind, and while the game chooses, that the game chooses;
+- **Like**, **Up next** (opens the list above the bar: now playing, Up next with Play now, Up, Down
+  and Remove on each, the station at the end, Clear), and **the volume** (the Music Volume Settings >
+  Audio keeps; the speaker drawn crossed out at zero).
+
+Every button is an ICON drawn as vector shapes in the theme's colours (`widgets/transport_icons.rs`:
+play, pause, previous, next, shuffle, repeat, repeat one, the list, the heart, the speaker), with its
+name and what it does in words by key as its hint, and the name as its accessible name (the a11y
+walk), so a screen reader hears "Next" and a pointer resting on it reads "Next: plays the next item
+in Up next, or the station when Up next is empty." The website draws the same icons as inline SVG of
+its own, each button with an `aria-label`.
+
+**The compact bar elsewhere: rung 2.** While music plays, every other app page gets a one-row bar
+along its bottom (Previous, Play or Pause, Next, what plays, and a button to the Music page), hidden on
+the Music page itself (its own bar is there) and in the 3D world (the world keeps its screen; Escape
+opens a page, where the bar shows). It lives in the app's shell, so it comes after rung 1 proves the
+bar on the Music page.
+
+### 28.6 Your choice holds everywhere; danger still breaks in
+
+**What plays is one of two things, a switch** (today's What plays radios): **Your music** (the queue:
+the item playing, then Up next, then the station) or **Let the game choose** (new pieces of your genre
+in the mood of the place and the moment, "my music" for a mood, a new piece every few minutes, places
+and a blend, as section 4). Your music plays on every page and in the 3D world alike: opening another
+page or walking into the world never changes it, only how loud (Settings > Music's switch for the app
+pages, the door duck over the world, a video's duck).
+
+**Danger breaks in, then your music comes back.** When the game's danger intensity enters a band that
+names a mood (`data/music/intensity.ron`: tension from 0.35, action from 0.7), the danger music plays
+whatever you chose, and when it falls back (with the band's hysteresis) your music returns:
+
+- a composed piece or a station keeps playing its own seed, and the composer itself takes it into the
+  danger mood with the stinger and the riser and settles it back after `fall_bars` (music.md section
+  7b): the score's intensity is the higher of yours and the game's while the game's is in a danger
+  band;
+- a written piece cannot be composed into danger, so the danger music takes over at the next bar (a
+  composed piece of your genre in the danger mood), and when it ends the written piece comes back at
+  the bar it left (the same return the 20-second audition uses, section 24).
+
+### 28.7 The areas, in place of today's tabs
+
+Four areas, in this order (the tabs' row, keys 1 to 4):
+
+1. **Now playing.** From the bottom up, the operator's layout: the transport bar at the very bottom;
+   the piano roll just above it (as now, with its length slider, overview and follow); one **parts
+   row** above the roll that merges the visualizer's part bars and the Mixer, one column per part
+   (Pads, Bass, Drone, Choir, Bells, Melody, Drums, Texture), each with its live level bar and its
+   fader side by side and Mute and Solo under them, with the beat pulse and the frequency spectrum at
+   the row's right end and Reset the mixer in the row; above that, what plays in words (the kind of
+   music, the piece in words, the section and chord) with the switch (Your music or Let the game
+   choose, the game's options under it) and a compact **Sound** area that folds open: the tuning, the
+   swing, the intensity, the key, the tempo, the lead voices and the sound style of written music.
+2. **Library.** Everything you can play in one place with ONE search and kind filters (Written,
+   Composed, Stations, Imported): the written catalogue with its details, your favourites (composed
+   pieces), the stations as genre by mood cards with their 20-second previews, the seed row (a
+   composed piece by number), the sound styles, MIDI import, share codes and exports.
+3. **Playlists.** Up next in full, the Liked playlist and your own playlists.
+4. **History.** The pieces heard (today's list, kept in your data folder) and the queue's history in
+   one list, newest first, each with Play again and Add to Up next, and Clear.
+
+**Every control a person uses today, and where it goes** (nothing is lost):
+
+| Today | Version 3 |
+|---|---|
+| Strip: Pause/Play, Previous, Next | Transport bar (icons) |
+| Strip: what plays sentence | Transport bar's what plays; Settings > Music keeps the same words |
+| Strip: genre, mood, seed chips (open Explore) | What plays names them; the tabs remain one click away |
+| Strip: a written piece's title chip | The transport's title (opens its details in Library) |
+| Strip: Back to composed music | Choosing a station or a composed piece, or Next (to the station) |
+| Strip: Like | Transport bar's Like |
+| Keyboard shortcuts fold-out | Under the page title, as now |
+| Listen: What plays radios and the game's options | Now playing: the switch, the game's options under it |
+| Listen: piece in words, section and chord | Now playing: what plays in words |
+| Listen: visualizer (beat pulse, part bars, spectrum) | Now playing: the parts row (part bars beside the faders; pulse and spectrum at its end) |
+| Listen: Mixer (faders, meters, Mute, Solo, Reset) | Now playing: the parts row |
+| Listen: Tune (tuning, key, tempo, swing, intensity, lead voices, Reset) | Now playing: the Sound area |
+| Piano roll (slider, overview, follow, click a bar to seek) | Now playing: above the bar (wide: docked on every area, as now) |
+| Explore: genre and mood cards, Listen 20 s | Library: stations (rung 2; on Explore until then) |
+| Explore: sound style cards | Library: styles (rung 2) |
+| Explore: seed row | Library: composed by number (rung 2) |
+| Explore: pieces heard, Play again, Clear | History (rung 2) |
+| Written music: catalogue, details, Play/Stop, style, MEI, MIDI import | Library: written (rung 2) |
+| Your music: favourites, Open, Rename, Copy code, Export, Remove, my music, paste a code, Music files | Library: composed and imports (rung 2) |
+
+### 28.8 Layouts
+
+**2560 by 1440** (the operator's screen at 100%, four feet from a 65-inch TV; theme sizes, nothing
+smaller than the small size):
+
+```
++--------------------------------------------------------------------------------------------------+
+| Music   [Keyboard shortcuts]                                                                      |
+| [Now playing] [Explore] [Written music] [Your music]                                              |
++--------------------------------------------------------------------------------------------------+
+| Kind of music: composed ... Electro swing in Mothership calm.   (o) Your music  ( ) Let the game  |
+| D harmonic minor, AABA, 128 beats a minute; section A, Dm7          [> Sound: tuning, swing ...]  |
++--------------------------------------------------------------------------------------------------+
+| Pads  Bass  Drone Choir Bells Melody Drums Texture  [Reset]  | pulse | spectrum 31 63 ... 16k     |
+| |#| | |#| | ...  (level bar beside each fader)                |       |                            |
+| Mute Mute ...                                                                                     |
+| Solo Solo ...                                                                                     |
++--------------------------------------------------------------------------------------------------+
+| Piano roll   Show [----o----] 8 bars  [x] Follow     overview ||||||[==window==]||||||||||||      |
+| bars ...                                                                                          |
++--------------------------------------------------------------------------------------------------+
+| |< (>) >|  shuffle repeat   0:42 =====o================ 4:00  Electro swing, seed 4242   heart list  spk == |
++--------------------------------------------------------------------------------------------------+
+```
+
+**A phone** (about 412 points wide): one column. The transport bar stays docked at the bottom in rows:
+what plays (one line), the seek bar with its times, then the buttons (shuffle, previous, play, next,
+repeat, like, Up next), then the volume. The parts row **wraps into two rows of four parts**, each
+column a quarter of the width with its level bar and fader side by side and Mute and Solo under them,
+and the pulse and spectrum as a strip of their own below. Two rows rather than a sideways scroll: a
+scrolled row hides parts (a muted part off the screen is a part you cannot see is muted), and on a
+touch screen a sideways scroll fights the faders' upward drags. The roll follows the parts row in the
+column; the Sound area is folded until opened.
+
+### 28.9 Words by key
+
+Every word through `data/i18n/en.json`: `music_page.t_*` (the transport's names and hints:
+`t_prev`, `t_play`, `t_pause`, `t_next`, `t_shuffle`, `t_repeat_off`, `t_repeat_all`,
+`t_repeat_one`, `t_like`, `t_up_next`, `t_volume`, `t_seek`, each with `_hint`), `music_page.q_*`
+(Up next: the list's title, Play now, Up, Down, Remove, Clear, Add to Up next, the station row, the
+empty list), `music_page.item_*` (an item's words by kind), `music_page.parts_*` (the parts row),
+`music_page.sound_*` (the Sound area), `music_page.tab_now_playing` (the renamed tab), and the key
+help's new lines (S shuffle, R repeat, U Up next).
+
+### 28.10 The per-frame budget
+
+Nothing here touches the audio thread except the danger rule, which is one comparison per block in
+the context the score already reads. Per frame on the game thread: the queue's observe and ending
+check are a few string and number comparisons; the queue file is written only when it changes (a few
+kilobytes). The transport bar is about fifteen widgets and some ten shapes an icon; the parts row is
+the mixer's eight strips and the visualizer's bands moved together, so it costs what the two did
+apart, less one card. Library, Playlists and History draw only the rows on screen (`show_rows`), so a
+list of 10,000 items costs what a screenful does; the one search filters the catalogue as the written
+list does today. Measured for rung 1 in section 29.
+
+### 28.11 The website
+
+The website plays no music yet (section 19), so it shows what it can of the page: the same tabs by
+the same keys (Now playing first), the same words, and on Now playing the transport bar's controls as
+our own inline SVG icons with their `aria-label`s and hints, greyed, with the sentence that the desktop
+app plays the music and the browser cannot yet (the order we are building in, not a law, a patent or a
+platform rule). When the music crate runs in the browser (WebAssembly, carried from version 1) the bar
+works there too.
+
+### 28.12 The rungs of version 3
+
+- **Rung 1 (2026-11-21, section 29):** the item model and one queue (Up next, the station at the end,
+  history) kept in the person's data folder; the transport bar at the bottom of every Music tab with
+  drawn icons; Next and Previous the same for every kind; shuffle; repeat off, all and one; the seek
+  bar for written and composed pieces; the volume; Like and Up next on the bar; Add to Up next on
+  written pieces, favourites and pieces heard; your choice holding on every page and in the world,
+  danger breaking in and your music coming back (a written piece too); the Now playing tab in the
+  operator's layout (the parts row merging the visualizer and the Mixer, the Sound area); the keys S,
+  R and U; the website's tab and the bar's icons.
+- **Rung 2:** Library (one search, kind filters, stations as cards), Playlists (make, rename, add,
+  reorder, play), Like for any kind (the Liked playlist), History (the pieces heard and the queue's
+  history as one list), and the compact bar on every other app page.
+- **Rung 3:** sharing a playlist (a code of codes; a written piece by its id; an imported file cannot
+  travel without its file, said where it happens), dragging to reorder Up next and playlists, a
+  crossfade between items as a setting.
+- **Rung 4:** the stage plot (section 14) on Now playing for a written piece played by an ensemble;
+  scene cues as playlists (section 15a).
+- **Rung 5:** the bar playing on the website, with the music crate in the browser.
+
+### 28.13 Questions for the operator, each with a recommendation
+
+1. **The compact bar in the 3D world.** Recommendation: not in the world (it keeps its screen for the
+   game; Escape opens a page, where the bar shows), on every app page from rung 2.
+2. **When Up next runs out with repeat off.** Recommendation: the station plays (the station of the
+   genre and mood last chosen when none is set), so the music never stops by itself; a "stop when Up
+   next ends" switch later if wanted.
+3. **A composed piece's length.** Recommendation: the "A new piece" minutes (the game's options on the Music page; 4 by default;
+   the endless round of 8 minutes when that is Never), kept on the item when it is made.
+4. **Previous.** Recommendation: always the previous item, never "back to the start after three
+   seconds", as built; the seek bar's start is the way back to the start.
+
+## 29. As built: version 3, rung 1 (2026-11-21)
+
+**The one list** (`src/gui/pages/music/queue.rs`): `Item` (`written`, `composed` with its `minutes`,
+`station`), `Queue` (`now`, `up_next`, `station`, `history` of at most 50, `shuffle`, `repeat`, the
+shuffle's own `rng`), kept in `music/queue.json` beside the favourites (`queue::load`, `queue::save`
+through a temporary file; an unreadable file set aside as `queue.unreadable.json` and said in Up next).
+`Queue::apply` writes the item playing into the person's settings, and `MusicSettings` gained `minutes`
+(crate `settings.rs`): the composed piece's length, which `chosen_composed` hands the score as the
+choice's `length_s`. `Queue::observe` adopts a change of the settings made by any control as "play now"
+(a new seed a composed piece; a new genre or mood with the same seed a station; a written id; a tuning
+change retunes the item playing). `Queue::tick` runs in the engine's music frame, page open or not
+(`MusicPage::tick_queue`, after the pieces heard): it moves on when a written piece has gone once
+through (its times-through count rises), when a composed piece's minutes have played on the score's own
+clock, and when a station piece's "A new piece" minutes have; repeat one seeks a composed piece back to
+its first bar (a written piece goes round by itself); nothing ends while the game chooses, while an
+audition or the danger plays, or before the score plays the item. Next from the game's own music, with
+no station of the person's yet, makes the station of what plays (its genre and the game's mood), so
+"skip this piece" gives one like it. A favourite opened or a piece heard played again is a composed
+piece explicitly (`play_now`), whatever it shares with the piece before.
+
+**The runtime** (`src/engine/music.rs`): a choice's `length_s` is the length its arc is planned over
+(`context_of`) and what `next_piece_s` counts down, so the piano roll and the seek bar know a composed
+piece's end. **Danger breaks in** (`danger_now`: the lowest intensity band that names a mood, held with
+the bands' hysteresis): a chosen composed piece's intensity rises to the game's while the danger lasts,
+so the composer takes the same piece into the danger mood and settles it back; a written piece gives way
+to `danger_choice` (the game's composed music in the person's genre at the game's intensity) at the next
+bar, and the audition's `ReturnTo` (now any "break-in": an audition, or the danger over a written piece)
+brings it back at the bar it left. The readout says `danger`, which Up next and the bar put in words.
+This replaced the 2026-11-14 rule that a chosen piece ignored the game's danger (the operator's answer of
+2026-11-21 asked for danger to break in), and `a_choice_made_on_the_music_page_plays_after_leaving_it`
+now asserts it.
+
+**The transport bar** (`transport.rs`, docked first among the page's bottom panels, so it sits under the
+roll and the parts row on every tab): the seek bar across the top (`SEEK_ID`; a click or a drag goes to
+the bar holding that time, through the same seek the roll uses; the arrow keys move five seconds while
+it has the keyboard; a station or a piece that plays on says so in words instead), then Previous, Play
+or Pause (the larger round button), Next, Shuffle and Repeat (off, all, one: one button that steps),
+what plays, Like, Up next and the volume (the speaker silences the Music Volume and brings it back to
+where it was; the slider is Settings > Audio's Music Volume). **What plays** in the bar is
+`now_playing_words`, the sentence Settings > Music also shows (so the two pages never say different
+things); Up next names each item with its kind. A phone gets the same bar in rows (what plays, the seek
+bar, the buttons wrapping). **Up next** opens above the bar: the item playing, each item with Play now,
+Up, Down and Remove, Clear, the station at the end, how far Previous goes back. Add to Up next sits on a
+written piece's details, on each favourite and on each piece heard.
+
+**The icons** (`src/gui/widgets/transport_icons.rs`): `TransportIcon` (play, pause, previous, next,
+shuffle, repeat, repeat one, the list, the heart outlined and filled, the speaker and the speaker
+crossed out) painted as triangles, rectangles, lines and a heart curve in the theme's colours, and
+`IconButton`, which names the button for assistive technology (`WidgetInfo::labeled`), shows its name and
+hint on hover and under the keyboard's focus, and is drawn under a stable id so a test reads its place
+(`Context::read_response`). The website's twin is `web/shared/transport-icons.js`.
+
+**Now playing** (the Listen tab renamed, `Tab::NowPlaying`, `music_page.tab_now_playing`): on a wide page
+what plays in words (the kind of music, the piece in words, its section and chord) and the **Sound** area
+(`music_page.sound_title`, open on a wide page and folded on a phone: the Tune card's tuning, key, tempo,
+swing, intensity and lead voices, and the sound style for all written music) beside What plays (your
+music or the game's, the game's options under it); docked from the bottom up, the transport bar, the
+piano roll and the **parts row** (`parts.rs`, the Mixer and the visualizer merged: one column a part with
+its live level bar, 14 points wide, beside its fader, Mute and Solo under them, Reset the mixer, and the
+beat pulse and the spectrum at the row's right end). A page too narrow for eight columns and the spectrum
+(a phone) wraps the parts into two rows of four with the pulse and spectrum below them, in the one column
+with the roll after it.
+
+**Keys** (`keys.rs`): Space, N and P through the one list, and S shuffle, R repeat, U Up next, none while
+a text box has the keyboard or with a modifier held.
+
+**The website** (`web/pages/music.html`): the Now playing tab by the app's key, and on it the bar's eight
+controls as our own SVG icons, each named (`aria-label` by key) and greyed, with the sentence that the app
+plays the music and this website cannot yet.
+
+**Tests** (each seen red, the evidence in its comment): `src/gui/pages/music/tests_v3.rs`
+(`the_transport_bar_draws_at_the_bottom_wide_and_on_a_phone`,
+`the_transport_icons_are_drawn_shapes_not_glyphs`,
+`the_parts_row_is_one_row_wide_and_two_rows_of_four_on_a_phone`,
+`the_keys_s_r_and_u_act_and_never_while_typing`,
+`shuffle_plays_each_item_once_and_repeat_all_comes_round`, `the_queue_survives_a_restart`,
+`a_choice_made_anywhere_is_adopted_as_play_now`); `src/engine/music_tests_v3.rs`, each heard in the
+runtime (`each_transport_button_does_its_action_through_the_engine`,
+`next_and_previous_step_the_same_for_written_composed_and_into_the_station`,
+`repeat_one_starts_a_piece_again_and_repeat_off_moves_on`,
+`the_seek_bar_seeks_a_composed_and_a_written_piece`,
+`danger_breaks_in_over_a_written_piece_and_it_comes_back_at_its_bar`); the changed
+`a_choice_made_on_the_music_page_plays_after_leaving_it` (another page and the world, danger in and out),
+`with_a_written_piece_playing_next_plays_the_station` (BUG-343's way back is Next now) and
+`the_page_says_which_kind_of_music_plays_and_the_keys_follow_it`; the website's
+`the transport bar: our own drawn icons, each button named and greyed`. The GPU snapshots `music`,
+`music_now_playing_written`, `phone_music` and `phone_music_now_playing` show the bar, the parts row and
+the list.
+
+**Known limits, for rung 2:** Like on a written piece still waits for playlists (the heart is greyed with
+the reason); Up next reorders by Up and Down only (dragging is rung 3); the compact bar on the other app
+pages, Library, Playlists and History are rung 2; the queue's history and the pieces heard are two lists
+until History merges them.

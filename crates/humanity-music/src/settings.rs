@@ -41,6 +41,11 @@ pub struct MusicSettings {
     pub mood: String,
     pub seed: u64,
     pub tune: crate::favourite::SavedTune,
+    /// How long the person's composed piece lasts, minutes (docs/design/music-page.md section 28,
+    /// version 3: a composed piece in the queue has a length, and its arc is planned over it); 0 = it
+    /// plays on (a station's piece with "A new piece" set to Never). The Music page's queue writes it
+    /// with the item it plays, and moves on when that much has played.
+    pub minutes: f32,
     /// A WRITTEN piece playing in place of everything above (docs/design/score-player.md section 10):
     /// its id in data/music/scores/index.ron, chosen on the Music page's list; "" = none. Stop clears
     /// it, and what played before plays again (the game's choice or the person's own is untouched).
@@ -83,6 +88,7 @@ impl Default for MusicSettings {
             mood: crate::library::DEFAULT_MOOD.to_string(),
             seed: 1,
             tune: crate::favourite::SavedTune::default(),
+            minutes: 0.0,
             written: String::new(),
             style: String::new(),
             styles: std::collections::BTreeMap::new(),

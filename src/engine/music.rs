@@ -575,6 +575,9 @@ pub(crate) struct MusicRuntime {
     audition_s: Option<f64>,
     /// The person's own written pieces' folder, as the frame last gave it.
     own_dir: Option<PathBuf>,
+    /// The game's danger is on (music-page.md section 28.6): its intensity is in a band naming a mood,
+    /// held with the bands' hysteresis. It breaks in over the person's choice.
+    danger: bool,
 }
 
 /// What played before an audition, to carry on with after it.
@@ -606,18 +609,52 @@ pub(crate) fn mood_now(lib: &MusicLibrary, inp: &Inputs) -> String {
     lib.places.mood_for(&p).to_string()
 }
 
+/// Where the game's danger begins: the lowest intensity band that names a mood (tension, from 0.35 in
+/// the shipped data), else never.
+pub(crate) fn danger_from(lib: &MusicLibrary) -> f32 {
+    lib.intensity.bands.iter().filter(|b| b.mood.is_some()).map(|b| b.from).fold(f32::INFINITY, f32::min)
+}
+
+/// Whether the game's danger is on this frame, with the bands' own hysteresis so an intensity hovering
+/// at the edge does not flip it every frame (`was`: last frame's).
+pub(crate) fn danger_now(lib: Option<&MusicLibrary>, intensity: f32, was: bool) -> bool {
+    let Some(lib) = lib else { return false };
+    let from = danger_from(lib);
+    if was {
+        intensity >= from - lib.intensity.hysteresis.max(0.0)
+    } else {
+        intensity >= from
+    }
+}
+
+/// What breaks in over a written piece while the danger lasts: the game's composed music in the
+/// person's genre, in the place's mood raised by the danger intensity (the score's context gives it
+/// the game's intensity), its seed the person's.
+fn danger_choice(s: &MusicSettings) -> MusicChoice {
+    MusicChoice { genre: s.genre.clone(), mood: None, intensity: None, seed: s.seed.max(1), tune: humanity_music::tune::Tune::default(), written: None, style: None, length_s: None }
+}
+
 /// What plays in place of new pieces now: the person's choice from the Music page (kept in their
 /// settings, so it plays whether the page is open or not: docs/design/music-page.md section 4), else,
 /// while the game chooses, the favourite that is the music for the mood the game is in.
 /// A written piece the person chose comes first (docs/design/score-player.md section 10), unless it is
 /// `failed` (a piece that could not be read: what would have played without it plays instead).
-pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs, failed: Option<&str>) -> Option<MusicChoice> {
+pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs, failed: Option<&str>, danger: bool) -> Option<MusicChoice> {
     // An audition plays in place of everything while it lasts, without changing the person's choice.
     if let Some(a) = &inp.audition {
         return Some(a.clone());
     }
     let s = &inp.settings;
     let chosen = if !s.written.is_empty() && failed == Some(s.written.as_str()) { crate::gui::pages::music::chosen_composed(s, lib) } else { crate::gui::pages::music::chosen(s, lib) };
+    // DANGER BREAKS IN (docs/design/music-page.md section 28.6; the operator, 2026-11-21: "We still
+    // want danger music breaking in but, generally the music should be consistent regardless of which
+    // page we're on."). A composed choice goes into danger by itself (its score's intensity follows the
+    // game's: `context_of`); a written piece cannot, so while the danger lasts the game's composed music
+    // in your genre plays in its place (the danger mood from the intensity), and the written piece comes
+    // back at its bar afterwards (`ReturnTo`, as after an audition).
+    if danger && chosen.as_ref().is_some_and(|c| c.written.is_some()) {
+        return Some(danger_choice(s));
+    }
     if let Some(c) = chosen {
         return Some(c);
     }
@@ -775,7 +812,12 @@ impl MusicRuntime {
         if self.written_failed.as_ref().is_some_and(|(id, _)| *id != inp.settings.written) {
             self.written_failed = None;
         }
-        let choice = choice_now(self.lib.as_deref(), inp, self.written_failed.as_ref().map(|(id, _)| id.as_str()));
+        self.danger = danger_now(self.lib.as_deref(), inp.intensity, self.danger);
+        let choice = choice_now(self.lib.as_deref(), inp, self.written_failed.as_ref().map(|(id, _)| id.as_str()), self.danger);
+        // Something plays in place of the person's choice for a while and then hands back to it: a
+        // card's audition, or the danger over a written piece (section 28.6).
+        let written_chosen = !inp.settings.written.is_empty() && self.written_failed.as_ref().is_none_or(|(id, _)| *id != inp.settings.written);
+        let breaking_in = inp.audition.is_some() || (self.danger && written_chosen);
         let written = choice.as_ref().and_then(|c| c.written.clone());
         let style = choice.as_ref().and_then(|c| c.style.clone()).filter(|_| written.is_some());
         let genres = match &choice {
@@ -797,6 +839,8 @@ impl MusicRuntime {
             let choice_changed = self.score.is_some() && !same_choice(self.score_choice.as_ref(), choice.as_ref());
             // A chosen piece plays on (a new piece every few minutes is for new pieces only).
             let piece_len_s = inp.settings.piece_minutes.max(0.0) * 60.0;
+            // (A composed piece of the person's queue has its own length: the Music page's queue moves
+            // on when it has played, section 28.3.)
             let piece_due = choice.is_none() && self.score.is_some() && piece_len_s > 0.0 && self.piece_s >= piece_len_s;
             let installed = self.score.is_some() && self.score_generation != inp.generation;
             let next_phrase = !inp.reuse && phrase.is_some_and(|p| self.asked_at_phrase.is_none_or(|a| p > a));
@@ -841,17 +885,17 @@ impl MusicRuntime {
         };
         if take_over {
             if let Some(Ready { res, lib, generation, genres, take, written: ready_written, style: ready_style, style_notes: ready_notes, .. }) = self.ready.take() {
-                let ctx = Self::context_of(&lib, inp, &g, a4, &genres, choice.as_ref());
+                let ctx = Self::context_of(&lib, inp, &g, a4, &genres, choice.as_ref(), self.danger);
                 // A rebuild of the same piece keeps its seed and carries on from the phrase the old
                 // score just began; a chosen piece (the Music page's, a mood's "my music") plays its
                 // own seed; anything else is a new piece, the next seed.
                 let resume = (take == Take::Refresh && self.score.is_some() && same_choice(self.score_choice.as_ref(), choice.as_ref())).then(|| st.map(|s| s.form_pos)).flatten();
                 // An audition about to play keeps what played before it (unless an audition already
                 // plays: the first one's place is the one to go back to); its end goes back there.
-                if inp.audition.is_some() && self.return_to.is_none() && self.score.is_some() {
+                if breaking_in && self.return_to.is_none() && self.score.is_some() {
                     self.return_to = Some(ReturnTo { choice: self.score_choice.clone(), seed: self.score_seed, at: st.map(|s| s.form_pos).unwrap_or(0) });
                 }
-                let back = if inp.audition.is_none() { self.return_to.take() } else { None };
+                let back = if !breaking_in { self.return_to.take() } else { None };
                 let back = back.filter(|r| same_choice(r.choice.as_ref(), choice.as_ref())).map(|r| (r.seed, r.at));
                 let resume = resume.or(back.map(|b| b.1));
                 let seed = match (back, resume, &choice) {
@@ -925,7 +969,7 @@ impl MusicRuntime {
         if let (Some(h), Some(lib)) = (self.score.as_mut(), self.score_lib.clone()) {
             // The playing score keeps the genres it was built for: a newly chosen genre arrives as a
             // new score at the next bar line, with its recordings, not as this score's stand-ins.
-            let ctx = Self::context_of(&lib, inp, &g, a4, &self.score_genres, choice.as_ref());
+            let ctx = Self::context_of(&lib, inp, &g, a4, &self.score_genres, choice.as_ref(), self.danger);
             h.set_context(ctx);
             let st = h.status();
             key_pc = st.key_pc;
@@ -988,8 +1032,14 @@ impl MusicRuntime {
         readout.audition_done = self.audition_s.is_some_and(|s| s >= crate::gui::pages::music::AUDITION_S as f64);
         readout.seed = self.seed;
         readout.pieces = self.pieces;
-        let piece_len_s = inp.settings.piece_minutes.max(0.0) * 60.0;
+        // How long until the piece ends: "A new piece" for the game's new pieces, a composed piece's own
+        // length for one the person's queue plays (section 28.2), none for a piece that plays on.
+        let piece_len_s = match self.score_choice.as_ref().filter(|_| self.score.is_some()) {
+            Some(c) => c.length_s.unwrap_or(0.0),
+            None => inp.settings.piece_minutes.max(0.0) * 60.0,
+        };
         readout.next_piece_s = (self.score.is_some() && piece_len_s > 0.0).then(|| (piece_len_s - self.piece_s).max(0.0));
+        readout.danger = self.danger;
         self.readout_lists(readout)
     }
 
@@ -997,12 +1047,19 @@ impl MusicRuntime {
     /// indices are that data's), playing `genres` (ids, as [`genres_in_use`] gives them: the genre,
     /// then a blend's second).
     /// A chosen piece (`choice`) brings its tuning, and the Music page's its own mood and intensity.
-    fn context_of(lib: &MusicLibrary, inp: &Inputs, g: &Gains, a4: f32, genres: &[String], choice: Option<&MusicChoice>) -> MusicContext {
+    /// `danger`: the game's danger is on (section 28.6), so a chosen piece's intensity rises to the
+    /// game's and the composer takes it into the danger mood, settling it back when the danger ends.
+    fn context_of(lib: &MusicLibrary, inp: &Inputs, g: &Gains, a4: f32, genres: &[String], choice: Option<&MusicChoice>, danger: bool) -> MusicContext {
         let s = &inp.settings;
         let p = Place { zone: &inp.place.zone, room_id: &inp.place.room_id, room_name: &inp.place.room_name, hour: inp.place.hour };
         let chosen_mood = choice.and_then(|c| c.mood.as_deref()).and_then(|m| lib.mood_index(m));
         let mood = chosen_mood.unwrap_or_else(|| lib.mood_index(lib.places.mood_for(&p)).unwrap_or(0)) as u16;
-        let intensity = choice.and_then(|c| c.intensity).unwrap_or(inp.intensity).clamp(0.0, 1.0);
+        let intensity = match choice.and_then(|c| c.intensity) {
+            Some(chosen) if danger => chosen.max(inp.intensity),
+            Some(chosen) => chosen,
+            None => inp.intensity,
+        }
+        .clamp(0.0, 1.0);
         let tune = choice.map(|c| c.tune).unwrap_or_default();
         let genre_a = genres.first().and_then(|id| lib.genre_index(id)).unwrap_or(0) as u16;
         let (genre_b, blend) = match genres.get(1).and_then(|id| lib.genre_index(id)) {
@@ -1011,7 +1068,11 @@ impl MusicRuntime {
         };
         // The piece's length its arc is planned over (music.md section 7h): "A new piece" every few
         // minutes, or, for a piece that plays on (Never, a chosen piece), the endless round.
-        let piece_s = if choice.is_none() && s.piece_minutes > 0.0 { s.piece_minutes * 60.0 } else { lib.endless_minutes * 60.0 };
+        let piece_s = match choice.and_then(|c| c.length_s) {
+            Some(len) => len,
+            None if choice.is_none() && s.piece_minutes > 0.0 => s.piece_minutes * 60.0,
+            None => lib.endless_minutes * 60.0,
+        };
         MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity, duck_db: g.duck_db, tune, analyse: inp.analyse, seek: inp.seek.0, seek_bar: inp.seek.1, piece_s }
     }
 
@@ -1153,8 +1214,13 @@ pub(crate) fn frame(state: &mut EngineState) {
     }
     state.gui_state.music_dev.readout = readout;
     // The Music page's pieces heard, page open or not (docs/design/music-page.md section 9).
-    let crate::gui::GuiState { music_page, settings, music_dev, .. } = &mut state.gui_state;
+    let crate::gui::GuiState { music_page, settings, music_dev, settings_dirty, .. } = &mut state.gui_state;
     music_page.note_heard(&settings.music, &music_dev.readout);
+    // The one list (version 3, music-page.md section 28.3), page open or not: a choice made anywhere
+    // is adopted, and when the item playing ends the next one plays (or the station's next piece).
+    if music_page.tick_queue(&mut settings.music, &music_dev.readout) {
+        *settings_dirty = true;
+    }
 }
 
 #[cfg(test)]

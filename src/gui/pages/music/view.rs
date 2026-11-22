@@ -1,17 +1,17 @@
-//! The Music page's pictures: the piece in words, the beat pulse, each part moving and the spectrum
-//! (the piano roll is roll.rs). Everything is read
+//! What plays in words on Now playing: the kind of music, the piece in words, the section and chord
+//! (the beat pulse, the parts and the spectrum are the parts row: parts.rs; the piano roll is roll.rs).
+//! Everything is read
 //! from the score itself (its status: the beat, the role meters, the bands) or from the sheet, the
 //! same piece written down by the composer run dry (docs/design/music-page.md section 9).
 
-use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
+use egui::{Color32, RichText};
 use humanity_core::i18n::t;
 use humanity_music::sheet::{chord_symbol, key_uses_flats, pc_name, transcribe, Sheet};
 use humanity_music::tune::ROLES;
 
-use super::{role_colour, role_words, voice_words, SheetCache, SheetTag};
+use super::{role_words, voice_words, SheetCache, SheetTag};
 use crate::gui::pages::dev_music::Playing;
 use crate::gui::theme::Theme;
-use crate::gui::widgets::Hint;
 use crate::gui::{widgets, GuiState};
 
 /// How far ahead of the playhead the transcription reaches, seconds (it is made again, longer, when
@@ -152,8 +152,8 @@ fn piece_words(sheet: &Sheet, playing: &Playing) -> (String, Option<String>) {
     (words, (!leads.is_empty()).then(|| t("music_page.leads_line").replace("{{leads}}", &leads.join(", "))))
 }
 
-/// The piece in words and the visualizer (what plays and who chose it is the strip's sentence along
-/// the top: strip.rs).
+/// What plays in words: the kind of music, the piece in words, its section and chord (who chose it is
+/// the transport bar's sentence: transport.rs).
 pub(super) fn now_playing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _accent: Color32) {
     let readout = &state.music_dev.readout;
     let status = readout.score;
@@ -179,68 +179,5 @@ pub(super) fn now_playing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 ui.label(RichText::new(t("music_page.section_now").replace("{{letter}}", &letter).replace("{{chord}}", &chord)).color(theme.text_secondary()));
             }
         }
-        ui.add_space(theme.spacing_xs);
-        visualizer(ui, theme, status.as_ref());
     });
-}
-
-/// The visualizer: a beat pulse (the bar's first beat strongest), each part's activity, and the
-/// spectrum in octave bands.
-fn visualizer(ui: &mut egui::Ui, theme: &Theme, status: Option<&humanity_music::MusicStatus>) {
-    let width = ui.available_width().max(320.0);
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 150.0), Sense::hover());
-    resp.hint("music_page.visualizer_hint");
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, theme.bg_card());
-    let font = FontId::proportional(theme.font_size_small);
-    let label_h = theme.font_size_small + 6.0;
-    // The beat pulse.
-    let pulse_w = 150.0f32.min(width * 0.25);
-    let centre = Pos2::new(rect.left() + pulse_w * 0.5, rect.center().y - label_h * 0.5);
-    let (beat, bpb) = status.map(|s| (s.beat, s.beats_per_bar.max(1) as f32)).unwrap_or((0.0, 4.0));
-    let phase = beat.fract();
-    let down = beat < 1.0;
-    let swell = (1.0 - phase).powi(2) * if down { 1.0 } else { 0.6 };
-    let base = (pulse_w * 0.22).min(40.0);
-    let colour = if down { theme.accent() } else { theme.text_secondary() };
-    if status.is_some() {
-        painter.circle_filled(centre, base + swell * base * 0.6, colour.gamma_multiply(0.25 + 0.5 * swell));
-        painter.circle_stroke(centre, base, Stroke::new(2.0f32, colour));
-    } else {
-        painter.circle_stroke(centre, base, Stroke::new(1.0f32, theme.text_muted()));
-    }
-    let bar_n = status.map(|s| s.bar + 1).unwrap_or(0);
-    let beat_n = beat.floor() as u32 + 1;
-    painter.text(Pos2::new(centre.x, rect.bottom() - label_h * 0.5), Align2::CENTER_CENTER, t("music_page.beat").replace("{{bar}}", &bar_n.to_string()).replace("{{beat}}", &format!("{beat_n}/{bpb:.0}")), font.clone(), theme.text_secondary());
-    // Each part's level (the sound it makes, on the meters' decibel scale: rung 2).
-    let parts = Rect::from_min_max(Pos2::new(rect.left() + pulse_w, rect.top() + 8.0), Pos2::new(rect.left() + pulse_w + (width - pulse_w) * 0.45, rect.bottom() - label_h));
-    let col_w = parts.width() / ROLES as f32;
-    for k in 0..ROLES {
-        let v = status.map(|s| humanity_music::score::meter_fraction(s.roles[k])).unwrap_or(0.0);
-        let x0 = parts.left() + k as f32 * col_w + col_w * 0.2;
-        let x1 = x0 + col_w * 0.6;
-        let h = parts.height() * v;
-        painter.rect_filled(Rect::from_min_max(Pos2::new(x0, parts.top()), Pos2::new(x1, parts.bottom())), 2.0, theme.bg_panel());
-        painter.rect_filled(Rect::from_min_max(Pos2::new(x0, parts.bottom() - h), Pos2::new(x1, parts.bottom())), 2.0, role_colour(theme, k as u8));
-        if col_w >= theme.font_size_small * 4.0 {
-            painter.text(Pos2::new((x0 + x1) * 0.5, rect.bottom() - label_h * 0.5), Align2::CENTER_CENTER, role_words(k), font.clone(), theme.text_muted());
-        }
-    }
-    // The spectrum: each octave band's level, -60 to 0 dB.
-    let spec = Rect::from_min_max(Pos2::new(parts.right() + 12.0, rect.top() + 8.0), Pos2::new(rect.right() - 8.0, rect.bottom() - label_h));
-    let n = humanity_music::score::BANDS;
-    let bw = spec.width() / n as f32;
-    for k in 0..n {
-        let amp = status.map(|s| s.bands[k]).unwrap_or(0.0);
-        let db = 20.0 * amp.max(1e-6).log10();
-        let v = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
-        let x0 = spec.left() + k as f32 * bw + bw * 0.12;
-        let x1 = x0 + bw * 0.76;
-        painter.rect_filled(Rect::from_min_max(Pos2::new(x0, spec.bottom() - spec.height() * v), Pos2::new(x1, spec.bottom())), 2.0, theme.accent().gamma_multiply(0.4 + 0.6 * v));
-        if k % 3 == 0 || k == n - 1 {
-            let hz = humanity_music::score::band_hz(k);
-            let label = if hz >= 1000.0 { format!("{:.0}k", hz / 1000.0) } else { format!("{hz:.0}") };
-            painter.text(Pos2::new((x0 + x1) * 0.5, rect.bottom() - label_h * 0.5), Align2::CENTER_CENTER, label, font.clone(), theme.text_muted());
-        }
-    }
 }

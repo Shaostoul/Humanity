@@ -102,6 +102,11 @@ pub mod painted_card;
 /// Emoji in text (2026-11-20, docs/design/emoji.md): the matcher the website's emoji.js also follows
 /// (rung 1) and pictures in a line of text (rung 3). See `widgets/emoji/`.
 pub mod emoji;
+/// A media player's controls as drawn icons (2026-11-21, docs/design/music-page.md section 28: play,
+/// pause, previous, next, shuffle, repeat, the list, the heart, the speaker) and the icon button that
+/// carries one, its name as its accessible name and its words as its hint. See
+/// `widgets/transport_icons.rs`.
+pub mod transport_icons;
 
 use egui::{Color32, Rect, RichText, CornerRadius, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

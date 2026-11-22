@@ -276,6 +276,7 @@ pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
     let p = &mut state.music_page;
     let mut changed = false;
     let mut opened: Option<Favourite> = None;
+    let mut queued: Option<Favourite> = None;
     widgets::subsection_header(ui, theme, accent, t("music_page.keep"), "");
     widgets::card(ui, theme, |ui| {
         if let Some(e) = &p.fav_error {
@@ -310,6 +311,9 @@ pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
                 ui.label(RichText::new(t("music_page.fav_line").replace("{{genre}}", &gl).replace("{{mood}}", &mood_words(lib.as_deref(), &f.mood)).replace("{{seed}}", &f.seed.to_string())).size(theme.font_size_small).color(theme.text_muted()));
                 if ui.button(t("music_page.open")).hint("music_page.open_hint").clicked() {
                     opened = Some(f.clone());
+                }
+                if ui.button(t("music_page.q_add")).hint("music_page.q_add_hint").clicked() {
+                    queued = Some(f.clone());
                 }
                 if p.renaming.as_ref().is_none_or(|(id, _)| *id != f.id) && ui.button(t("music_page.rename")).hint("music_page.rename_hint").clicked() {
                     p.renaming = Some((f.id, f.name.clone()));
@@ -435,9 +439,23 @@ pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
     if changed {
         p.save_favourites();
     }
+    // A favourite is a composed piece in the one list (version 3, queue.rs): opened, it plays now;
+    // added, it waits in Up next.
+    let e = super::transport::endless(state);
+    let as_item = |f: &Favourite, s: &humanity_music::MusicSettings| super::queue::Item::Composed { genre: f.genre.clone(), mood: f.mood.clone(), seed: f.seed.max(1), tune: f.tune.clone(), minutes: super::queue::composed_minutes(s, e) };
     if let Some(f) = opened {
         open_favourite(&mut state.settings.music, &f);
+        let item = as_item(&f, &state.settings.music);
+        state.music_page.queue.play_now(item, &mut state.settings.music, e);
+        state.music_page.save_queue();
         state.settings_dirty = true;
+    }
+    if let Some(f) = queued {
+        let item = as_item(&f, &state.settings.music);
+        let words = super::transport::item_words(state, &item);
+        state.music_page.queue.add(item);
+        state.music_page.queue_msg = Some(t("music_page.q_added").replace("{{what}}", &words));
+        state.music_page.save_queue();
     }
 }
 

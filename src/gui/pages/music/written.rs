@@ -353,6 +353,8 @@ fn details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, e: &ScoreEntr
     let mut changed = false;
     ui.horizontal_wrapped(|ui| {
         changed = play_button(ui, state, e);
+        // Version 3's one list: this piece after what plays (queue.rs).
+        super::transport::add_button(ui, theme, state, super::queue::Item::Written { id: e.id.clone() });
         status(ui, theme, state, e, accent);
     });
     // Its sound style, and how that style plays it (rung 3a).

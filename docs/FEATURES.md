@@ -3482,6 +3482,33 @@ played, the written piece included; N, P and L follow what plays.
   `src/engine/music_tests_back.rs` (each click heard in the runtime), `src/gui/pages/music/tests_back.rs`
 - Web: nothing to mirror (the website plays no music and has no strip)
 
+**Version 3, rung 1: one list, the transport bar at the bottom, your choice everywhere (2026-11-21,
+docs/design/music-page.md sections 28 and 29).** The operator: "I think one list would be better",
+"Bottom would probably be best for phone users", "Let's add icons for the buttons too", "We still want
+danger music breaking in". ONE LIST of three kinds of item (a written piece, a composed piece with a
+length, a station: a genre and mood composed without end): the item playing, Up next, the station at
+the end, history, shuffle and repeat (off, all, one), kept in the person's `music/queue.json`; Next and
+Previous the same for every kind (through Up next, then the station; Previous back through what was
+heard); a choice made anywhere (a card is a station, a seed or favourite a composed piece, a written
+piece's Play) plays now and keeps Up next; Add to Up next on written pieces, favourites and pieces
+heard. THE TRANSPORT BAR along the bottom of every Music tab: the seek bar with position and length (a
+station says it plays on), previous, play or pause, next, shuffle, repeat, what plays, Like, Up next
+(the list above the bar: play now, up, down, remove, clear) and the music volume with a speaker that
+silences it, every button an icon DRAWN AS SHAPES in theme colours with its name as its accessible name.
+NOW PLAYING (the Listen tab renamed) in the operator's layout: what plays in words and the Sound area
+(tuning, key, tempo, swing, intensity, lead voices, written music's style) beside the switch between
+your music and the game's, then from the bottom up the bar, the piano roll and the PARTS ROW that merged
+the visualizer and the Mixer (each part's live level bar beside its fader, Mute and Solo, the pulse and
+spectrum at its end; two rows of four on a phone). Your music plays on every page and in the world;
+DANGER BREAKS IN (a composed piece goes into the danger mood itself; a written piece gives way to the
+danger music and comes back at its bar) and your music returns. Keys S shuffle, R repeat, U Up next.
+- Code: `src/gui/pages/music/queue.rs`, `transport.rs`, `parts.rs`, `like.rs`, `mod.rs`, `keys.rs`;
+  `src/gui/widgets/transport_icons.rs`; `src/engine/music.rs` (`danger_now`, `danger_choice`, a
+  choice's `length_s`); crate `settings.rs` (`MusicSettings::minutes`); tests
+  `src/gui/pages/music/tests_v3.rs`, `src/engine/music_tests_v3.rs`
+- Web: `web/pages/music.html` (the Now playing tab, the bar's controls as our own SVG icons, named and
+  greyed), `web/shared/transport-icons.js`; test `scripts/tests/music-web.test.js`
+
 ### The score player: written music stored as MEI (rung 1, 2026-11-20)
 The goal of 2026-11-16 ("save orchestral music in a file format everyone can easily modify"), with MEI
 approved 2026-11-20 ("MEI sounds right unless there's better"; docs/design/score-player.md). Our own

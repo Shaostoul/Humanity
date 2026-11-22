@@ -6597,13 +6597,15 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
     tune.mute = 1 << 7;
     // A chosen piece plays round its long arc at the library's endless length, as the game's context
     // gives it (src/engine/music.rs; music.md section 7h), so the roll draws the arc the player hears.
-    let ctx_m = humanity_music::MusicContext { mood, genre_a: g as u16, genre_b: g as u16, tune, analyse: true, piece_s: lib.endless_minutes * 60.0, ..Default::default() };
+    // Version 3 (music-page.md section 28): a composed piece of the person's list, four minutes long, its
+    // arc planned over its length as the runtime gives it.
+    let ctx_m = humanity_music::MusicContext { mood, genre_a: g as u16, genre_b: g as u16, tune, analyse: true, piece_s: 240.0, ..Default::default() };
     let r = &mut state.music_dev.readout;
     r.device = true;
     r.lib = Some(lib.clone());
     r.genres = lib.genres.iter().map(|x| crate::gui::pages::dev_music::GenreChoice { id: x.id.clone(), words: x.words.clone(), name: x.name.clone(), about_words: x.about_words.clone(), about: x.about.clone(), stand_ins: Vec::new() }).collect();
     r.piece_minutes = lib.piece_minutes.clone();
-    let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None, style: None };
+    let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None, style: None, length_s: Some(240.0) };
     r.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 4242, ctx: ctx_m, res, lib: lib.clone() });
     let mut status = humanity_music::MusicStatus { seconds: 20.3, beat: 1.25, beats_per_bar: 4, bar: 2, tempo_bpm: 128.0, ..Default::default() };
     // Each part's level as the meters read it (an RMS of its sound, rung 2).
@@ -6612,6 +6614,7 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
         *b = 0.12 * (1.0 - (k as f32 - 3.0).abs() / 8.0).max(0.02);
     }
     r.score = Some(status);
+    r.next_piece_s = Some(240.0 - 20.3);
     r.mood = "mothership_calm".into();
     // The person's own choice (2026-11-14: kept in their settings, the one state the score, this
     // page and Settings > Music read).
@@ -6621,7 +6624,15 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
     m.mood = "mothership_calm".into();
     m.seed = 4242;
     m.tune = SavedTune::from_tune(&tune, &lib, g);
+    m.minutes = 4.0;
     let p = &mut state.music_page;
+    // The one list: this piece playing, a written piece and another composed piece up next, a station at
+    // the end, one piece heard before.
+    use crate::gui::pages::music::queue::Item;
+    p.queue.now = Some(Item::Composed { genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4242, tune: m.tune.clone(), minutes: 4.0 });
+    p.queue.up_next = vec![Item::Written { id: "fur_elise".into() }, Item::Composed { genre: "lofi".into(), mood: "night_watch".into(), seed: 1907, tune: SavedTune::default(), minutes: 4.0 }];
+    p.queue.station = Some(Item::Station { genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4300, tune: SavedTune::default() });
+    p.queue.history = vec![Item::Composed { genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4241, tune: SavedTune::default(), minutes: 4.0 }];
     p.export_dir_override = Some(std::path::PathBuf::from(r"C:\Users\you\Music\HumanityOS"));
     let mut favs = Favourites::default();
     favs.add(Favourite { id: 0, name: "Car, Tuesday".into(), genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4242, tune: SavedTune::from_tune(&tune, &lib, g) });
@@ -6637,14 +6648,15 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
     p.heard = vec![heard("electro_swing", "mothership_calm", 4242, 0), heard("electro_swing", "mothership_calm", 4241, 3), heard("lofi", "night_watch", 1907, 9)];
 }
 
-/// The Music page, version 2, at the operator's screen (2560 by 1440): the Now playing strip with
-/// Like, the tabs, Listen's columns (What plays and Tune beside the piece in words and the
-/// visualizer) and the piano roll docked along the bottom with its length slider and overview.
+/// The Music page, version 3, at the operator's screen (2560 by 1440): the Now playing tab in the
+/// operator's layout (music-page.md section 28.7): what plays in words and the Sound area beside the
+/// switch, then from the bottom up the transport bar with its drawn icons, the piano roll, and the parts
+/// row (each part's live level bar beside its fader, Mute and Solo, the pulse and spectrum at its end).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_music() {
     render_page_png("music", 2560, 1440, |ctx, theme, state| {
-        music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+        music_snapshot_state(state, crate::gui::pages::music::Tab::NowPlaying);
         wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
     });
 }
@@ -6671,21 +6683,22 @@ fn snapshot_music_written() {
     });
 }
 
-/// The Music page's Listen tab at 2560 by 1440 with a WRITTEN piece as the person's music (BUG-343):
-/// Für Elise playing, the strip showing its title and Back to composed music, Listen's first line
-/// saying the kind of music is written and how to hear composed music again, and the roll drawing the
-/// piece's own notes.
+/// The Music page's Now playing tab at 2560 by 1440 with a WRITTEN piece as the person's music (BUG-343,
+/// version 3): Für Elise playing, the transport bar naming it and its length, Now playing's first line
+/// saying the kind of music is written and how to hear composed music again (Next, the station), and the
+/// roll drawing the piece's own notes.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_music_listen_written() {
-    render_page_png("music_listen_written", 2560, 1440, |ctx, theme, state| {
+fn snapshot_music_now_playing_written() {
+    render_page_png("music_now_playing_written", 2560, 1440, |ctx, theme, state| {
         if !state.music_page.fav_loaded {
-            music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+            music_snapshot_state(state, crate::gui::pages::music::Tab::NowPlaying);
             let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
             let r = &mut state.music_dev.readout;
             let lib = r.lib.clone().expect("the music data");
             let piece = std::sync::Arc::new(humanity_music::scores::load_piece(&data, lib.score("fur_elise").expect("listed")).expect("it reads"));
             state.settings.music.written = "fur_elise".into();
+            state.music_page.queue.now = Some(crate::gui::pages::music::queue::Item::Written { id: "fur_elise".into() });
             let choice = crate::gui::pages::music::written_choice(&state.settings.music, Some(&lib));
             if let Some(p) = r.playing.as_mut() {
                 p.choice = Some(choice);
@@ -6722,16 +6735,17 @@ fn snapshot_phone_music() {
     humanity_core::platform::device::set_phone_preview(true);
     let _off = PreviewOff;
     render_page_png_at("phone_music", 824, 1830, 200.0, |ctx, theme, state| {
-        music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+        music_snapshot_state(state, crate::gui::pages::music::Tab::NowPlaying);
         wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
     });
 }
 
-/// The Music page's whole Listen tab at a phone's width (412 points, drawn at 200%, as tall as the tab
-/// is, rung 2): the piece in words, the piano roll, the mixer's strips one row each, What plays and Tune.
+/// The Music page's whole Now playing tab at a phone's width (412 points, drawn at 200%, as tall as the
+/// tab is, version 3): what plays, the switch, the Sound area folded, the parts row in two rows of four,
+/// the piano roll, and the transport bar in rows at the bottom.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
-fn snapshot_phone_music_listen() {
+fn snapshot_phone_music_now_playing() {
     struct PreviewOff;
     impl Drop for PreviewOff {
         fn drop(&mut self) {
@@ -6740,8 +6754,8 @@ fn snapshot_phone_music_listen() {
     }
     humanity_core::platform::device::set_phone_preview(true);
     let _off = PreviewOff;
-    render_page_png_at("phone_music_listen", 824, 6400, 200.0, |ctx, theme, state| {
-        music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+    render_page_png_at("phone_music_now_playing", 824, 6400, 200.0, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::NowPlaying);
         wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
     });
 }

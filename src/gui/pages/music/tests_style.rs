@@ -45,7 +45,7 @@ fn swing_chosen() -> (GuiState, std::sync::Arc<humanity_music::MusicLibrary>) {
     s.genre = "electro_swing".into();
     s.mood = "mothership_calm".into();
     s.seed = 5;
-    state.music_page.tab = Tab::Listen;
+    state.music_page.tab = Tab::NowPlaying;
     (state, lib)
 }
 

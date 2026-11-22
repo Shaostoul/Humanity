@@ -1,10 +1,11 @@
 // The Music page's web mirror (docs/design/music-page.md section 19), version 2: the desktop page's
-// tabs (Listen, Explore, Written music, Your music; the app's src/gui/pages/music/), Explore's
+// tabs (Now playing, Explore, Written music, Your music; the app's src/gui/pages/music/), Explore's
 // cards for each genre and mood with the same plain sentences, the Written music list with the same
 // search, sort, filters and details (written.rs `catalogue`), and the favourites kept as share codes
 // in this browser (localStorage `hos_music_favourites`). The cards and the list read
 // /data/music/catalogue.json, written from the app's own RON data by scripts/gen-music-catalogue.js.
-// The website cannot play the music yet (the engine runs in the desktop app; Listen says so).
+// The website cannot play the music yet (the engine runs in the desktop app; Now playing says so, and
+// shows the app's transport bar as our own drawn icons, greyed: web/shared/transport-icons.js).
 //
 // The share code reader follows crates/humanity-music/src/favourite.rs exactly: "HOSM1-", then
 // Crockford base32 of the seed as a variable-length number, the tuning, the genre, the mood and the
@@ -19,7 +20,7 @@
   const OPENED_MOST = 50;
   const PREFIX = 'HOSM1-';
   const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-  const TABS = ['listen', 'explore', 'written', 'yours'];
+  const TABS = ['now-playing', 'explore', 'written', 'yours'];
 
   function b32decode(text) {
     const out = [];
@@ -157,7 +158,14 @@
       }
     }
     for (const t of TABS) { const b = $('mp-tab-' + t); if (b) b.addEventListener('click', () => show(t)); }
-    show('listen');
+    show('now-playing');
+    // The transport bar's icons (version 3, music-page.md section 28.11): drawn as inline SVG of our own.
+    const bar = $('mp-transport');
+    // (TransportIcons.svg draws only its own fixed shapes, and nothing for a name it does not know.)
+    const TransportIcons = (typeof window !== 'undefined' && window.TransportIcons) || null;
+    if (bar && TransportIcons && bar.querySelectorAll) {
+      for (const b of bar.querySelectorAll('[data-icon]')) b.innerHTML = TransportIcons.svg(b.getAttribute('data-icon'), 22);
+    }
 
     // The keyboard shortcuts (the app's, section 16): 1 to 4 the tabs, / the search. Never while a box
     // has the keyboard, and never with a modifier held.

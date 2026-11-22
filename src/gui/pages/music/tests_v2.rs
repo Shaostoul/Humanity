@@ -88,9 +88,10 @@ fn fur_elise_playing(now: f64) -> (GuiState, Sheet) {
 /// LIKE KEEPS THE PLAYING PIECE, WITH ITS CHANGES, IN ONE CLICK (the operator, 2026-11-20: "We should
 /// add a button to save a liked seed"): an electro swing piece (seed 4242) playing as the person's
 /// choice, with the bass 3 dB down, the texture muted and the key two steps up. One click on the
-/// strip's Like and the favourites hold that piece: its genre, mood, seed and every change, under a
-/// name made for it; the button then says Liked, and a second click keeps one favourite and opens Your
-/// music with it marked. While the game chooses, Like keeps what plays now (its seed, the game's mood).
+/// transport bar's Like (version 3: the heart, found where egui drew it) and the favourites hold that
+/// piece: its genre, mood, seed and every change, under a name made for it; the button is then Liked, and
+/// a second click keeps one favourite and opens Your music with it marked. While the game chooses, Like
+/// keeps what plays now (its seed, the game's mood).
 ///
 /// Seen RED 2026-11-20 with `strip::like` returning at once: "one click keeps one favourite (left: 0,
 /// right: 1)".
@@ -109,9 +110,12 @@ fn like_keeps_the_playing_piece_and_its_changes_in_one_click() {
     m.mood = "mothership_calm".into();
     m.seed = 4242;
     m.tune = SavedTune::from_tune(&tune, &lib, g);
-    let like_at = |out: &egui::FullOutput, words: &str| text_rects(out).into_iter().find(|(w, _)| w == words).map(|(_, r)| r.center()).unwrap_or_else(|| panic!("the strip shows {words:?}"));
-    let out = frame(SCREEN, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
-    frame(SCREEN, click(like_at(&out, t("music_page.like"))), |ctx| super::draw(ctx, &theme, &mut state));
+    let click_like = |state: &mut GuiState| {
+        let (_, ctx) = super::tests_v3::draw_kept(state, SCREEN, Vec::new(), None);
+        let at = ctx.read_response(super::transport::button_id(super::transport::LIKE)).expect("the transport bar draws Like").rect.center();
+        super::tests_v3::draw_kept(state, SCREEN, click(at), Some(ctx));
+    };
+    click_like(&mut state);
     let favs = state.music_page.favourites.favourites.clone();
     assert_eq!(favs.len(), 1, "one click keeps one favourite");
     let f = &favs[0];
@@ -119,9 +123,10 @@ fn like_keeps_the_playing_piece_and_its_changes_in_one_click() {
     let kept = f.tune.to_tune(&lib, g);
     assert_eq!((kept.level_db[1], kept.mute, kept.transpose), (-3.0, 1 << 7, 2), "with every change made to it");
     assert_eq!(f.name, t("music_page.liked_name").replace("{{genre}}", t("music.genre.electro_swing")).replace("{{seed}}", "4242"), "under a name made for it");
-    // Already kept: the button says so, and a second click opens Your music with it marked.
-    let out = frame(SCREEN, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
-    frame(SCREEN, click(like_at(&out, t("music_page.liked"))), |ctx| super::draw(ctx, &theme, &mut state));
+    // Already kept: the button is Liked, and a second click opens Your music with it marked.
+    let sh = super::shown(&state.settings.music, &state.music_dev.readout);
+    assert!(super::like::already_liked(&state, &super::like::liked_favourite(&state, &sh)).is_some(), "the heart is Liked");
+    click_like(&mut state);
     assert_eq!(state.music_page.favourites.favourites.len(), 1, "a second click keeps it once (and never removes it)");
     assert_eq!((state.music_page.tab, state.music_page.marked), (Tab::Yours, Some(f.id)), "it opens Your music with the favourite marked");
     let out = frame(SCREEN, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
@@ -133,9 +138,8 @@ fn like_keeps_the_playing_piece_and_its_changes_in_one_click() {
     state.settings.music.game_chooses = true;
     state.music_dev.readout.mood = "night_watch".into();
     state.music_dev.readout.playing = Some(crate::gui::pages::dev_music::Playing { choice: None, seed: 777, ctx: humanity_music::MusicContext { genre_a: lofi, genre_b: lofi, ..Default::default() }, res, lib: lib.clone() });
-    state.music_page.tab = Tab::Listen;
-    let out = frame(SCREEN, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
-    frame(SCREEN, click(like_at(&out, t("music_page.like"))), |ctx| super::draw(ctx, &theme, &mut state));
+    state.music_page.tab = Tab::NowPlaying;
+    click_like(&mut state);
     let last = state.music_page.favourites.favourites.last().cloned().expect("a second favourite");
     assert_eq!((last.genre.as_str(), last.mood.as_str(), last.seed), ("lofi", "night_watch", 777), "the game's piece as it plays");
 }

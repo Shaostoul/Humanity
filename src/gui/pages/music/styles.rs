@@ -95,12 +95,15 @@ pub fn all_written(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bo
     let m = &mut state.settings.music;
     let before = m.style.clone();
     let shown = if m.style.is_empty() { t("music_page.style_as_written").to_string() } else { name_of(&styles, &m.style) };
-    // The name above its list, the list no wider than the page, a long choice cut short with an
-    // ellipsis (a phone's 412 points hold it).
-    ui.label(RichText::new(t("music_page.style_all")).color(theme.text_secondary()));
-    let w = (ui.available_width() - 2.0 * theme.spacing_md).clamp(120.0, 420.0);
+    // The list named by its own label (so a screen reader hears what it chooses: the a11y walk found
+    // it nameless once Now playing's Sound area drew it, 2026-11-21), the list no wider than the room
+    // its name leaves, a long choice cut short with an ellipsis (a phone's 412 points hold both).
+    let label = t("music_page.style_all");
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let label_w = ui.fonts(|f| f.layout_no_wrap(label.to_string(), font, theme.text_secondary()).size().x);
+    let w = (ui.available_width() - label_w - 3.0 * theme.spacing_md).clamp(100.0, 420.0);
     {
-        egui::ComboBox::from_id_salt("music_page_style_all")
+        egui::ComboBox::new("music_page_style_all", RichText::new(label).color(theme.text_secondary()))
             .width(w)
             .truncate()
             .selected_text(shown)

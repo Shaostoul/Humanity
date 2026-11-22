@@ -124,7 +124,7 @@ pub fn playing_name(state: &GuiState) -> String {
         return score_words(&piece.entry).0;
     }
     let sh = super::shown(&state.settings.music, r);
-    super::strip::liked_favourite(state, &sh).name
+    super::like::liked_favourite(state, &sh).name
 }
 
 /// Your music's "Music files" card: the piece playing saved as MIDI or MEI to a name and folder the
