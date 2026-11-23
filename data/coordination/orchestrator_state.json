@@ -1857,6 +1857,11 @@
       "date": "2026-11-22",
       "decision": "The operator now owns both servers from his desktop key: united-humanity.us (claimed about 23:3x UTC) and public.guide (the relay logged 'Owner claim' at 00:34:05 UTC on 2026-11-23; the code file is gone). Verified without opening either database (the code file's absence and the relay's log). Also merged and pushed: the presence line said once per change (handlers/presence.rs; the operator saw it three times over), and two guards against the sqlite3 deletion (the agents' tool guard refuses sqlite3 on a relay.db; every server installs scripts/vps/sqlite3-guard as /usr/local/bin/sqlite3, which opens the live database read-only). Next for the operator: the DPG form's 9b ownership sentence and the mobile fields after tonight's phone-fix release.",
       "why": "Both public servers have an owner who can open what hide-and-keep holds; the guards keep the outage from recurring."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "RELEASED v0.1571.0 (the third today, the operator's 'Yes, that's okay. It's a usability fix.'): the phone app clear of the keyboard and Android's bars (VisibleArea.java reading the window insets through JNI, visible_area.rs shrinking egui's screen rect, keep_in_view), the recovery words numbered 1 to 24 with BIP39 misspellings in red, one secret field with a Show / Hide eye everywhere (web: secret-field.js on every password input), owner round 9's app side, url 2.5.9, the presence line once per change, and the website's privacy page saying when the server already had the choice (the presence fix would otherwise have left it on 'Telling this server...'). Gates: release build, relay check, lints, test-lib 6,876, verify-relay, verify-runtime 3/3, webrtc, second-player, copresence, respawn; rig-tests first failed on the third-party notices (regenerated for url 2.5.9) and on the privacy page's test (fixed with a 5 s wait and new words); after those, the release rebuilt from the final tree, lints and rig-tests 2,108 passed; check-delivery OK. Lesson: a release's checks must run after the notices are regenerated for any Cargo.lock change, and a relay behaviour change needs its web listeners checked.",
+      "why": "The operator's phone test found three usability blockers; this release removes them."
     }
   ],
   "active_scopes_to_avoid": [
