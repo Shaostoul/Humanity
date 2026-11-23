@@ -73,6 +73,12 @@ Each line is written the way a player would hear it; the release notes and
 - A home node's owner comes in by their own door, which strangers cannot reach or flood; a public address, the local network and a Tailscale network are the owner's choices.
 - The Donate page shows what donations bring in each month against what the project costs, each figure dated, kept current by the server's owner from inside the app.
 
+### v0.1571.0 (22 November 2026)
+
+- The phone app stays clear of the keyboard and of Android's own buttons; the recovery phrase shows its words numbered 1 to 24 with any misspelled word in red.
+- Every passphrase, PIN and token box has an eye to show what you typed, in the app and on the website.
+- The app's own messages can never carry a server's words, on the desktop and the website.
+
 ### Next release
 
 

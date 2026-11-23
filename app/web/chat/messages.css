@@ -257,7 +257,8 @@
   border-radius: 0;
 }
 
-/* The app's own voice (app.js addSystemMessage, the owner branch's seventh review H1 (a)): an accent
+/* The app's own voice (app.js appLine, the one way to it since the owner branch's eighth review;
+   the seventh review's H1 (a) gave it this mark; addSystemMessage draws the plain style): an accent
    bar and a diamond no line from the network carries. The native twin is
    src/gui/widgets/app_line.rs. The server's lines (.server-line, marked "From this server:") and
    every member's row never get them. */

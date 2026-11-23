@@ -16,8 +16,9 @@
 //      it held, then puts the post back and deletes the held copy). Every request to a held part
 //      route is signed as me (`callerHeaders`, the owner review's finding 1): a grant alone fetches
 //      nothing.
-//   3. The server owner's part of Held copies (Claim ownership while there is no owner, the
-//      successor, the owner log, and the owner's Hand over and Successor controls) is drawn by
+//   3. The server owner's part of Held copies (Claim ownership while there is no owner, who the
+//      owner and the successor are, and the owner log, read only: handing over and naming a
+//      successor happen only in the desktop app since the seventh review's M2) is drawn by
 //      chat-owner.js, loaded after this file (window.ownerHeldNodes, window.ownerRefusalNodes).
 //
 // Built as DOM: createElement, textContent and addEventListener only. No innerHTML and no data-*

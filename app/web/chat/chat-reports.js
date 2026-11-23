@@ -65,11 +65,16 @@ function repSay(text) {
   if (typeof addSystemMessage === 'function') addSystemMessage(text);
 }
 
-/** The member list's name for a key, or a short key. */
+/** The member list's name for a key, or a short key. The list is the relay's, so the name is shown
+ *  only when honest (app.js shownName), else the refused-name words (the owner branch's eighth
+ *  review, a low finding: a relay's sentence in a name went into every report line). */
 function repName(key) {
   const peers = (typeof peerData !== 'undefined' && peerData) ? peerData : {};
   const p = key ? peers[key] : null;
-  if (p && (p.display_name || p.name)) return p.display_name || p.name;
+  if (p && (p.display_name || p.name)) {
+    const n = p.display_name || p.name;
+    return typeof shownName === 'function' ? shownName(n) : n;
+  }
   return typeof shortKey === 'function' ? shortKey(key) : String(key || '').slice(0, 8);
 }
 

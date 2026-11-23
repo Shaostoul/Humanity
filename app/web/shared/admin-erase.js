@@ -104,8 +104,20 @@
   /** The receipt's rows that count: [label, n] with n above zero. */
   function adminEraseReceiptRows(receipt) {
     if (!Array.isArray(receipt)) return [];
-    return receipt.filter((r) => Array.isArray(r) && typeof r[0] === 'string' && Number(r[1]) > 0)
+    // A label is a table's name (letters, digits, _), nothing else: a relay's sentence in a label is
+    // dropped, never drawn (the owner branch's eighth review, H1). The desktop's twin is
+    // src/net/admin_erase.rs `parse_done`.
+    return receipt.filter((r) => Array.isArray(r) && typeof r[0] === 'string' && /^[A-Za-z0-9_]{1,48}$/.test(r[0]) && Number(r[1]) > 0)
       .map((r) => [r[0], Number(r[1])]);
+  }
+
+  /** The erased person's name as the receipt may show it: only an honest one (/shared/key-card.js
+   *  honestName: 1 to 24 letters, digits, _ or -, none of the app's or the server's own names), else
+   *  "this person". The desktop's twin is src/net/admin_erase.rs `receipt_words`. */
+  function adminEraseShownName(name) {
+    const n = typeof name === 'string' ? name.trim() : '';
+    const K = (typeof globalThis !== 'undefined' && globalThis.HosKeyCard) || (typeof require === 'function' ? (() => { try { return require('./key-card.js'); } catch (_) { return null; } })() : null);
+    return n && K && typeof K.honestName === 'function' && K.honestName(n) ? n : 'this person';
   }
 
   /** Did part of the erase fail? `partial`, or a `<table>_FAILED` row. */
@@ -121,7 +133,7 @@
    */
   function adminEraseReceiptText(msg) {
     const m = msg || {};
-    const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim() : 'this person';
+    const name = adminEraseShownName(m.name);
     const rows = adminEraseReceiptRows(m.receipt);
     const summary = rows.length ? rows.map(([label, n]) => label + ': ' + n).join(', ') : 'nothing was stored';
     if (adminErasePartial(m)) {

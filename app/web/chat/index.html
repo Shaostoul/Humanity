@@ -75,7 +75,7 @@
   <script src="/shared/icons.js?v=1"></script>
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/hold-confirm.js?v=1"></script>
-  <script src="/shared/shell.js?v=20261125" data-active="chat"></script>
+  <script src="/shared/shell.js?v=20261127" data-active="chat"></script>
   <!-- Which server this page is on, held under the nav (media-round-5-plan.md 3.11). Needs nothing
        from the chat scripts; asks Chat's protectedHidesRooms only when Switch opens, long after load. -->
   <script src="/shared/server-strip.js?v=1"></script>
@@ -182,8 +182,8 @@
             data-tip-title="Your Public Key" data-tip-desc="Click to copy your full public key to clipboard."
             data-on-click="copyMyKeyDisplay(this)"></div>
           <!-- My key's fingerprint (2026-11-21, the owner branch's fifth review, H1): the groups an
-               owner who hands me the role or names me successor asks me to read out. Filled by
-               chat-owner.js through /shared/own-fingerprint.js. -->
+               owner who hands me the role or names me successor in the desktop app asks me to read
+               out. Filled by chat-owner.js through /shared/own-fingerprint.js. -->
           <div id="my-fingerprint" style="font-size:0.7rem;margin:0.3rem 0;word-break:normal;"></div>
           <!-- Security & Recovery lives in the #identity-security section below. This whole
                #my-identity block is relocated at runtime into the header's "Account & Identity"
@@ -723,7 +723,7 @@
   <!-- admin-erase.js: an admin erases another person's data (10i, 2026-10-10): who is offered
        it, the name check, the frame, the receipt and the erased person's words, shared with Node
        tests. Before app.js (account_erased) and chat-ui.js (the member menu and its confirm). -->
-  <script src="/shared/admin-erase.js?v=3"></script>
+  <script src="/shared/admin-erase.js?v=20261127"></script>
   <!-- roles.js: who counts as an admin or a moderator (BUG-332's sweep, 2026-11-20); the owner
        is an admin everywhere. Every chat script's role gate asks it: before app.js. -->
   <script src="/shared/roles.js?v=1"></script>
@@ -804,7 +804,7 @@
   <!-- chat-key-cards.js: asks the server for people's key cards, checks each, pins them, and
        shows a key that changed (2026-10-22). The only source of the keys anything is sealed to.
        After chat-dm-store.js (the pins live there), before app.js (which hands it the frames). -->
-  <script src="/chat/chat-key-cards.js?v=20261123"></script>
+  <script src="/chat/chat-key-cards.js?v=20261127"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=3"></script>
@@ -826,11 +826,11 @@
   <script src="/shared/video-poster.js?v=1"></script>
   <!-- The dock a playing video moves into when its card is scrolled away (2026-11-06, rung 3). -->
   <script src="/shared/video-dock.js?v=1"></script>
-  <script src="/chat/app.js?v=20261125"></script>
+  <script src="/chat/app.js?v=20261127"></script>
   <script src="/chat/chat-messages.js?v=30"></script>
   <script src="/chat/chat-dms.js?v=25"></script>
   <script src="/chat/chat-social.js?v=20261123"></script>
-  <script src="/chat/chat-groups-p2p.js?v=20261123"></script>
+  <script src="/chat/chat-groups-p2p.js?v=20261127"></script>
   <script src="/shared/over-limit.js?v=1"></script>
   <!-- notify-rules.js: THE notification rule, shared with Node tests and twin of the desktop's
        src/notifications/decide.rs (2026-10-30, docs/design/notifications.md); chat-notify.js: the
@@ -841,7 +841,7 @@
        Settings > Audio & Video > Sound levels; chat-notify.js plays through it. -->
   <script src="/shared/sound-levels.js?v=1"></script>
   <script src="/chat/chat-notify.js?v=7"></script>
-  <script src="/chat/chat-ui.js?v=20261123"></script>
+  <script src="/chat/chat-ui.js?v=20261128"></script>
   <script src="/chat/chat-voice-rooms.js?v=10"></script>
   <script src="/chat/chat-voice-calls.js?v=20261123"></script>
   <script src="/chat/chat-voice-webrtc.js?v=2"></script>
@@ -860,14 +860,14 @@
   <script src="/chat/chat-game-admin.js?v=5"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
        and moderators. After chat-privacy.js (Block, which the dialog can run). -->
-  <script src="/chat/chat-reports.js?v=8"></script>
+  <script src="/chat/chat-reports.js?v=20261127"></script>
   <!-- Hide and keep (2026-11-20, docs/design/hide-and-keep.md rung 5): the signed decision on a
        report and Held copies for admins, built as DOM. After chat-reports.js, which it decorates. -->
-  <script src="/chat/chat-held.js?v=20261125"></script>
+  <script src="/chat/chat-held.js?v=20261127"></script>
   <!-- The server owner (2026-11-20): Claim ownership while the server has none, and in Held copies
-       the successor, the owner log and the owner's Hand over and Successor controls, built as DOM.
-       After chat-held.js, whose view it draws into. -->
-  <script src="/chat/chat-owner.js?v=5"></script>
+       who the owner and the successor are and the owner log, read only (owner changes happen only
+       in the desktop app), built as DOM. After chat-held.js, whose view it draws into. -->
+  <script src="/chat/chat-owner.js?v=20261127"></script>
   <!-- Warnings on messages and the recovery-phrase guard (step F, 2026-10-10): warnings under
        received DMs and group messages, the stranger link line, the Safety switch, and the check
        every send path runs before anything I wrote leaves. -->

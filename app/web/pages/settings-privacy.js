@@ -45,7 +45,26 @@
       sessionAsked: false,
       pending: null,  // the presence frame waiting for the sign-in, the latest choice only
       status: '',     // the key the status line shows
+      awaiting: false, // a frame went out and the server has not answered it yet
+      answerTimer: null,
     };
+
+    // The server answers a presence change only when it CHANGED what it holds (handlers/presence.rs,
+    // 2026-11-22: it used to answer every repeat, and each reconnect of a desktop or phone added
+    // another line). So a choice the server already had gets no answer: after this long the page says
+    // so, instead of "Telling this server..." for ever.
+    const ANSWER_WAIT_MS = 5000;
+
+    /** A frame was sent: wait for the server's answer, or say it already had this choice. */
+    function awaitAnswer() {
+      state.awaiting = true;
+      if (state.answerTimer && d.clearTimeout) d.clearTimeout(state.answerTimer);
+      state.answerTimer = d.setTimeout ? d.setTimeout(() => {
+        if (!state.awaiting) return;
+        state.awaiting = false;
+        say('privacy.web_presence_unchanged');
+      }, ANSWER_WAIT_MS) : null;
+    }
 
     function say(key, vars) {
       state.status = key || '';
@@ -125,7 +144,7 @@
         if (st.status === 'bound' && state.pending) {
           const frame = state.pending;
           state.pending = null;
-          state.session.send(frame);
+          if (state.session.send(frame)) awaitAnswer();
         } else if (st.status === 'refused' && state.pending) {
           state.pending = null;
           say('privacy.web_not_sent', { why: st.refusal });
@@ -135,6 +154,7 @@
         }
       } else if (ev.type === 'frame') {
         const answer = P.presenceAnswer(ev.msg);
+        if (answer) state.awaiting = false;
         if (answer === 'hidden') say('privacy.web_presence_hidden_done');
         else if (answer === 'shown') say('privacy.web_presence_shown_done');
       }
@@ -157,7 +177,10 @@
         say('privacy.web_no_identity');
         return;
       }
-      if (s.state.status === 'bound' && s.send(frame)) return;
+      if (s.state.status === 'bound' && s.send(frame)) {
+        awaitAnswer();
+        return;
+      }
       state.pending = frame;
       await s.start();
     }
@@ -213,6 +236,8 @@
       fetch: (url) => root.fetch(url),
       i18n: root.i18n || null,
       changes: root.HosProfileChanges || null,
+      setTimeout: (f, ms) => root.setTimeout(f, ms),
+      clearTimeout: (t) => root.clearTimeout(t),
       makeSession: async () => {
         let identity = null;
         try { identity = typeof root.getPqIdentity === 'function' ? await root.getPqIdentity() : null; } catch (e) { identity = null; }

@@ -22,10 +22,10 @@
 // review, W1, 2026-11-21: a relay pushed its own key's card unasked and the page
 // pinned it on first sight). A contact card pasted by the person (chat-p2p.js) is
 // their own ask and goes through `ingest` directly. A pin is what a DM is sealed
-// to; it is NOT trust in who the person is (the owner picker asks for four
-// groups of the person's fingerprint at random positions, read out from their
-// own screen, for every handover and successor, chat-owner.js `judgeGroups`,
-// whoever the person is).
+// to; it is NOT trust in who the person is (the desktop app's owner picker asks
+// for four groups of the person's fingerprint at random positions, read out from
+// their own screen, for every handover and successor, whoever the person is;
+// this page makes no owner change, the seventh review's M2).
 // A newer card with a DIFFERENT key is a change: nothing
 // is sealed to that person until I accept it (the notice with "Accept the new
 // key", drawn in the conversation like the reach notices, chat-privacy.js).

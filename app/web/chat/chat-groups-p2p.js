@@ -68,7 +68,12 @@
       body: JSON.stringify(submission),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    // The server's reason is ITS words: one short line, marked "From this server:", in a notice
+    // that carries no app mark (the owner branch's eighth review, M3).
+    if (!res.ok) {
+      const said = String(data.error == null ? '' : data.error).replace(/\s+/g, ' ').trim().slice(0, 200);
+      throw new Error(said && window.i18n ? i18n.t('chat.from_server', { text: said }) : 'HTTP ' + res.status);
+    }
     return data;
   }
 

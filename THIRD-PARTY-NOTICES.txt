@@ -14,8 +14,8 @@ package; do not edit it by hand. Each package's licence files are reproduced as 
 carries them (line endings and trailing spaces aside). A text many packages share is printed once
 and named by its number.
 
-Fingerprint: 0d65c642be8bc526b363883149bc6341e18e2276d283ad353c72963b39ebb662
-Body checksum: 6203a6dfa7c79a603c6dc7ab5bd881712f1250212c995bd698dc24c1fe80147d
+Fingerprint: ba11f842a13aabc040b63b3985e2374816e8c2da0fd65fd4d645b18379b66d2f
+Body checksum: bd14cadfb068d3a926759378cf0aeb175e25d85650a1b3adafd4bab7bd5a641d
 ================================================================================
 PART 1. RUST PACKAGES BUILT INTO THE PROGRAMS (759)
 ================================================================================
@@ -1361,7 +1361,7 @@ foreign-types-shared 0.3.1
     Built into: macos-arm64, macos-x64
     Texts: 27 LICENSE-APACHE; 165 LICENSE-MIT
 
-form_urlencoded 1.2.2
+form_urlencoded 1.2.3
     Licence: MIT OR Apache-2.0
     Repository: https://github.com/servo/rust-url
     Built into: every program (6)
@@ -4039,7 +4039,7 @@ ureq 2.12.1
     Built into: windows-x64, linux-x64, macos-arm64, macos-x64, android-arm64
     Texts: 30 LICENSE-APACHE; 412 LICENSE-MIT; 12 src/chunked/LICENSE-APACHE; 413 src/chunked/LICENSE-MIT
 
-url 2.5.8
+url 2.5.9
     Licence: MIT OR Apache-2.0
     Repository: https://github.com/servo/rust-url
     Built into: every program (6)
@@ -14122,7 +14122,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 -------------------------------------------------------------------------------- 166
-Text 166: LICENSE-MIT, from form_urlencoded 1.2.2
+Text 166: LICENSE-MIT, from form_urlencoded 1.2.3
 
 Copyright (c) 2013-2016 The rust-url developers
 

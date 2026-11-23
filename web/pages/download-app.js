@@ -72,8 +72,8 @@
 
       if (['windows', 'macos', 'linux'].includes(os)) {
         btn.textContent = 'Download for ' + names[os];
-        btn.href = 'https://github.com/Shaostoul/Humanity/releases/tag/v0.1570.0';
-        sub.textContent = 'Downloads from GitHub Releases · v0.1570.0';
+        btn.href = 'https://github.com/Shaostoul/Humanity/releases/tag/v0.1571.0';
+        sub.textContent = 'Downloads from GitHub Releases · v0.1571.0';
         // The installer's own address, from this server's release list, so clicks download the file
         fetchDirectDownload(os, arch, btn, sub);
       } else if (['android', 'ios'].includes(os)) {
@@ -209,7 +209,7 @@
       var sub = document.getElementById('detected-sub');
       if (!btn) return;
 
-      var appVer = window.__HOS_APP_VERSION || '0.1570.0';
+      var appVer = window.__HOS_APP_VERSION || '0.1571.0';
       btn.textContent = 'Checking for updates...';
       btn.style.opacity = '0.7';
       if (sub) sub.textContent = 'Currently running v' + appVer;

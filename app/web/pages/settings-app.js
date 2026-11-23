@@ -763,7 +763,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1570.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1571.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
