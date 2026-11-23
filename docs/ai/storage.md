@@ -77,6 +77,31 @@ are the E2EE P2P signed-object system; following/friendship are client-side
 statelessly). If a feature seems to need a server-side social edge, the
 certificate pattern (client-held, statelessly verified) is the house answer.
 
+## Never open a running relay's database with the sqlite3 tool (2026-11-22)
+
+The relay keeps `data/relay.db` in WAL mode: recent writes live in `relay.db-wal`, shared state in
+`relay.db-shm`. On 2026-11-22 the orchestrator checked a value on both live servers with
+`sqlite3 /opt/Humanity/data/relay.db "SELECT count(*) ..."` over ssh as root. When that tool closed it
+removed `relay.db-wal` and `relay.db-shm` while the relay still held them open, so the relay kept
+writing to files nobody could see, then failed every write with `ERROR r2d2: disk I/O error` (about
+190 a server in 25 minutes; one chat line was refused and never stored). Recovery, for the next
+time: copy the deleted files out of `/proc/<relay pid>/fd/` (they show as `(deleted)`) and the main
+file into a recovery folder, then `systemctl restart humanity-relay` (a clean shutdown checkpoints
+the log into the main file); check a COPY with `PRAGMA integrity_check` and compare its message count
+with the saved log replayed onto the pre-restart copy (both servers matched exactly: nothing
+committed was lost), then delete the recovery copies (they hold user data).
+
+The rule: read live server state through the relay (its API, the admin routes, Server Settings), or
+copy `relay.db` and its `-wal` to a temp folder and query the copy. Never point `sqlite3` at the live
+file, read-only or not.
+
+Two guards hold it (the operator, 2026-11-22: "Can we add another protection ... to prevent
+deletion?"): the agents' tool guard (`scripts/hooks/tool-guard.js` `checkLiveDb`) refuses any command
+that runs `sqlite3` on a `relay.db` outside a temp, scratchpad or recovery folder; and every server
+installs `scripts/vps/sqlite3-guard` as `/usr/local/bin/sqlite3` (scripts/server-files.txt), ahead of
+the real tool, which opens the live database read-only (`file:...?mode=ro`, the BUG-215 fix the backup
+script already uses), so even a person typing `sqlite3 relay.db` cannot delete its log files.
+
 ## ALTER-added columns (BUG-046)
 
 - **SQLite: never reference an ALTER-added column from the main schema batch in `src/relay/storage/mod.rs`.** The batch runs BEFORE the ALTER block, so on the LIVE database an index, trigger or view over the new column aborts it and the relay dies at startup, while every fresh-DB test passes (BUG-046 in `docs/BUGS.md`). Such indexes go AFTER the ALTER block, and any change to an existing table's shape needs a pre-migration-shape `Storage::open` test (pattern: `opens_a_pre_v0675_database_and_migrates_it` in `src/relay/storage/uploads.rs`). Enforced since 2026-10-19 by `tests/schema_alter_order_lint.rs` (in `just lints` and CI): nothing in `Storage::open` may name table.column before the ALTER that adds it (indexes, triggers, views, INSERT, UPDATE, DELETE).

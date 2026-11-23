@@ -171,6 +171,30 @@ function checkFmt(command) {
   return [];
 }
 
+/** The sqlite3 tool run as a command (not a word in a search pattern or a message). */
+const SQLITE_CMD = /(^|[\s"';&|(])sqlite3(\.exe)?(\s|$)/i;
+/** A copy's folder: where querying a relay.db is harmless. */
+const DB_COPY = /\/tmp\/|\\temp\\|\/temp\/|scratchpad|recover|copy/i;
+/** Commands whose arguments only name sqlite3 (a search, a message), never run it. */
+const MENTIONS_ONLY = /^(grep|rg|git|echo|printf)$/i;
+
+/**
+ * NEVER point the sqlite3 tool at a relay's live relay.db (2026-11-22): two read-only SELECTs as
+ * root deleted both servers' relay.db-wal and relay.db-shm under the running relays when the tool
+ * closed, and every write failed with "disk I/O error" for 25 minutes (CLAUDE.md Known gotchas,
+ * docs/ai/storage.md). A copy in a temp, scratchpad or recovery folder is fine.
+ */
+function checkLiveDb(command) {
+  for (const segment of segments(command)) {
+    const first = tokens(segment)[0] || '';
+    if (MENTIONS_ONLY.test(first)) continue;
+    if (SQLITE_CMD.test(segment) && /relay\.db\b/i.test(segment) && !DB_COPY.test(command)) {
+      return ['Never point sqlite3 at a relay\'s live relay.db, even to read: on 2026-11-22 a read-only SELECT deleted both servers\' -wal and -shm files under the running relays and every write failed for 25 minutes (CLAUDE.md, docs/ai/storage.md). Read through the relay (its API, the admin routes, Server Settings), or copy relay.db and its -wal to a temp folder and query the copy.'];
+    }
+  }
+  return [];
+}
+
 /** A path or variable that points at a temp or scratchpad folder, where a PowerShell write is harmless. */
 const TEMP_TARGET = /\$env:TEMP|\$env:TMP|\$TEMP\b|\$TMP\b|\$\{TEMP\}|%TEMP%|\\Temp\\|\/Temp\/|\/tmp\/|scratchpad|\$null|\bNUL\b/i;
 
@@ -306,7 +330,7 @@ function review(input) {
   const cwd = (input && input.cwd) || process.cwd();
   if (!command) return [];
   const commandsOnly = tool === 'Bash' ? withoutHeredocBodies(command) : command;
-  const problems = [...checkGit(commandsOnly, cwd), ...checkFmt(commandsOnly)];
+  const problems = [...checkGit(commandsOnly, cwd), ...checkFmt(commandsOnly), ...checkLiveDb(commandsOnly)];
   // In the PowerShell tool every write counts. From bash, only an actual powershell call does, and
   // only its cmdlets: a `>` in that command line is bash's own, which writes bytes unchanged.
   if (tool === 'PowerShell') problems.push(...checkPowerShellWrites(command, true));

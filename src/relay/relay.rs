@@ -5935,26 +5935,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             // ── Privacy ──
                             RelayMessage::PrivacyUpdate { hide_presence } => {
-                                if let Err(e) = state_clone.db.set_hide_presence(&my_key_for_recv, hide_presence) {
-                                    tracing::error!("privacy_update failed: {e}");
-                                } else {
-                                    tracing::info!(
-                                        "privacy_update: presence {} for {}…",
-                                        if hide_presence { "hidden" } else { "visible" },
-                                        humanity_core::text::prefix(&my_key_for_recv, 12)
-                                    );
-                                    // Roster refresh so the change is
-                                    // immediate for everyone.
-                                    broadcast_full_user_list(&state_clone).await;
-                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: if hide_presence {
-                                            "Presence hidden: you no longer appear online, no last-seen is stored, and no join/leave or typing signals are sent.".to_string()
-                                        } else {
-                                            "Presence visible: you appear online to other members.".to_string()
-                                        },
-                                    });
-                                }
+                                crate::relay::handlers::presence::handle_privacy_update(&state_clone, &my_key_for_recv, hide_presence).await;
                             }
                             // ── Device management ──
                             RelayMessage::DeviceListRequest {} => {
