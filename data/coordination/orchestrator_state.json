@@ -1842,6 +1842,16 @@
       "date": "2026-11-22",
       "decision": "The url 2.5.9 update merged and pushed (RUSTSEC-2026-0592; the servers get it with this deploy, the apps with the next release). OPERATOR, first phone test of v0.1570.0: 'when I'm entering my 24 word recovery phrase to join on my phone I can't scroll low enough when the keyboard opens to see the text box'. Cause: NativeActivity does not shrink the surface for the soft keyboard (the manifest's adjustResize only changes the content rect) and nothing in our code reads the content rect or insets, so every text box low on a page sits under the keyboard. Dispatched wk-androidkb.txt: read the visible area (android-activity's content rect or JNI insets), give egui only the area above the keyboard, scroll the focused box into view, and show the typed recovery words numbered 1 to 24; headless test at 412 x 915 with a keyboard inset; the APK built. Asked the operator whether a third release today may carry it (an in-place update needs a project-signed APK, which only a tagged release attaches).",
       "why": "The operator cannot restore his identity on his phone until this is fixed."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "OPERATOR, 2026-11-22, on a third release today for the phone keyboard fix: 'Yes, that's okay. It's a usability fix.' (He had worked around it meanwhile: landscape mode with the keyboard moved.) So when the keyboard fix passes review and its gates, cut v0.1571.0 today: the keyboard fix, owner round 9's app-side changes and url 2.5.9, with the project-signed APK so the phone updates in place.",
+      "why": "The operator allowed a third release today for a usability fix."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "INCIDENT, caused by the orchestrator: checking the owner role with `sqlite3 /opt/Humanity/data/relay.db \"SELECT count(*) ...\"` as root over ssh on both servers (about 23:40 UTC) removed relay.db-wal and relay.db-shm under the running relays when the tool closed; every write failed with 'disk I/O error' (~190 per server) until restarts; the operator's desktop line 'Huzzah! Mobile app test worked first try!' (16:01 Pacific) was refused and never stored (the app showed 'Not confirmed by the server yet', correctly). united-humanity.us healed when the url deploy restarted its relay at 00:06 UTC; public.guide: deleted log files saved from /proc, clean restart at 00:08 UTC. Verified on copies: integrity ok on both; public.guide's saved log replayed onto its pre-restart copy = 74 messages = the restarted database. Recovery copies deleted. Rule added to CLAUDE.md Known gotchas and docs/ai/storage.md (never point sqlite3 at a live relay.db; read through the relay or a copy); memory ops_ai_can_do_vps_work updated. Told the operator plainly.",
+      "why": "An outage I caused; the rule keeps every session and agent from repeating it."
     }
   ],
   "active_scopes_to_avoid": [
