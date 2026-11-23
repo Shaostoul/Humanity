@@ -133,7 +133,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.horizontal_wrapped(|ui| {
                         ui.add_space(theme.spacing_lg);
                         ui.add(egui::TextEdit::singleline(&mut d.label).desired_width(120.0).hint_text("new name"));
-                        ui.add(egui::TextEdit::singleline(&mut d.address).password(true).desired_width(220.0).hint_text("new address or token"));
+                        widgets::secret_field::SecretField::new("alerts.edit_address", &mut d.address).desired_width(260.0).hint_text("new address or token").show(ui, theme);
                         if d.kind == "telegram" {
                             ui.add(egui::TextEdit::singleline(&mut d.chat_id).desired_width(110.0).hint_text("new chat number"));
                         }
@@ -165,7 +165,8 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         });
         ui.add(egui::TextEdit::singleline(&mut d.label).desired_width(110.0).hint_text("your name for it"));
-        ui.add(egui::TextEdit::singleline(&mut d.address).password(true).desired_width(240.0).hint_text(address_hint(&d.kind)));
+        // The Show / Hide eye beside it (widgets/secret_field.rs, 2026-11-22).
+        widgets::secret_field::SecretField::new("alerts.new_address", &mut d.address).desired_width(280.0).hint_text(address_hint(&d.kind)).show(ui, theme);
         if d.kind == "telegram" {
             ui.add(egui::TextEdit::singleline(&mut d.chat_id).desired_width(110.0).hint_text("chat number"));
         }

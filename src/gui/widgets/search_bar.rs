@@ -40,6 +40,8 @@ pub fn search_bar(
                 .hint_text(placeholder)
                 .desired_width(f32::INFINITY),
         );
+        // Above a phone's keyboard once it opens (gui/visible_area.rs, 2026-11-22).
+        crate::gui::visible_area::keep_in_view(ui, &resp);
         if resp.changed() {
             changed = true;
         }

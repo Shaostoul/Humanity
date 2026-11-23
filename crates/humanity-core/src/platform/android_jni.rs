@@ -1,5 +1,6 @@
 //! The phone app's calls into its own Java (Android rungs A1 and A4, 2026-11-20): Android's key
-//! store, the stay-connected service and the notices. Only on Android.
+//! store, the stay-connected service and the notices; since 2026-11-22 the window's insets too
+//! (what Android's bars and keyboard cover, `VisibleArea.java`). Only on Android.
 //!
 //! Each call attaches the calling thread to the Java VM (cheap when it already is), loads the
 //! class through the Application's class loader (a thread the VM did not start sees only
@@ -247,5 +248,39 @@ pub fn notices_ask() -> Result<(), String> {
         // SAFETY: set_activity's contract: a valid global reference until replaced.
         let activity = unsafe { env.as_cast_raw::<JObject>(&raw) }?;
         call_static(env, app, &java::NOTICES_ASK, &[JValue::Object(&activity)])?.v()
+    })
+}
+
+// ── The part of the window a person can see (2026-11-22) ────────────────────
+
+/// Start keeping the window's insets (the status bar, the navigation bar, a display cutout and the
+/// on-screen keyboard) on the activity [`set_activity`] handed over: `VisibleArea.java` listens on
+/// the window's root view. A second call for the same window adds nothing.
+pub fn visible_area_listen() -> Result<(), String> {
+    let activity = ACTIVITY.load(std::sync::atomic::Ordering::SeqCst);
+    if activity.is_null() {
+        return Err("no activity on screen to listen on".into());
+    }
+    let raw: jni::sys::jobject = activity.cast();
+    with_app("visible_area_listen", |env, app| {
+        // SAFETY: set_activity's contract: a valid global reference until replaced.
+        let activity = unsafe { env.as_cast_raw::<JObject>(&raw) }?;
+        call_static(env, app, &java::VISIBLE_AREA_LISTEN, &[JValue::Object(&activity)])?.v()
+    })
+}
+
+/// How far in from each edge of the window Android's bars, a cutout and the keyboard reach, in the
+/// window's pixels: `[left, top, right, bottom]`. `None` before Android first reported them
+/// (src/gui/visible_area.rs takes the area inside them as the part a person can see).
+pub fn visible_area_insets() -> Result<Option<[i32; 4]>, String> {
+    with_app("visible_area_insets", |env, app| {
+        let obj = call_static(env, app, &java::VISIBLE_AREA_INSETS, &[])?.l()?;
+        if obj.is_null() {
+            return Ok(None);
+        }
+        let array = env.cast_local::<jni::objects::JIntArray>(obj)?;
+        let mut out = [0i32; 4];
+        array.get_region(env, 0, &mut out)?;
+        Ok(Some(out))
     })
 }

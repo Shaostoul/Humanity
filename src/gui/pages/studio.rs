@@ -1239,12 +1239,11 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             );
             ui.add_space(theme.section_gap);
             ui.label(RichText::new("Stream Key").size(theme.font_size_small).color(theme.text_secondary()));
-            ui.add(
-                egui::TextEdit::singleline(&mut state.studio.stream_key)
-                    .password(true)
-                    .desired_width(190.0)
-                    .hint_text("Enter stream key..."),
-            );
+            // The Show / Hide eye beside it (widgets/secret_field.rs, 2026-11-22).
+            widgets::secret_field::SecretField::new("studio.stream_key", &mut state.studio.stream_key)
+                .desired_width(230.0)
+                .hint_text("Enter stream key...")
+                .show(ui, theme);
         }
 
         // Server URL (for HumanityOS)

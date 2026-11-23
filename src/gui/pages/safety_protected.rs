@@ -101,9 +101,10 @@ pub(crate) fn draw_phrase_lock(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
 }
 
 /// Two masked PIN fields, hinted with the preset's "PIN" and "The same PIN again".
-fn pin_fields(ui: &mut egui::Ui, state: &mut GuiState, preset: &Preset) {
-    ui.add(egui::TextEdit::singleline(&mut state.protected.pin_first).password(true).hint_text(&preset.labels.pin).desired_width(200.0));
-    ui.add(egui::TextEdit::singleline(&mut state.protected.pin_second).password(true).hint_text(&preset.labels.pin_again).desired_width(200.0));
+/// Each with the Show / Hide eye beside it (widgets/secret_field.rs, 2026-11-22).
+fn pin_fields(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, preset: &Preset) {
+    widgets::secret_field::SecretField::new("protected.pin_first", &mut state.protected.pin_first).hint_text(preset.labels.pin.as_str()).desired_width(240.0).show(ui, theme);
+    widgets::secret_field::SecretField::new("protected.pin_second", &mut state.protected.pin_second).hint_text(preset.labels.pin_again.as_str()).desired_width(240.0).show(ui, theme);
 }
 
 /// The section, drawn last on Settings > Safety.
@@ -159,7 +160,7 @@ fn draw_read(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, preset: &Pr
 /// Step 2, Choose a PIN: the preset's rule, and the PIN twice.
 fn draw_choose_pin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, preset: &Preset) {
     ui.label(RichText::new(preset.pin_rule()).size(theme.font_size_body).color(theme.text_primary()));
-    pin_fields(ui, state, preset);
+    pin_fields(ui, theme, state, preset);
     ui.horizontal_wrapped(|ui| {
         if widgets::Button::primary(&preset.labels.continue_).show(ui, theme) {
             crate::engine::protected::pin_chosen(state);
@@ -295,7 +296,7 @@ pub(crate) fn draw_pin_prompt(ctx: &egui::Context, theme: &Theme, state: &mut Gu
         .show(ctx, |ui| {
             match mode {
                 PromptMode::Pin => {
-                    let field = ui.add(egui::TextEdit::singleline(&mut state.protected.prompt_input).password(true).hint_text(&preset.labels.pin).desired_width(220.0));
+                    let field = widgets::secret_field::SecretField::new("protected.prompt_input", &mut state.protected.prompt_input).hint_text(preset.labels.pin.as_str()).desired_width(260.0).show(ui, theme);
                     if !field.has_focus() && state.protected.prompt_line.is_empty() {
                         field.request_focus();
                     }
@@ -303,17 +304,15 @@ pub(crate) fn draw_pin_prompt(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                 }
                 PromptMode::Forgot => {
                     widgets::body_hint(ui, theme, &preset.forgot_pin_explain);
-                    ui.add(
-                        egui::TextEdit::multiline(&mut state.protected.forgot_phrase)
-                            .password(true)
-                            .hint_text(&preset.labels.phrase)
-                            .desired_rows(2)
-                            .desired_width(360.0),
-                    );
+                    widgets::secret_field::SecretField::new("protected.forgot_phrase", &mut state.protected.forgot_phrase)
+                        .multiline(2)
+                        .hint_text(preset.labels.phrase.as_str())
+                        .desired_width(400.0)
+                        .show(ui, theme);
                 }
                 PromptMode::NewPin => {
                     ui.label(RichText::new(preset.pin_rule()).size(theme.font_size_body).color(theme.text_primary()));
-                    pin_fields(ui, state, &preset);
+                    pin_fields(ui, theme, state, &preset);
                 }
             }
             if !state.protected.prompt_line.is_empty() {

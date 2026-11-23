@@ -371,6 +371,51 @@ fn demo_state() -> GuiState {
     s
 }
 
+thread_local! {
+    /// What covers the snapshot's window, a phone's bars and keyboard (gui/visible_area.rs): taken
+    /// off every pass's screen the way the app's frame loop takes them. Nothing for every snapshot
+    /// but the phone ones ([`render_page_png_covered`]).
+    static SNAPSHOT_COVER: std::cell::Cell<crate::gui::visible_area::Covered> = std::cell::Cell::new(Default::default());
+}
+
+/// What the app's frame loop does to the input before every pass: the Font Size, then the visible
+/// area.
+fn before_pass(ctx: &egui::Context, input: &mut egui::RawInput, percent: &mut f32) {
+    crate::gui::font_size::before_frame(ctx, input, percent);
+    crate::gui::visible_area::apply(ctx, input, SNAPSHOT_COVER.with(|c| c.get()));
+}
+
+/// [`render_page_png_at`] on a phone whose bars and keyboard cover `cover` (points): the page is
+/// laid out in the rest, and the covered strips are painted as the phone's own (2026-11-22).
+pub(crate) fn render_page_png_covered(
+    name: &str,
+    w: u32,
+    h: u32,
+    percent: f32,
+    cover: crate::gui::visible_area::Covered,
+    frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState),
+) {
+    SNAPSHOT_COVER.with(|c| c.set(cover));
+    let zoom = crate::gui::font_size::zoom_for(percent);
+    let whole = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w as f32 / zoom, h as f32 / zoom));
+    render_page_png_at(name, w, h, percent, |ctx, theme, state| {
+        frame(ctx, theme, state);
+        // The phone's own strips over what the page was not given: the status bar, the keyboard.
+        let mut painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("snapshot_cover")));
+        // Past the page's screen (with_clip_rect would keep it inside).
+        painter.set_clip_rect(whole);
+        let strips = [
+            egui::Rect::from_min_max(whole.min, egui::pos2(whole.max.x, whole.min.y + cover.top)),
+            egui::Rect::from_min_max(egui::pos2(whole.min.x, whole.max.y - cover.bottom), whole.max),
+        ];
+        for strip in strips.into_iter().filter(|r| r.height() > 0.0) {
+            painter.rect_filled(strip, 0.0, theme.text_muted().gamma_multiply(0.35));
+            painter.rect_stroke(strip, 0.0, egui::Stroke::new(1.0_f32, theme.text_muted()), egui::StrokeKind::Inside);
+        }
+    });
+    SNAPSHOT_COVER.with(|c| c.set(Default::default()));
+}
+
 /// Render one settings-style page into an offscreen `w`x`h` surface and write
 /// `tests/snapshots/<name>.png`, at the designed size (Font Size 100%).
 pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState)) {
@@ -471,7 +516,7 @@ pub(crate) fn render_page_png_checked(
         if zoom != 1.0 {
             let mut prime = raw_input.clone();
             prime.time = Some(0.0);
-            crate::gui::font_size::before_frame(&ctx, &mut prime, &mut state.settings.font_size);
+            before_pass(&ctx, &mut prime, &mut state.settings.font_size);
             let primed = ctx.run(prime, |_| {});
             for (id, delta) in &primed.textures_delta.set {
                 renderer.update_texture(&device, &queue, *id, delta);
@@ -480,7 +525,7 @@ pub(crate) fn render_page_png_checked(
         for warm_t in [Some(0.0_f64), None] {
             let mut warm_input = raw_input.clone();
             warm_input.time = warm_t;
-            crate::gui::font_size::before_frame(&ctx, &mut warm_input, &mut state.settings.font_size);
+            before_pass(&ctx, &mut warm_input, &mut state.settings.font_size);
             let warm = ctx.run(warm_input, |ctx| {
                 frame(ctx, &mut theme, &mut state);
             });
@@ -489,7 +534,7 @@ pub(crate) fn render_page_png_checked(
             }
         }
         let mut raw_input = raw_input;
-        crate::gui::font_size::before_frame(&ctx, &mut raw_input, &mut state.settings.font_size);
+        before_pass(&ctx, &mut raw_input, &mut state.settings.font_size);
         let full_output = ctx.run(raw_input, |ctx| {
             frame(ctx, &mut theme, &mut state);
         });
@@ -4185,6 +4230,44 @@ macro_rules! page_snapshot {
 
 /// The main menu prints the build version, so it is pinned to a fixed,
 /// plainly fake one; unpinned, this baseline changed on every release.
+/// The first-run restore on a phone (412 x 915 points, drawn at 2x) with the keyboard up and half
+/// the phrase typed (the seventh word misspelled), the box focused: the card above the keyboard,
+/// the box scrolled into view, the words numbered under it (2026-11-22, gui/visible_area.rs). The
+/// status bar and the keyboard (over the navigation bar) are painted as grey strips over what the
+/// page was not given. Its tests: pages/main_menu_restore_tests.rs.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_main_menu_restore_phone_keyboard() {
+    let up = crate::gui::visible_area::Covered { left: 0.0, top: 24.0, right: 0.0, bottom: 330.0 + 48.0 };
+    render_page_png_covered("main_menu_restore_phone_keyboard", 824, 1830, 200.0, up, |ctx, theme, state| {
+        restore_on_phone(state);
+        ctx.style_mut(|s| s.scroll_animation = egui::style::ScrollAnimation::none());
+        ctx.memory_mut(|m| m.request_focus(egui::Id::new(crate::gui::pages::main_menu::PHRASE_BOX_ID)));
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+}
+
+/// The same with the keyboard down: the card above the navigation bar's buttons.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_main_menu_restore_phone_bars() {
+    let bars = crate::gui::visible_area::Covered { left: 0.0, top: 24.0, right: 0.0, bottom: 48.0 };
+    render_page_png_covered("main_menu_restore_phone_bars", 824, 1830, 200.0, bars, |ctx, theme, state| {
+        restore_on_phone(state);
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+}
+
+/// The identity step with the restore section open and twelve words typed, the seventh misspelled.
+fn restore_on_phone(state: &mut GuiState) {
+    state.onboarding_complete = false;
+    state.onboarding_step = 2;
+    state.private_key_bytes = None;
+    state.settings.seed_phrase_visible = false;
+    state.settings.seed_phrase_show_recover = true;
+    state.settings.seed_phrase_input = "legal winner thank year wave sausage abandn ocean country dumb snake trial".to_string();
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_main_menu() {

@@ -31,6 +31,12 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
     if crate::gui::font_size::before_frame(&state.egui_ctx, &mut raw_input, &mut state.gui_state.settings.font_size) {
         state.gui_state.settings_dirty = true;
     }
+    // Only the part of the window a person can see: on a phone, the window less Android's status
+    // and navigation bars and the on-screen keyboard; the whole window on a desktop
+    // (gui/visible_area.rs, 2026-11-22).
+    let window_px: (u32, u32) = gpu.window.inner_size().into();
+    let covered = crate::gui::visible_area::platform_covered(&gpu.window);
+    crate::gui::visible_area::before_frame(&state.egui_ctx, &mut raw_input, covered, window_px);
     // The card while Play waits for the 3D world to be ready (engine/world_prep.rs).
     let world_prep_view = crate::engine::world_prep::view(state);
     let full_output = state.egui_ctx.run(raw_input, |ctx| {

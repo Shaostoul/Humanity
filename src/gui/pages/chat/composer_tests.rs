@@ -268,3 +268,83 @@ fn the_typing_marks_ask_for_frames_while_they_show() {
     assert!(state.chat_typing_users.is_empty(), "the old typing mark was pruned");
     assert!(gone >= std::time::Duration::from_secs(1), "after the line went, egui wants the next frame in {} ms", gone.as_millis());
 }
+
+// ── On a phone: above its navigation bar and keyboard (2026-11-22, gui/visible_area.rs) ──
+
+use crate::gui::visible_area::{apply, Covered};
+
+/// The operator's phone, in points (2026-11-22).
+const PHONE: egui::Vec2 = egui::vec2(412.0, 915.0);
+
+/// One headless frame (no GPU) of the Chat page laid out as on a phone, an open room (chat/phone.rs:
+/// one column at a time; called directly, since the phone preview is a switch every test shares),
+/// with `covered` taken off the screen as the frame loop does (nothing when `ignore`); the output.
+fn chat_frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, covered: Covered, ignore: bool) -> egui::FullOutput {
+    let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, PHONE)), ..Default::default() };
+    apply(ctx, &mut input, if ignore { Covered::default() } else { covered });
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("chat_phone_shows_rooms"), false));
+    ctx.run(input, |ctx| super::phone::columns(ctx, theme, state))
+}
+
+/// The chat's text box and its attach button with `covered` (or with it ignored).
+fn chat_composer(covered: Covered, ignore: bool) -> (egui::Rect, egui::Rect) {
+    let ctx = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&ctx);
+    let theme = crate::gui::theme::load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut state = GuiState::default();
+    state.chat_active_channel = "global".into();
+    let mut out = None;
+    for _ in 0..4 {
+        out = Some(chat_frame(&ctx, &theme, &mut state, covered, ignore));
+    }
+    let out = out.expect("frames ran");
+    let text_box = ctx
+        .read_response(egui::Id::new(composer::INPUT_ID))
+        .expect("the chat's text box was drawn")
+        .rect;
+    let attach = humanity_core::i18n::t("chat.attach");
+    let found = crate::gui::screen_surface::find_text_in_shapes(&out.shapes, attach).filter(|f| f.text == attach);
+    let attach = found
+        .unwrap_or_else(|| {
+            // What the bottom of the page drew instead, for the failure's words.
+            let mut near = Vec::new();
+            for cs in &out.shapes {
+                if let egui::Shape::Text(t) = &cs.shape {
+                    let r = t.galley.rect.translate(t.pos.to_vec2());
+                    if r.top() > text_box.top() - 80.0 {
+                        near.push(format!("{:?} at {r:?} clip {:?}", t.galley.text(), cs.clip_rect));
+                    }
+                }
+            }
+            panic!("no {attach:?} button drawn; near the text box {text_box:?}: {near:#?}")
+        })
+        .rect;
+    (text_box, attach)
+}
+
+/// On the phone the chat's text box and its attach button sit above the navigation bar's buttons
+/// (the operator, 2026-11-22: "I can't click the attach button cause of the center button that
+/// takes me back to my phones homepage"), and above the keyboard once it is up.
+///
+/// Seen red 2026-11-22 with the edges ignored (the app as it was): the control below, the text
+/// box's bottom at the window's bottom, under the navigation bar.
+#[test]
+fn the_chat_composer_sits_above_the_phones_buttons_and_keyboard() {
+    for (what, cover) in [
+        ("the navigation bar", Covered { left: 0.0, top: 24.0, right: 0.0, bottom: 48.0 }),
+        ("the keyboard", Covered { left: 0.0, top: 24.0, right: 0.0, bottom: 330.0 }),
+    ] {
+        let bottom = PHONE.y - cover.bottom;
+        let (text_box, attach) = chat_composer(cover, false);
+        assert!(text_box.bottom() <= bottom + 0.5, "the chat's text box at {text_box:?} is under {what} (from {bottom})");
+        assert!(attach.bottom() <= bottom + 0.5, "the attach button at {attach:?} is under {what} (from {bottom})");
+        assert!(text_box.top() >= cover.top && attach.top() >= cover.top, "under the status bar: {text_box:?} {attach:?}");
+        // The control: ignored, the same edges leave the box under them.
+        let (ignored, ignored_attach) = chat_composer(cover, true);
+        assert!(
+            ignored.bottom() > bottom || ignored_attach.bottom() > bottom,
+            "the scene does not need the fix for {what}: ignored, the box sits at {ignored:?}"
+        );
+    }
+}

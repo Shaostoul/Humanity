@@ -128,6 +128,18 @@ fn draw_storage_chooser(ctx: &egui::Context, theme: &Theme) {
 
 /// First-run onboarding flow.
 fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let frame = egui::Frame::window(&ctx.style()).fill(theme.bg_card());
+    // The part of the window a person can see (on a phone, the window less its bars and the
+    // on-screen keyboard: gui/visible_area.rs). The card is never wider than that, and its steps
+    // scroll inside it when they are taller, so the recovery phrase box can be brought above the
+    // keyboard (2026-11-22; before, the card was 500 points wide on a 412-point phone and had no
+    // scroll, so the keyboard covered the box with no way to reach it).
+    let screen = ctx.screen_rect();
+    let chrome = frame.total_margin().sum();
+    let width = (screen.width() - chrome.x - 8.0).clamp(200.0, 500.0);
+    let body_max_h = (screen.height() - chrome.y - 8.0).max(120.0);
+    let body_id = egui::Id::new("onboarding_body");
+    let body_h = crate::gui::visible_area::body_height(ctx, body_id, body_max_h);
     crate::gui::layers::window(ctx, egui::Id::new("onboarding"), "onboarding", crate::gui::layers::Layer::PageFloat)
         .title_bar(false)
         .resizable(false)
@@ -136,15 +148,16 @@ fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         // pattern). A fixed 520 px height clipped the identity step, which is
         // taller once the 24 words are showing: the Back button under Finish
         // Setup was cut in half (2026-09-27 snapshot review).
-        .fixed_size(Vec2::new(500.0, 0.0))
-        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+        // As tall as the step, scrolling when the visible area is shorter (visible_area.rs).
+        .fixed_size(Vec2::new(width, body_h))
+        .frame(frame)
         .show(ctx, |ui| {
-            match state.onboarding_step {
+            crate::gui::visible_area::scrolling_body(ui, body_id, body_h, body_max_h, |ui| match state.onboarding_step {
                 0 => draw_step_welcome(ui, theme, state),
                 1 => draw_step_server(ui, theme, state),
                 2 => draw_step_identity(ui, theme, state),
                 _ => draw_step_ready(ui, theme, state),
-            }
+            });
         });
 }
 
@@ -271,17 +284,19 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 
     ui.horizontal(|ui| {
-        ui.add_space(40.0);
+        ui.add_space(side_pad(ui));
         ui.label(RichText::new("Server URL:").size(14.0).color(theme.text_primary()));
     });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.add_space(40.0);
+        ui.add_space(side_pad(ui));
         let response = ui.add_sized(
-            Vec2::new(380.0, 30.0),
+            Vec2::new(field_width(ui), 30.0),
             egui::TextEdit::singleline(&mut state.server_url)
                 .hint_text(OFFICIAL_SERVER),
         );
+        // Above a phone's keyboard once it opens (gui/visible_area.rs).
+        crate::gui::visible_area::keep_in_view(ui, &response);
         if response.changed() {
             // The URL changed -- any in-flight or previous check result is
             // for a different address now, so drop it rather than apply a
@@ -297,7 +312,7 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.add_space(8.0);
     ui.horizontal(|ui| {
-        ui.add_space(40.0);
+        ui.add_space(side_pad(ui));
         ui.label(RichText::new(empty_field_note()).size(11.0).color(theme.text_muted()));
     });
 
@@ -305,17 +320,17 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if state.server_connected {
         ui.horizontal(|ui| {
-            ui.add_space(40.0);
+            ui.add_space(side_pad(ui));
             ui.label(RichText::new("Reachable!").size(14.0).color(theme.success()));
         });
     } else if state.server_check_rx.is_some() {
         ui.horizontal(|ui| {
-            ui.add_space(40.0);
+            ui.add_space(side_pad(ui));
             ui.label(RichText::new("Checking...").size(14.0).color(theme.text_muted()));
         });
     } else if !state.server_check_error.is_empty() {
         ui.horizontal(|ui| {
-            ui.add_space(40.0);
+            ui.add_space(side_pad(ui));
             ui.label(RichText::new(&state.server_check_error).size(12.0).color(theme.danger()));
         });
     }
@@ -572,10 +587,25 @@ mod server_step_tests {
 /// the window with the same 40 px margin on the right. A plain label in a
 /// `ui.horizontal` does not wrap: the long recovery-phrase warning stretched the
 /// 500 px window to about 975 px (2026-09-27 snapshot review).
+/// The recovery phrase box's id on the first-run identity step (the tests find it by this).
+pub(crate) const PHRASE_BOX_ID: &str = "first_run_phrase_box";
+
+/// The space before a setup field: 40 points on a window with room for it, none on a phone's width
+/// (2026-11-22: the 40 points and a 380-point field ran past the side of a 412-point phone).
+fn side_pad(ui: &egui::Ui) -> f32 {
+    if ui.available_width() < 460.0 { 0.0 } else { 40.0 }
+}
+
+/// A setup field's width: 380 points, or what the row has left on a phone.
+fn field_width(ui: &egui::Ui) -> f32 {
+    ui.available_width().clamp(120.0, 380.0)
+}
+
 fn indented_note(ui: &mut egui::Ui, text: RichText) {
     ui.horizontal(|ui| {
-        ui.add_space(40.0);
-        let w = (ui.available_width() - 40.0).max(120.0);
+        let pad = side_pad(ui);
+        ui.add_space(pad);
+        let w = (ui.available_width() - pad).max(120.0);
         ui.scope(|ui| {
             ui.set_max_width(w);
             ui.add(egui::Label::new(text).wrap());
@@ -599,17 +629,18 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 
     ui.horizontal(|ui| {
-        ui.add_space(40.0);
+        ui.add_space(side_pad(ui));
         ui.label(RichText::new("Display Name:").size(14.0).color(theme.text_primary()));
     });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.add_space(40.0);
-        ui.add_sized(
-            Vec2::new(380.0, 30.0),
+        ui.add_space(side_pad(ui));
+        let name = ui.add_sized(
+            Vec2::new(field_width(ui), 30.0),
             egui::TextEdit::singleline(&mut state.user_name)
                 .hint_text("Enter your name"),
         );
+        crate::gui::visible_area::keep_in_view(ui, &name);
     });
 
     ui.add_space(12.0);
@@ -621,7 +652,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // This button is that missing primitive.
     if state.private_key_bytes.is_none() {
         ui.horizontal(|ui| {
-            ui.add_space(40.0);
+            ui.add_space(side_pad(ui));
             if widgets::primary_button(ui, theme, "  Generate New Identity  ") {
                 let seed = crate::net::identity::generate_new_seed();
                 state.private_key_bytes = Some(seed);
@@ -679,12 +710,12 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // Covered until the person shows them (widgets/phrase_cover.rs): a streamer showing
             // people what first run looks like must not put their words on screen by accident.
             ui.horizontal(|ui| {
-                ui.add_space(40.0);
+                ui.add_space(side_pad(ui));
                 ui.vertical(|ui| widgets::phrase_cover::words(ui, theme, "first_run_phrase", &words));
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.add_space(40.0);
+                ui.add_space(side_pad(ui));
                 if widgets::secondary_button(ui, theme, FIRST_RUN_DONE) {
                     state.settings.seed_phrase_visible = false;
                     // The tour's first step (gui/first_minutes.rs) is already done.
@@ -699,7 +730,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // ── Restore from Recovery Phrase ──
     ui.horizontal(|ui| {
-        ui.add_space(40.0);
+        ui.add_space(side_pad(ui));
         if ui.small_button(
             if state.settings.seed_phrase_show_recover { "Cancel recovery" } else { "Restore an existing account from its recovery phrase" }
         ).clicked() {
@@ -711,12 +742,17 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if state.settings.seed_phrase_show_recover {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.add_space(40.0);
+            ui.add_space(side_pad(ui));
             ui.vertical(|ui| {
-                ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
-                    .desired_width(380.0)
+                let phrase_box = ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
+                    .id(egui::Id::new(PHRASE_BOX_ID))
+                    .desired_width(field_width(ui))
                     .desired_rows(2)
                     .hint_text("Enter your 24-word recovery phrase"));
+                // On a phone, kept above the keyboard with the line being typed showing, and the
+                // words numbered under it to check against the paper (2026-11-22).
+                crate::gui::visible_area::keep_in_view(ui, &phrase_box);
+                widgets::phrase_typed::numbered(ui, theme, "first_run_restore", &state.settings.seed_phrase_input);
                 ui.add_space(4.0);
                 if widgets::primary_button(ui, theme, "Recover") {
                     let phrase = state.settings.seed_phrase_input.trim().to_string();
@@ -773,7 +809,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !state.profile_public_key.is_empty() {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.add_space(40.0);
+            ui.add_space(side_pad(ui));
             let key = &state.profile_public_key;
             let display = if key.len() > 16 {
                 format!("Identity: {}...{}", humanity_core::text::prefix(&key, 8), humanity_core::text::suffix(&key, 8))
@@ -815,7 +851,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// Step 3: Ready
 fn draw_step_ready(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.vertical_centered(|ui| {
-        ui.add_space(40.0);
+        ui.add_space(side_pad(ui));
         ui.label(RichText::new("You're Ready!").size(28.0).color(theme.accent()));
         ui.add_space(16.0);
 
@@ -837,7 +873,7 @@ fn draw_step_ready(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(8.0);
         ui.label(RichText::new(where_you_start(state)).size(13.0).color(theme.text_secondary()));
 
-        ui.add_space(40.0);
+        ui.add_space(side_pad(ui));
 
         if widgets::primary_button(ui, theme, "  Enter HumanityOS  ") {
             finish_onboarding(state);
@@ -950,3 +986,7 @@ fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             });
         });
 }
+
+#[cfg(test)]
+#[path = "main_menu_restore_tests.rs"]
+mod restore_tests;

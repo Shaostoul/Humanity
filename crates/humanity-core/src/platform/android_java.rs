@@ -67,9 +67,15 @@ pub const NOTICE_WITHDRAW: JavaCall = JavaCall { class: "Notices", method: "with
 pub const NOTICES_ALLOWED: JavaCall = JavaCall { class: "Notices", method: "allowed", sig: "(Landroid/content/Context;)Z" };
 /// Ask the person to allow notices (Android 13 and later; nothing earlier).
 pub const NOTICES_ASK: JavaCall = JavaCall { class: "Notices", method: "ask", sig: "(Landroid/app/Activity;)V" };
+/// Start keeping the window's insets: the system bars, a display cutout, the on-screen keyboard
+/// (2026-11-22, src/gui/visible_area.rs).
+pub const VISIBLE_AREA_LISTEN: JavaCall = JavaCall { class: "VisibleArea", method: "listen", sig: "(Landroid/app/Activity;)V" };
+/// The latest insets (left, top, right, bottom, in the window's pixels): null before Android first
+/// reported them.
+pub const VISIBLE_AREA_INSETS: JavaCall = JavaCall { class: "VisibleArea", method: "insets", sig: "()[I" };
 
 /// Every call, for the test against the Java sources.
-pub const ALL: [JavaCall; 10] = [
+pub const ALL: [JavaCall; 12] = [
     KEY_CREATE,
     KEY_SEAL,
     KEY_UNSEAL,
@@ -80,6 +86,8 @@ pub const ALL: [JavaCall; 10] = [
     NOTICE_WITHDRAW,
     NOTICES_ALLOWED,
     NOTICES_ASK,
+    VISIBLE_AREA_LISTEN,
+    VISIBLE_AREA_INSETS,
 ];
 
 /// The JNI descriptor of a Java type as the sources write it (the few the calls use).
@@ -90,6 +98,7 @@ fn descriptor(java: &str) -> Option<String> {
         "boolean" => "Z".into(),
         "void" => "V".into(),
         "byte[]" => "[B".into(),
+        "int[]" => "[I".into(),
         "String" => "Ljava/lang/String;".into(),
         "Context" => "Landroid/content/Context;".into(),
         "Activity" => "Landroid/app/Activity;".into(),

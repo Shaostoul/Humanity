@@ -111,13 +111,15 @@ which runs [build-apk.sh](build-apk.sh). Nothing is installed on anyone's PC.
 
 ### The Java in the APK
 
-Three small classes under [java/](java/us/united_humanity/humanityos/) (2026-11-20), compiled by
+Four small classes under [java/](java/us/united_humanity/humanityos/) (2026-11-20), compiled by
 `build-apk.sh` with the runner's `javac` against the platform's `android.jar` and turned into
 `classes.dex` by the SDK's `d8`; no Gradle, no libraries:
 
 - `KeyStoreBridge`: Android's key store, for remembering your key.
 - `ChatService`: the foreground service that keeps the app connected while closed.
 - `Notices`: the phone's notices, and the request to allow them.
+- `VisibleArea` (2026-11-22): how far Android's status bar, navigation bar, a camera cutout and the
+  on-screen keyboard reach over the window (its insets), for the pages to stay clear of them.
 
 Why Java and not a chain of JNI calls from Rust: `javac` checks every Android class, method and
 argument when the APK is built, where a JNI call names its method in a string that fails only on a
@@ -148,6 +150,20 @@ test-signed and named so, and a release does not publish it.
   The tray icon, the clipboard picture library and the key store's crate are left out of the
   phone build in `Cargo.toml` (the key is remembered through Android's own key store instead,
   above); the chat socket uses rustls there instead of OpenSSL.
+- **The part of the window you can see** ([src/gui/visible_area.rs](../src/gui/visible_area.rs),
+  2026-11-22): the pages are laid out only where nothing of Android's covers them: below the status
+  bar, above the navigation bar's buttons, and above the on-screen keyboard while it is up. A text
+  box that gains focus, or that the keyboard comes up over, is scrolled into view with a line under
+  it showing (the recovery phrase box shows the line being typed), and the recovery phrase's words
+  are numbered under its box as you type them, a misspelled word named by its number. Android says
+  what covers the window two ways and the app takes the smaller area: the window's insets, which
+  `VisibleArea.java` listens for, and NativeActivity's content rectangle. The insets are needed
+  because a window laid out edge to edge (Android 15 does that for every app targeting it) keeps a
+  content rectangle the size of the whole window. The run log says what covers the window each time
+  it changes (`[VisibleArea] covered px ...`).
+- **Passphrases and PINs** ([src/gui/widgets/secret_field.rs](../src/gui/widgets/secret_field.rs),
+  2026-11-22): every box you type a secret into has an eye beside it that shows what you typed, to
+  check it; it hides again when the window closes or you switch to another app.
 - **Touch**: on a phone every control is at least the theme's `touch_target` high (44 points by
   default, Settings > Widgets), and egui lays the pages out at the phone's own scale (the
   operator's phone is about 412 points wide).
@@ -170,7 +186,7 @@ enterable (built at the first Enter). `just verify-phone-start` boots all of the
 
 The workflow proves the library compiles and links for Android, that the Java compiles against
 Android's own classes, and that the APK is well formed and signed. Whether it starts, draws, takes
-touch and the on-screen keyboard, survives leaving and coming back, how long the first start takes,
+touch and the on-screen keyboard, whether the pages stay clear of the bars and the keyboard, survives leaving and coming back, how long the first start takes,
 whether remembering the key and staying connected work, only the phone shows. Reading its log needs a PC
 with `adb` (`adb logcat -s HumanityOS`); without one, the app's own logs are inside its private
 folder.
