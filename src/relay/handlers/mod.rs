@@ -38,6 +38,7 @@ pub mod live_conns;
 pub mod move_check;
 pub mod msg_handlers;
 /// The profile save and request, and the copy for other servers each person's app signs (BUG-191).
+pub mod presence;
 pub mod profile;
 pub mod reach;
 pub mod reports;
