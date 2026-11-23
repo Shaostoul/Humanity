@@ -153,7 +153,7 @@ async function settingsPage(opts = {}) {
     addEventListener: (t, f) => { if (t === "storage") storageListeners.push(f); },
     dispatchEvent() {},
     CustomEvent: function () {},
-    setTimeout: () => 0,
+    setTimeout: (f) => { if (opts.timers) { opts.timers.push(f); return opts.timers.length; } return 0; },
     clearTimeout: () => {},
     TextEncoder,
     btoa: globalThis.btoa,
@@ -231,6 +231,23 @@ test("1. Settings > Privacy draws the levels in en.json's words, and takes a per
   assert.equal(page.els["privacy-presence"].checked, false, "the presence switch shows hidden");
   assert.equal(page.els["privacy-directory"].checked, false, "the directory switch shows unlisted");
   assert.equal(page.els["privacy-current"].textContent, fill("privacy.current_tier", { tier: plain(en("privacy.tier_private_name")) }), "the level last used, in its words");
+});
+
+// The server answers only a CHANGE (handlers/presence.rs, 2026-11-22), so a choice it already had
+// gets no answer: the page says so after a while instead of "Telling this server..." for ever.
+// Seen red 2026-11-22 before awaitAnswer: the status stayed privacy.web_saved_sending.
+test("1b. A choice the server already had: no answer, and the page says it already had it", async () => {
+  const timers = [];
+  const page = await settingsPage({ stored: { humanity_privacy_tier: "private", humanity_hide_presence: "1" }, timers });
+  page.els["privacy-presence"].checked = true;
+  page.els["privacy-presence"].fire("change");
+  await settle();
+  const ws = await page.signIn();
+  assert.deepEqual(page.privacyFrames(ws), [{ type: "privacy_update", hide_presence: false }], "the choice is sent");
+  assert.equal(page.els["privacy-status"].textContent, fill("privacy.web_saved_sending", {}), "telling the server");
+  assert.ok(timers.length > 0, "the page waits for an answer");
+  for (const f of timers.splice(0)) f();
+  assert.equal(page.els["privacy-status"].textContent, fill("privacy.web_presence_unchanged", {}), "no answer: the server already had it");
 });
 
 // ── 2. The presence switch on its own ────────────────────────────────────
@@ -363,8 +380,10 @@ test("5. The chat tells its server the presence choice on connect and at once wh
 test("6. The page waits for the relay's own answer, and both apps send the frame the relay reads", () => {
   const P = require(path.join(WEB, "shared", "privacy-tiers.js"));
   const relay = fs.readFileSync(path.join(ROOT, "src", "relay", "relay.rs"), "utf8");
+  // The answer's words live in the presence handler since 2026-11-22 (handlers/presence.rs).
+  const presence = fs.readFileSync(path.join(ROOT, "src", "relay", "handlers", "presence.rs"), "utf8");
   for (const start of [P.ANSWER_HIDDEN, P.ANSWER_SHOWN]) {
-    assert.ok(relay.includes('"' + start), "the relay's answer: " + start);
+    assert.ok(presence.includes('"' + start), "the relay's answer: " + start);
   }
   assert.match(relay, /#\[serde\(rename = "privacy_update"\)\]\s*PrivacyUpdate \{\s*hide_presence: bool,/, "the relay reads privacy_update {hide_presence}");
   const desktop = fs.readFileSync(path.join(ROOT, "src", "gui", "pages", "privacy.rs"), "utf8");

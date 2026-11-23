@@ -4264,6 +4264,7 @@ window.HOS_I18N_EN = {
     "modal_apply_hint": "Uses the privacy level you picked. It sets whether others see you online and whether you are in the member directory.",
     "web_section_desc": "What other people can see about you, and where each choice is made.",
     "web_where": "The directory switch is also on your Profile page. What you choose here is kept in this browser, and the chat tells each server you use the next time it connects to it.",
+    "web_presence_unchanged": "Saved. This server already had this choice, so nothing changed there.",
     "web_reach": "Who can message you, call you or send you trade requests is chosen with the Safety button under your name in the chat.",
     "web_modal_intro": "Direct messages are end-to-end encrypted whatever you pick, and this server keeps no record of who you message.",
     "web_modal_scope": "This only decides whether others can see you online and find you in the member directory. You can change it any time in Settings > Privacy, and set each switch on its own.",
