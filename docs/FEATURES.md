@@ -1163,6 +1163,11 @@ show only on a 3-second hold of "Hold to show the words" / "Hold to show the cod
 app's hold-to-confirm button; a click does nothing), under a line about streaming and onlookers; they
 cover themselves again on switching windows or tabs and each time their screen opens. Covered words
 are never drawn. Native `src/gui/widgets/phrase_cover.rs`, web `web/shared/phrase-cover.js`.
+While the phrase is typed to restore an identity (first run, Settings), the typed words are numbered
+under the box with a count, and a word not on the recovery phrase's list is named by its number
+(2026-11-22, `src/gui/widgets/phrase_typed.rs`). Passphrase, PIN and token boxes carry a Show / Hide
+eye that hides again when the window closes or the app is left (2026-11-22, native
+`src/gui/widgets/secret_field.rs`, web `web/shared/secret-field.js` on every `input[type=password]`).
 24-word backup phrase for identity recovery.
 - Web: `web/chat/crypto.js` (mnemonic generation/restoration)
 
@@ -2101,6 +2106,10 @@ steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pr
   logcat).
 - Lifecycle: `src/engine/app_lifecycle.rs` (surface dropped on `suspended`, rebuilt on `resumed`;
   `Renderer::drop_surface` / `recreate_surface` in `src/renderer/surface.rs`).
+- The part of the window a person can see (2026-11-22): the pages laid out clear of Android's status
+  bar, navigation bar, a cutout and the on-screen keyboard; a focused text box scrolled into view when
+  the keyboard comes up. `src/gui/visible_area.rs` (`before_frame`, `keep_in_view`), Android's insets
+  through `android/java/.../VisibleArea.java` and NativeActivity's content rect.
 - What a phone lacks, said on screen: `crates/humanity-core/src/platform/device.rs` (`Capability`,
   `has`, `notice_key`; words `device.*`): no 3D world (Play's notice, every way in lands on Play), no
   launching programs (Apps page). tray-icon, arboard and keyring left out of the phone build; the chat

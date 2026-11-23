@@ -257,6 +257,13 @@
     "disconnect_server_hint": "Stop the connection to this server. Your identity stays on your device. You can reconnect any time.",
     "sync_not_sealed": "Your notes and settings were not copied to the server. This browser could not seal them with your key, and they are never sent unsealed. They are still here on this device."
   },
+  "secret_field": {
+    "box_hint": "Type it here. It shows as dots; the eye beside the box shows what you typed.",
+    "hide": "Hide",
+    "hide_hint": "Hides what you typed behind dots again.",
+    "show": "Show",
+    "show_hint": "Shows what you typed, to check it. It hides again when this window closes or you switch to another app."
+  },
   "server_rules": {
     "apply": "Apply to the shared world",
     "apply_hint": "Everyone in this server's shared world plays by the chosen rules from now on, without a restart.",
@@ -2795,7 +2802,62 @@
     "web_nav_title": "In the desktop app's Dev tab: what the game recorded while it ran, and the F8 marks"
   },
   "passphrase": {
-    "skip_not_kept": "Skip (not kept after the app closes)"
+    "cancel": "Cancel",
+    "change_title": "Change Passphrase",
+    "changed": "Passphrase changed successfully!",
+    "confirm_label": "Confirm Passphrase:",
+    "confirm_new_label": "Confirm New Passphrase:",
+    "current_label": "Current Passphrase:",
+    "current_wrong": "Current passphrase is incorrect.",
+    "empty": "Passphrase cannot be empty.",
+    "encrypt_failed": "Encryption failed: {{error}}",
+    "encrypt_key": "Encrypt Key",
+    "new_empty": "New passphrase cannot be empty.",
+    "new_label": "New Passphrase:",
+    "new_no_match": "New passphrases do not match.",
+    "no_key": "No private key available to encrypt.",
+    "no_match": "Passphrases do not match.",
+    "passphrase_label": "Passphrase:",
+    "pin_change_title": "Change PIN",
+    "pin_changed": "PIN changed successfully.",
+    "pin_confirm_label": "Confirm PIN:",
+    "pin_confirm_new_label": "Confirm New PIN:",
+    "pin_current_label": "Current PIN:",
+    "pin_current_wrong": "Current PIN is incorrect.",
+    "pin_encrypt_failed": "PIN encrypt failed: {{error}}",
+    "pin_gone_settings": "PIN setup gone, set up a new PIN from Settings.",
+    "pin_gone_unlock": "PIN setup gone (keychain cleared). Use passphrase to re-unlock.",
+    "pin_label": "PIN:",
+    "pin_label_digits": "PIN (digits only):",
+    "pin_new_label": "New PIN:",
+    "pin_new_no_match": "New PINs do not match.",
+    "pin_no_identity": "No identity loaded, generate or recover first.",
+    "pin_no_match": "PINs do not match.",
+    "pin_reencrypt_failed": "Re-encrypt failed: {{error}}",
+    "pin_rng_failed": "RNG failed: {{error}}",
+    "pin_set": "Set PIN",
+    "pin_setup_intro": "Choose a 4-12 digit PIN for faster unlock on this device. Your full passphrase remains your recovery option. If you forget the PIN, you can always recover with the passphrase.",
+    "pin_setup_title": "Set a Quick PIN",
+    "pin_unlock_first": "Unlock with your passphrase first, then set a PIN.",
+    "pin_unlock_intro": "Type your PIN to unlock. If you've forgotten it, switch to 'Use passphrase instead' and unlock with your 24-word recovery phrase.",
+    "pin_unlock_title": "Enter PIN",
+    "pin_worker_stopped": "Unlock failed (worker stopped). Try again.",
+    "pin_wrong": "Wrong PIN.",
+    "reencrypt_failed": "Re-encryption failed: {{error}}",
+    "remember_label": "Remember on this device (OS keychain)",
+    "remember_note": "Skips the passphrase prompt next time. Encrypted by your OS account; clear it from Settings → Security.",
+    "set_new_intro": "Choose a passphrase to encrypt your private key. This passphrase will be required each time you start the app. Your key will never be stored in plaintext again.",
+    "set_new_title": "Encrypt Your Private Key",
+    "skip_limited": "Skip (limited mode)",
+    "skip_not_kept": "Skip (not kept after the app closes)",
+    "unlock": "Unlock",
+    "unlock_intro": "Enter your passphrase to decrypt your private key. Without it, signing and wallet features will be unavailable.",
+    "unlock_title": "Unlock Private Key",
+    "unlock_worker_stopped": "Unlock failed (worker stopped unexpectedly). Please try again.",
+    "unlocking": "Unlocking…",
+    "use_passphrase": "Use passphrase instead",
+    "window_title": "Passphrase Required",
+    "wrong": "Wrong passphrase: {{error}}"
   },
   "performance": {
     "no_reuse": "Turn off all reuse",
@@ -4371,6 +4433,14 @@
     "wake_up_hint": "Wake up in a new body at your front door. This home has no respawner of its own.",
     "wake_usual": "your usual place",
     "wake_where": "Where to wake"
+  },
+  "phrase_typed": {
+    "count": {
+      "one": "{{n}} of {{total}} words",
+      "other": "{{n}} of {{total}} words"
+    },
+    "hint": "Each word you typed, numbered, to check against your paper. Put a space between words.",
+    "unknown": "Not a recovery phrase word: number {{list}}. Check its spelling against your paper."
   },
   "play": {
     "last": "You last played as {{character}} in {{world}}.",

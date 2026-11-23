@@ -46,6 +46,11 @@ fn android_main(app: AndroidApp) {
         unsafe { humanity_core::platform::android_jni::set_activity(app.activity_as_ptr()) };
         *held = Some(app.clone());
     }
+    // What Android's bars and on-screen keyboard cover, kept by the app's Java from now on, so the
+    // pages lay out only where they can be seen (gui/visible_area.rs, 2026-11-22).
+    if let Err(e) = humanity_core::platform::android_jni::visible_area_listen() {
+        eprintln!("HumanityOS: the window's insets are not followed ({e}); only the content rect is");
+    }
     // Staying connected while closed (rung A4, 2026-11-20), when the person turned it on: started
     // now, while the app is coming onto the screen, since Android 12 and later refuse to start a
     // foreground service from the background (crate::notifications::stay_connected).

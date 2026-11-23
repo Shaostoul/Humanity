@@ -47,6 +47,9 @@ pub mod notice_panel;
 /// The Font Size setting as the whole app's zoom (BUG-225): set before every main pass.
 #[cfg(feature = "native")]
 pub mod font_size;
+/// The window less a phone's bars and keyboard, given to egui before every pass (2026-11-22).
+#[cfg(feature = "native")]
+pub mod visible_area;
 /// Settings > Graphics > Furniture detail's levels, memory and hardware notice (2026-11-09).
 #[cfg(feature = "native")]
 pub mod furniture_detail;

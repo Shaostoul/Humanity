@@ -1043,11 +1043,14 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             // .font(). Typing 24 recovery words is the highest-stakes text
             // entry in the product and it belongs in a face where the
             // letterforms separate.
-            ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
+            let phrase_box = ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
                 .font(egui::FontId::monospace(theme.font_size_small))
                 .desired_width(ui.available_width())
                 .desired_rows(3)
                 .hint_text("word1 word2 word3 ... (24 words)"));
+            // Above a phone's keyboard, and the words numbered under it (2026-11-22).
+            crate::gui::visible_area::keep_in_view(ui, &phrase_box);
+            widgets::phrase_typed::numbered(ui, theme, "settings_restore", &state.settings.seed_phrase_input);
 
             ui.add_space(theme.spacing_sm);
 

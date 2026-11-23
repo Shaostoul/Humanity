@@ -179,6 +179,11 @@ pub(crate) fn shown(state: &mut EngineState, event_loop: &ActiveEventLoop) {
     if due {
         tick(state, now);
     }
+    // The keyboard came up or went away, or the phone turned, while the loop slept: a frame, laid
+    // out in the new visible area (gui/visible_area.rs; winit drops Android's own event for it).
+    if crate::gui::visible_area::platform_changed(&gpu!(state).window) {
+        state.redraw.wanted = true;
+    }
     if DEV_REQUEST.swap(false, Ordering::SeqCst) {
         state.redraw.burst_until = Some(now + DEV_BURST);
     }
