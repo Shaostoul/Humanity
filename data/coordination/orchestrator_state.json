@@ -1852,6 +1852,11 @@
       "date": "2026-11-22",
       "decision": "INCIDENT, caused by the orchestrator: checking the owner role with `sqlite3 /opt/Humanity/data/relay.db \"SELECT count(*) ...\"` as root over ssh on both servers (about 23:40 UTC) removed relay.db-wal and relay.db-shm under the running relays when the tool closed; every write failed with 'disk I/O error' (~190 per server) until restarts; the operator's desktop line 'Huzzah! Mobile app test worked first try!' (16:01 Pacific) was refused and never stored (the app showed 'Not confirmed by the server yet', correctly). united-humanity.us healed when the url deploy restarted its relay at 00:06 UTC; public.guide: deleted log files saved from /proc, clean restart at 00:08 UTC. Verified on copies: integrity ok on both; public.guide's saved log replayed onto its pre-restart copy = 74 messages = the restarted database. Recovery copies deleted. Rule added to CLAUDE.md Known gotchas and docs/ai/storage.md (never point sqlite3 at a live relay.db; read through the relay or a copy); memory ops_ai_can_do_vps_work updated. Told the operator plainly.",
       "why": "An outage I caused; the rule keeps every session and agent from repeating it."
+    },
+    {
+      "date": "2026-11-22",
+      "decision": "The operator now owns both servers from his desktop key: united-humanity.us (claimed about 23:3x UTC) and public.guide (the relay logged 'Owner claim' at 00:34:05 UTC on 2026-11-23; the code file is gone). Verified without opening either database (the code file's absence and the relay's log). Also merged and pushed: the presence line said once per change (handlers/presence.rs; the operator saw it three times over), and two guards against the sqlite3 deletion (the agents' tool guard refuses sqlite3 on a relay.db; every server installs scripts/vps/sqlite3-guard as /usr/local/bin/sqlite3, which opens the live database read-only). Next for the operator: the DPG form's 9b ownership sentence and the mobile fields after tonight's phone-fix release.",
+      "why": "Both public servers have an owner who can open what hide-and-keep holds; the guards keep the outage from recurring."
     }
   ],
   "active_scopes_to_avoid": [
