@@ -1280,7 +1280,7 @@ function openLoginRestoreModal(opts) {
         <div class="lr-field" id="lr-pass-field">
           <label for="lr-pass">Passphrase</label>
           <div class="lr-pass-wrap">
-            <input id="lr-pass" type="password" placeholder="Passphrase" autocomplete="off"
+            <input id="lr-pass" type="password" placeholder="Passphrase" autocomplete="off" data-secret-field="own"
               autocorrect="off" autocapitalize="off" spellcheck="false" aria-describedby="lr-pass-hint">
             <button type="button" class="lr-reveal" id="lr-pass-toggle"
               aria-pressed="false" aria-label="Show passphrase">Show</button>

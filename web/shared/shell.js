@@ -172,6 +172,9 @@
   }
   if (!window.a11y) loadSharedModule('/shared/accessibility.js');
   if (!window.glossary) loadSharedModule('/shared/glossary.js');
+  // A Show / Hide eye beside every passphrase, PIN and token box (2026-11-22; the desktop app's
+  // twin is src/gui/widgets/secret_field.rs).
+  if (!window.HosSecretField) loadSharedModule('/shared/secret-field.js');
   if (!window.i18n) {
     // English first (generated from data/i18n/en.json), so i18n.t() has every
     // word the moment i18n.js runs. A page that builds with i18n.t() loads both

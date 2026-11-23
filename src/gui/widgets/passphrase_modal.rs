@@ -5,11 +5,12 @@
 //! - Startup with encrypted key (Unlock): user must enter passphrase
 //! - Changing passphrase (Change): user enters old + new passphrase
 
-use egui::{Align2, Frame, RichText, CornerRadius, Stroke, Vec2};
+use egui::{Align2, Frame, RichText, CornerRadius, Stroke};
 use crate::gui::{GuiState, PassphraseMode};
 use crate::gui::theme::Theme;
 use crate::gui::layers;
 use crate::gui::widgets;
+use humanity_core::i18n::{t, tf};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // A full-screen popup (gui/layers.rs). Unlocking, setting a first passphrase or PIN asks for a
@@ -26,25 +27,33 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         return;
     }
 
-    let window = layers::window(ctx, egui::Id::new(PASSPHRASE), "Passphrase Required", layers::Layer::PopupWindow)
+    // 400 points, or the visible width less the margins on a phone (2026-11-22: 400 and the
+    // 20-point margins ran past a 412-point phone's sides).
+    let modal_w = (ctx.screen_rect().width() - 56.0).clamp(200.0, 400.0);
+    let body_id = egui::Id::new(PASSPHRASE).with("body");
+    let body_max_h = (ctx.screen_rect().height() - 56.0).max(120.0);
+    let body_h = crate::gui::visible_area::body_height(ctx, body_id, body_max_h);
+    let window = layers::window(ctx, egui::Id::new(PASSPHRASE), t("passphrase.window_title"), layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(400.0, 0.0))
+        // As tall as its contents, scrolling when that is more than a phone shows above its
+        // keyboard (gui/visible_area.rs).
+        .fixed_size(egui::vec2(modal_w, body_h))
         .frame(Frame::window(&ctx.style())
             .fill(theme.bg_card())
             .corner_radius(CornerRadius::same(8))
             .stroke(Stroke::new(1.0_f32, theme.accent()))
             .inner_margin(20.0))
         .show(ctx, |ui| {
-            match state.passphrase_mode {
+            crate::gui::visible_area::scrolling_body(ui, body_id, body_h, body_max_h, |ui| match state.passphrase_mode {
                 PassphraseMode::SetNew => draw_set_new(ui, theme, state),
                 PassphraseMode::Unlock => draw_unlock(ui, theme, state),
                 PassphraseMode::Change => draw_change(ui, theme, state),
                 PassphraseMode::PinSetup => draw_pin_setup(ui, theme, state),
                 PassphraseMode::PinUnlock => draw_pin_unlock(ui, theme, state),
                 PassphraseMode::PinChange => draw_pin_change(ui, theme, state),
-            }
+            });
         });
     if let Some(w) = window {
         layers::seat(ctx, &shade, w.response.layer_id);
@@ -55,28 +64,22 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 const PASSPHRASE: &str = "Passphrase Required";
 
 fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Encrypt Your Private Key")
+    ui.label(RichText::new(t("passphrase.set_new_title"))
         .size(theme.font_size_heading)
         .color(theme.text_primary()));
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new(
-        "Choose a passphrase to encrypt your private key. \
-         This passphrase will be required each time you start the app. \
-         Your key will never be stored in plaintext again.")
+        t("passphrase.set_new_intro"))
         .size(theme.font_size_small)
         .color(theme.text_secondary()));
     ui.add_space(theme.spacing_md);
 
-    ui.label(RichText::new("Passphrase:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.passphrase_input)
-        .password(true)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.passphrase_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.passphrase_input", &mut state.passphrase_input).show(ui, theme);
 
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("Confirm Passphrase:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.passphrase_confirm)
-        .password(true)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.confirm_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.passphrase_confirm", &mut state.passphrase_confirm).show(ui, theme);
 
     ui.add_space(theme.spacing_md);
 
@@ -88,11 +91,11 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     ui.horizontal(|ui| {
-        if widgets::primary_button(ui, theme, "Encrypt Key") {
+        if widgets::primary_button(ui, theme, t("passphrase.encrypt_key")) {
             if state.passphrase_input.is_empty() {
-                state.passphrase_status = "Passphrase cannot be empty.".to_string();
+                state.passphrase_status = t("passphrase.empty").to_string();
             } else if state.passphrase_input != state.passphrase_confirm {
-                state.passphrase_status = "Passphrases do not match.".to_string();
+                state.passphrase_status = t("passphrase.no_match").to_string();
             } else if let Some(ref key_bytes) = state.private_key_bytes.clone() {
                 match crate::config::encrypt_private_key(key_bytes, &state.passphrase_input) {
                     Ok((encrypted, salt, iterations)) => {
@@ -111,11 +114,11 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         );
                     }
                     Err(e) => {
-                        state.passphrase_status = format!("Encryption failed: {}", e);
+                        state.passphrase_status = tf("passphrase.encrypt_failed", &[("error", &e)]);
                     }
                 }
             } else {
-                state.passphrase_status = "No private key available to encrypt.".to_string();
+                state.passphrase_status = t("passphrase.no_key").to_string();
             }
         }
 
@@ -133,21 +136,18 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Unlock Private Key")
+    ui.label(RichText::new(t("passphrase.unlock_title"))
         .size(theme.font_size_heading)
         .color(theme.text_primary()));
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new(
-        "Enter your passphrase to decrypt your private key. \
-         Without it, signing and wallet features will be unavailable.")
+        t("passphrase.unlock_intro"))
         .size(theme.font_size_small)
         .color(theme.text_secondary()));
     ui.add_space(theme.spacing_md);
 
-    ui.label(RichText::new("Passphrase:").color(theme.text_secondary()));
-    let response = ui.add(egui::TextEdit::singleline(&mut state.passphrase_input)
-        .password(true)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.passphrase_label")).color(theme.text_secondary()));
+    let response = widgets::secret_field::SecretField::new("passphrase_modal.passphrase_input", &mut state.passphrase_input).show(ui, theme);
 
     ui.add_space(theme.spacing_sm);
 
@@ -156,13 +156,12 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // that auto-unlock is always opt-in, never magic.
     ui.checkbox(
         &mut state.remember_on_device,
-        RichText::new("Remember on this device (OS keychain)")
+        RichText::new(t("passphrase.remember_label"))
             .color(theme.text_secondary())
             .size(theme.font_size_small),
     );
     ui.label(RichText::new(
-        "Skips the passphrase prompt next time. Encrypted by your OS account; \
-         clear it from Settings → Security.")
+        t("passphrase.remember_note"))
         .size(theme.font_size_small)
         .color(theme.text_muted()));
 
@@ -193,7 +192,7 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.passphrase_unlock_rx = None;
                 state.passphrase_unlocking = false;
                 state.passphrase_status =
-                    "Unlock failed (worker stopped unexpectedly). Please try again.".to_string();
+                    t("passphrase.unlock_worker_stopped").to_string();
             }
             _ => {
                 // Still running — keep repainting so we keep draining the rx.
@@ -207,11 +206,11 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // Mid-unlock: spinner instead of the button, so the click can't
             // re-fire and the user sees the work is happening.
             ui.add(egui::Spinner::new());
-            ui.label(RichText::new("Unlocking…")
+            ui.label(RichText::new(t("passphrase.unlocking"))
                 .color(theme.text_secondary())
                 .size(theme.font_size_small));
         } else {
-            if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
+            if widgets::primary_button(ui, theme, t("passphrase.unlock")) || enter_pressed {
                 // Kick the slow PBKDF2 (decrypt + the legacy 100k→600k
                 // re-encrypt, which is ALSO a 600k PBKDF2) onto a worker thread.
                 // The result is drained next frame by the block above.
@@ -240,7 +239,7 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.passphrase_status.clear();
             }
 
-            if widgets::secondary_button(ui, theme, "Skip (limited mode)") {
+            if widgets::secondary_button(ui, theme, t("passphrase.skip_limited")) {
                 // User skips: no private key available, chat-only mode
                 skip_unlock(state);
             }
@@ -297,38 +296,32 @@ pub(crate) fn apply_unlock_outcome(
             crate::config::AppConfig::from_gui_state(state).save();
         }
         Err(e) => {
-            state.passphrase_status = format!("Wrong passphrase: {}", e);
+            state.passphrase_status = tf("passphrase.wrong", &[("error", &e)]);
         }
     }
 }
 
 fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Change Passphrase")
+    ui.label(RichText::new(t("passphrase.change_title"))
         .size(theme.font_size_heading)
         .color(theme.text_primary()));
     ui.add_space(theme.spacing_md);
 
-    ui.label(RichText::new("Current Passphrase:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.passphrase_old_input)
-        .password(true)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.current_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.passphrase_old_input", &mut state.passphrase_old_input).show(ui, theme);
 
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("New Passphrase:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.passphrase_input)
-        .password(true)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.new_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.passphrase_input", &mut state.passphrase_input).show(ui, theme);
 
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("Confirm New Passphrase:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.passphrase_confirm)
-        .password(true)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.confirm_new_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.passphrase_confirm", &mut state.passphrase_confirm).show(ui, theme);
 
     ui.add_space(theme.spacing_md);
 
     if !state.passphrase_status.is_empty() {
-        let color = if state.passphrase_status.starts_with("Passphrase changed") {
+        let color = if state.passphrase_status == t("passphrase.changed") {
             theme.success()
         } else {
             theme.danger()
@@ -340,11 +333,11 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     ui.horizontal(|ui| {
-        if widgets::primary_button(ui, theme, "Change Passphrase") {
+        if widgets::primary_button(ui, theme, t("passphrase.change_title")) {
             if state.passphrase_input.is_empty() {
-                state.passphrase_status = "New passphrase cannot be empty.".to_string();
+                state.passphrase_status = t("passphrase.new_empty").to_string();
             } else if state.passphrase_input != state.passphrase_confirm {
-                state.passphrase_status = "New passphrases do not match.".to_string();
+                state.passphrase_status = t("passphrase.new_no_match").to_string();
             } else {
                 // First decrypt with old passphrase + the vault's stored
                 // iter count (legacy 100k or new 600k — both work)
@@ -368,7 +361,7 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.passphrase_old_input.clear();
                                 state.passphrase_input.clear();
                                 state.passphrase_confirm.clear();
-                                state.passphrase_status = "Passphrase changed successfully!".to_string();
+                                state.passphrase_status = t("passphrase.changed").to_string();
                                 crate::config::AppConfig::from_gui_state(state).save();
                                 log::info!(
                                     "Passphrase changed successfully ({} PBKDF2 iters)",
@@ -377,18 +370,18 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.apply_pq_identity();
                             }
                             Err(e) => {
-                                state.passphrase_status = format!("Re-encryption failed: {}", e);
+                                state.passphrase_status = tf("passphrase.reencrypt_failed", &[("error", &e)]);
                             }
                         }
                     }
                     Err(_) => {
-                        state.passphrase_status = "Current passphrase is incorrect.".to_string();
+                        state.passphrase_status = t("passphrase.current_wrong").to_string();
                     }
                 }
             }
         }
 
-        if widgets::secondary_button(ui, theme, "Cancel") {
+        if widgets::secondary_button(ui, theme, t("passphrase.cancel")) {
             state.passphrase_needed = false;
             state.passphrase_old_input.clear();
             state.passphrase_input.clear();
@@ -531,30 +524,22 @@ fn load_device_key(state: &GuiState) -> Option<[u8; 32]> {
 }
 
 fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Set a Quick PIN")
+    ui.label(RichText::new(t("passphrase.pin_setup_title"))
         .size(theme.font_size_heading)
         .color(theme.text_primary()));
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new(
-        "Choose a 4-12 digit PIN for faster unlock on this device. \
-         Your full passphrase remains your recovery option. \
-         If you forget the PIN, you can always recover with the passphrase.")
+        t("passphrase.pin_setup_intro"))
         .size(theme.font_size_small)
         .color(theme.text_secondary()));
     ui.add_space(theme.spacing_md);
 
-    ui.label(RichText::new("PIN (digits only):").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.pin_input)
-        .password(true)
-        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.pin_label_digits")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.pin_input", &mut state.pin_input).char_limit(humanity_core::auto_unlock::PIN_MAX_LEN).show(ui, theme);
 
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("Confirm PIN:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.pin_confirm)
-        .password(true)
-        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.pin_confirm_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.pin_confirm", &mut state.pin_confirm).char_limit(humanity_core::auto_unlock::PIN_MAX_LEN).show(ui, theme);
 
     ui.add_space(theme.spacing_md);
 
@@ -566,20 +551,20 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     ui.horizontal(|ui| {
-        if widgets::primary_button(ui, theme, "Set PIN") {
+        if widgets::primary_button(ui, theme, t("passphrase.pin_set")) {
             // Validation
             if let Err(msg) = humanity_core::auto_unlock::validate_pin(&state.pin_input) {
                 state.pin_status = msg;
                 return;
             }
             if state.pin_input != state.pin_confirm {
-                state.pin_status = "PINs do not match.".to_string();
+                state.pin_status = t("passphrase.pin_no_match").to_string();
                 return;
             }
             // Checked before the seed is copied, so no early return leaves a copy unwiped (the
             // second review's C).
             if state.profile_public_key.is_empty() {
-                state.pin_status = "No identity loaded, generate or recover first.".to_string();
+                state.pin_status = t("passphrase.pin_no_identity").to_string();
                 return;
             }
             // Must already have the seed in memory (set up post-unlock
@@ -591,7 +576,7 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     s
                 }
                 _ => {
-                    state.pin_status = "Unlock with your passphrase first, then set a PIN.".to_string();
+                    state.pin_status = t("passphrase.pin_unlock_first").to_string();
                     return;
                 }
             };
@@ -601,7 +586,7 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 Ok(k) => k,
                 Err(e) => {
                     humanity_core::platform::key_wrap::wipe(&mut seed_bytes);
-                    state.pin_status = format!("RNG failed: {}", e);
+                    state.pin_status = tf("passphrase.pin_rng_failed", &[("error", &e)]);
                     return;
                 }
             };
@@ -624,13 +609,13 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     Err(key) => state.pin_status = humanity_core::i18n::t(key).to_string(),
                 },
                 Err(e) => {
-                    state.pin_status = format!("PIN encrypt failed: {}", e);
+                    state.pin_status = tf("passphrase.pin_encrypt_failed", &[("error", &e)]);
                 }
             }
             humanity_core::platform::key_wrap::wipe(&mut device_key);
         }
 
-        if widgets::secondary_button(ui, theme, "Cancel") {
+        if widgets::secondary_button(ui, theme, t("passphrase.cancel")) {
             state.passphrase_needed = false;
             wipe_pin_boxes(state);
             state.pin_status.clear();
@@ -639,22 +624,18 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Enter PIN")
+    ui.label(RichText::new(t("passphrase.pin_unlock_title"))
         .size(theme.font_size_heading)
         .color(theme.text_primary()));
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new(
-        "Type your PIN to unlock. If you've forgotten it, switch to \
-         'Use passphrase instead' and unlock with your 24-word recovery phrase.")
+        t("passphrase.pin_unlock_intro"))
         .size(theme.font_size_small)
         .color(theme.text_secondary()));
     ui.add_space(theme.spacing_md);
 
-    ui.label(RichText::new("PIN:").color(theme.text_secondary()));
-    let response = ui.add(egui::TextEdit::singleline(&mut state.pin_input)
-        .password(true)
-        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.pin_label")).color(theme.text_secondary()));
+    let response = widgets::secret_field::SecretField::new("passphrase_modal.pin_input", &mut state.pin_input).char_limit(humanity_core::auto_unlock::PIN_MAX_LEN).show(ui, theme);
 
     ui.add_space(theme.spacing_md);
 
@@ -687,12 +668,12 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.pin_unlocking = false;
                 // Deliberately generic — see decrypt_seed_with_pin docstring on
                 // why we don't distinguish bad-PIN from corrupted-blob.
-                state.pin_status = "Wrong PIN.".to_string();
+                state.pin_status = t("passphrase.pin_wrong").to_string();
             }
             Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
                 state.pin_unlock_rx = None;
                 state.pin_unlocking = false;
-                state.pin_status = "Unlock failed (worker stopped). Try again.".to_string();
+                state.pin_status = t("passphrase.pin_worker_stopped").to_string();
             }
             _ => {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
@@ -703,15 +684,15 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.horizontal(|ui| {
         if state.pin_unlocking {
             ui.add(egui::Spinner::new());
-            ui.label(RichText::new("Unlocking…")
+            ui.label(RichText::new(t("passphrase.unlocking"))
                 .color(theme.text_secondary())
                 .size(theme.font_size_small));
         } else {
-            if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
+            if widgets::primary_button(ui, theme, t("passphrase.unlock")) || enter_pressed {
                 let mut device_key = match load_device_key(state) {
                     Some(k) => k,
                     None => {
-                        state.pin_status = "PIN setup gone (keychain cleared). Use passphrase to re-unlock.".to_string();
+                        state.pin_status = t("passphrase.pin_gone_unlock").to_string();
                         return;
                     }
                 };
@@ -742,7 +723,7 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.pin_status.clear();
             }
 
-            if widgets::secondary_button(ui, theme, "Use passphrase instead") {
+            if widgets::secondary_button(ui, theme, t("passphrase.use_passphrase")) {
                 state.passphrase_mode = PassphraseMode::Unlock;
                 wipe_pin_boxes(state);
                 state.pin_status.clear();
@@ -752,35 +733,26 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Change PIN")
+    ui.label(RichText::new(t("passphrase.pin_change_title"))
         .size(theme.font_size_heading)
         .color(theme.text_primary()));
     ui.add_space(theme.spacing_md);
 
-    ui.label(RichText::new("Current PIN:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.pin_old_input)
-        .password(true)
-        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.pin_current_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.pin_old_input", &mut state.pin_old_input).char_limit(humanity_core::auto_unlock::PIN_MAX_LEN).show(ui, theme);
 
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("New PIN:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.pin_input)
-        .password(true)
-        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.pin_new_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.pin_input", &mut state.pin_input).char_limit(humanity_core::auto_unlock::PIN_MAX_LEN).show(ui, theme);
 
     ui.add_space(theme.spacing_sm);
-    ui.label(RichText::new("Confirm New PIN:").color(theme.text_secondary()));
-    ui.add(egui::TextEdit::singleline(&mut state.pin_confirm)
-        .password(true)
-        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
-        .desired_width(ui.available_width()));
+    ui.label(RichText::new(t("passphrase.pin_confirm_new_label")).color(theme.text_secondary()));
+    widgets::secret_field::SecretField::new("passphrase_modal.pin_confirm", &mut state.pin_confirm).char_limit(humanity_core::auto_unlock::PIN_MAX_LEN).show(ui, theme);
 
     ui.add_space(theme.spacing_md);
 
     if !state.pin_status.is_empty() {
-        let ok = state.pin_status.starts_with("PIN changed");
+        let ok = state.pin_status == t("passphrase.pin_changed");
         let color = if ok { theme.success() } else { theme.danger() };
         ui.label(RichText::new(&state.pin_status)
             .color(color)
@@ -789,17 +761,17 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     ui.horizontal(|ui| {
-        if widgets::primary_button(ui, theme, "Change PIN") {
+        if widgets::primary_button(ui, theme, t("passphrase.pin_change_title")) {
             if let Err(msg) = humanity_core::auto_unlock::validate_pin(&state.pin_input) {
                 state.pin_status = msg;
                 return;
             }
             if state.pin_input != state.pin_confirm {
-                state.pin_status = "New PINs do not match.".to_string();
+                state.pin_status = t("passphrase.pin_new_no_match").to_string();
                 return;
             }
             let Some(mut device_key) = load_device_key(state) else {
-                state.pin_status = "PIN setup gone, set up a new PIN from Settings.".to_string();
+                state.pin_status = t("passphrase.pin_gone_settings").to_string();
                 return;
             };
             // Verify the old PIN by opening the existing blob, then re-seal with the new one
@@ -818,22 +790,22 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             };
             humanity_core::platform::key_wrap::wipe(&mut device_key);
             match resealed {
-                None => state.pin_status = "Current PIN is incorrect.".to_string(),
+                None => state.pin_status = t("passphrase.pin_current_wrong").to_string(),
                 Some(Ok((enc, salt))) => {
                     state.pin_encrypted_seed = enc;
                     state.pin_salt = salt;
                     wipe_pin_boxes(state);
-                    state.pin_status = "PIN changed successfully.".to_string();
+                    state.pin_status = t("passphrase.pin_changed").to_string();
                     crate::config::AppConfig::from_gui_state(state).save();
                     log::info!("PIN changed");
                 }
                 Some(Err(e)) => {
-                    state.pin_status = format!("Re-encrypt failed: {}", e);
+                    state.pin_status = tf("passphrase.pin_reencrypt_failed", &[("error", &e)]);
                 }
             }
         }
 
-        if widgets::secondary_button(ui, theme, "Cancel") {
+        if widgets::secondary_button(ui, theme, t("passphrase.cancel")) {
             state.passphrase_needed = false;
             wipe_pin_boxes(state);
             state.pin_status.clear();

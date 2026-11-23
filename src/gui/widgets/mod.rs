@@ -33,6 +33,8 @@ pub mod file_picker_memory;
 pub mod phrase_cover;
 // The recovery phrase as it is typed, numbered under its box (2026-11-22).
 pub mod phrase_typed;
+// A passphrase, PIN or token box with a Show / Hide eye, hidden again when closed (2026-11-22).
+pub mod secret_field;
 // The word of caution under a file someone was sent, and Show in folder (2026-10-17).
 pub mod file_caution;
 // A file's type, always beside its name (2026-10-17).
