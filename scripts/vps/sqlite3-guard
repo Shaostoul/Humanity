@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# sqlite3-guard: installed as /usr/local/bin/sqlite3 on every HumanityOS server (scripts/server-files.txt),
+# ahead of the real tool (/usr/bin/sqlite3) in PATH, so whoever types `sqlite3` on a server gets this first.
+#
+# WHY (2026-11-22): a read-write sqlite3 that closes while it believes it is the last connection
+# checkpoints the write-ahead log and DELETES relay.db-wal and relay.db-shm. Under a running relay
+# that makes every write fail with "disk I/O error" until the relay restarts. It happened from the
+# backup script on 2026-10-26 (BUG-215, fixed by opening read-only) and again on 2026-11-22 from two
+# hand-typed read-only checks (`sqlite3 relay.db "SELECT count(*) ..."`, which opens read-WRITE),
+# on both servers at once. CLAUDE.md now forbids it and the agents' tool guard refuses it; this is
+# the server's own protection, for a person typing it too.
+#
+# WHAT IT DOES: when an argument names the LIVE database (/opt/Humanity/data/relay.db, however it is
+# written: relative, absolute, or as a file: URI without mode=ro), it is opened READ-ONLY instead
+# ("file:<path>?mode=ro"): reads still see every committed write (the log is read, not touched), and
+# a read-only connection cannot checkpoint or delete the log files. Writes are refused by SQLite:
+# changes to a live server's data go through the relay (its admin routes and Server Settings). Any
+# other file, a copy in /tmp or a recovery folder included, is passed through unchanged, so recovery
+# work on a copy can still write. A note on stderr says when the guard changed an argument.
+#
+# Test: scripts/tests/sqlite3-guard.test.js (SQLITE3_REAL and HUMANITY_LIVE_DB stand in for the tool
+# and the path).
+set -u
+REAL="${SQLITE3_REAL:-/usr/bin/sqlite3}"
+LIVE="${HUMANITY_LIVE_DB:-/opt/Humanity/data/relay.db}"
+live_real="$(realpath -m "$LIVE")"
+args=()
+changed=""
+for a in "$@"; do
+  case "$a" in
+    file:*)
+      path="${a#file:}"; path="${path%%\?*}"
+      if [ "$(realpath -m "$path" 2>/dev/null)" = "$live_real" ] && [[ "$a" != *mode=ro* ]]; then
+        if [[ "$a" == *\?* ]]; then args+=("$a&mode=ro"); else args+=("$a?mode=ro"); fi
+        changed="$a"
+      else
+        args+=("$a")
+      fi
+      ;;
+    -*)
+      args+=("$a")
+      ;;
+    *)
+      if [ "$(realpath -m "$a" 2>/dev/null)" = "$live_real" ]; then
+        args+=("file:$live_real?mode=ro")
+        changed="$a"
+      else
+        args+=("$a")
+      fi
+      ;;
+  esac
+done
+if [ -n "$changed" ]; then
+  echo "sqlite3 guard: opened the live relay database read-only ($changed). A read-write sqlite3 on a running relay's database deletes its log files and breaks every write (docs/ai/storage.md). To change data, use the relay; to experiment, copy relay.db and relay.db-wal to /tmp." >&2
+fi
+exec "$REAL" "${args[@]}"

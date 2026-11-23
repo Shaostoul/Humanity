@@ -21,6 +21,13 @@ const cases = [
   ['git checkout -- .', bash('git checkout -- .'), true],
   ['git restore .', bash('git restore .'), true],
   ['git -C main add -A from a worktree', bash('git -C C:/Humanity add -A', WT), true],
+  // 2026-11-22: sqlite3 on a running relay's live relay.db deleted its -wal and -shm (CLAUDE.md).
+  ['sqlite3 on the live relay.db over ssh', bash('ssh humanity-vps "sqlite3 /opt/Humanity/data/relay.db \'SELECT 1\'"'), true],
+  ['sqlite3 on a local relay.db', bash('sqlite3 data/relay.db "PRAGMA integrity_check;"'), true],
+  ['sqlite3 on relay.db from PowerShell', ps('sqlite3 C:\\Humanity\\data\\relay.db ".tables"'), true],
+  ['sqlite3 on a copy in a recovery folder', bash('ssh humanity-vps "cd /opt/Humanity/data/recover-1 && sqlite3 relay.db \'PRAGMA integrity_check;\'"'), false],
+  ['sqlite3 on a copy in /tmp', bash('sqlite3 /tmp/relay-copy/relay.db "SELECT 1"'), false],
+  ['a search that names sqlite3 and relay.db', bash('git grep -n "sqlite3 .*relay.db" -- docs'), false],
   ['cargo fmt', bash('cargo fmt -p humanity-engine'), true],
   ['rustfmt', bash('rustfmt src/lib.rs'), true],
   ['backtick in node -e double quotes', bash('node -e "console.log(`x`)"'), true],

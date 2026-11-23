@@ -95,6 +95,13 @@ The rule: read live server state through the relay (its API, the admin routes, S
 copy `relay.db` and its `-wal` to a temp folder and query the copy. Never point `sqlite3` at the live
 file, read-only or not.
 
+Two guards hold it (the operator, 2026-11-22: "Can we add another protection ... to prevent
+deletion?"): the agents' tool guard (`scripts/hooks/tool-guard.js` `checkLiveDb`) refuses any command
+that runs `sqlite3` on a `relay.db` outside a temp, scratchpad or recovery folder; and every server
+installs `scripts/vps/sqlite3-guard` as `/usr/local/bin/sqlite3` (scripts/server-files.txt), ahead of
+the real tool, which opens the live database read-only (`file:...?mode=ro`, the BUG-215 fix the backup
+script already uses), so even a person typing `sqlite3 relay.db` cannot delete its log files.
+
 ## ALTER-added columns (BUG-046)
 
 - **SQLite: never reference an ALTER-added column from the main schema batch in `src/relay/storage/mod.rs`.** The batch runs BEFORE the ALTER block, so on the LIVE database an index, trigger or view over the new column aborts it and the relay dies at startup, while every fresh-DB test passes (BUG-046 in `docs/BUGS.md`). Such indexes go AFTER the ALTER block, and any change to an existing table's shape needs a pre-migration-shape `Storage::open` test (pattern: `opens_a_pre_v0675_database_and_migrates_it` in `src/relay/storage/uploads.rs`). Enforced since 2026-10-19 by `tests/schema_alter_order_lint.rs` (in `just lints` and CI): nothing in `Storage::open` may name table.column before the ALTER that adds it (indexes, triggers, views, INSERT, UPDATE, DELETE).
