@@ -142,3 +142,131 @@ fn the_corner_buttons_stay_in_the_primary_row() {
         }
     }
 }
+
+/// A click at `at` (press and release), as a finger's tap reaches egui.
+fn tap(at: egui::Pos2) -> Vec<egui::Event> {
+    let b = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+    vec![egui::Event::PointerMoved(at), b(true), b(false)]
+}
+
+/// One headless frame of the phone's columns with `events` arriving.
+fn phone_frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+    let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, PHONE)), events, ..Default::default() };
+    ctx.run(input, |ctx| super::phone::columns(ctx, theme, state))
+}
+
+fn rooms_state() -> GuiState {
+    let mut state = GuiState::default();
+    state.connected_server_url = "https://united-humanity.us".into();
+    state.chat_channels = vec![
+        crate::gui::state_types::ChatChannel { id: "global".into(), name: "global".into(), ..Default::default() },
+        crate::gui::state_types::ChatChannel { id: "garden".into(), name: "garden".into(), ..Default::default() },
+    ];
+    state.chat_active_channel = "global".into();
+    state
+}
+
+/// The first drawn text containing `needle`, with where it is.
+fn drawn_containing(out: &egui::FullOutput, needle: &str) -> Option<egui::Rect> {
+    fn walk(shape: &egui::Shape, needle: &str) -> Option<egui::Rect> {
+        match shape {
+            egui::Shape::Text(t) if t.galley.text().contains(needle) => Some(t.galley.rect.translate(t.pos.to_vec2())),
+            egui::Shape::Vec(v) => v.iter().find_map(|s| walk(s, needle)),
+            _ => None,
+        }
+    }
+    out.shapes.iter().find_map(|cs| walk(&cs.shape, needle))
+}
+
+/// Settle a few frames (no events), returning the last.
+fn settle(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) -> egui::FullOutput {
+    let mut out = phone_frame(ctx, theme, state, vec![]);
+    for _ in 0..3 {
+        out = phone_frame(ctx, theme, state, vec![]);
+    }
+    out
+}
+
+/// CHAT OPENS ON A CONVERSATION (operator, 2026-11-23: "when I log in on my phone and go to chat have
+/// it load the last channel or default to global. Right now it loads the server list"): a fresh
+/// phone page, nothing remembered about which column shows, draws the open room (its Rooms button
+/// above it) and not the list's Close button, whether the room is the default #global or the last
+/// one this person had open.
+///
+/// Seen red 2026-11-23 (the column defaulting to the rooms list): "a fresh phone Chat (global) shows
+/// the rooms list, not the conversation".
+#[test]
+fn chat_opens_on_a_conversation() {
+    for room in ["global", "garden"] {
+        let (ctx, theme) = headless();
+        let mut state = rooms_state();
+        state.chat_active_channel = room.into();
+        let out = settle(&ctx, &theme, &mut state);
+        assert!(drawn(&out, humanity_core::i18n::t("chat.phone.rooms")).is_some(), "a fresh phone Chat ({room}) shows the rooms list, not the conversation");
+        assert!(drawn(&out, humanity_core::i18n::t("chat.phone.close")).is_none(), "the list's Close is drawn over the conversation of {room}");
+    }
+}
+
+/// TAPPING THE SELECTED ROOM OPENS IT (operator: "when I click on the global channel it doesn't load
+/// the channel text chat area"): with the list up and a room already selected, a tap on it
+/// closes the list and shows its conversation. The list moved on only when the selection CHANGED.
+///
+/// Seen red 2026-11-23: "tapping the selected room left the rooms list up".
+#[test]
+fn tapping_the_selected_room_opens_it() {
+    let (ctx, theme) = headless();
+    let mut state = rooms_state();
+    state.chat_active_channel = "scratchpad".into();
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("chat_phone_shows_rooms"), true));
+    let out = settle(&ctx, &theme, &mut state);
+    assert!(drawn(&out, humanity_core::i18n::t("chat.phone.rooms")).is_none(), "the list is up to begin with");
+    // The scratchpad is a room row that is always listed (a server's rooms need a saved, connected
+    // server); its tap takes the same path as any room's (left_panel.rs calls phone::room_tapped).
+    let row = drawn_containing(&out, "scratchpad").expect("the scratchpad row is listed");
+    phone_frame(&ctx, &theme, &mut state, tap(row.center()));
+    let out = settle(&ctx, &theme, &mut state);
+    assert_eq!(state.chat_active_channel, "scratchpad");
+    assert!(drawn(&out, humanity_core::i18n::t("chat.phone.rooms")).is_some(), "tapping the selected room left the rooms list up");
+}
+
+/// THE ROOMS LIST CLOSES WITHOUT SWITCHING ROOMS (operator: "I have no way of closing the rooms list
+/// without switching channels"): the list has a Close button, and pressing it shows the room that
+/// was open.
+///
+/// Seen red 2026-11-23: "the rooms list draws no Close button".
+#[test]
+fn the_rooms_list_has_a_close_button() {
+    let (ctx, theme) = headless();
+    let mut state = rooms_state();
+    state.chat_active_channel = "garden".into();
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("chat_phone_shows_rooms"), true));
+    let out = settle(&ctx, &theme, &mut state);
+    let close = drawn(&out, humanity_core::i18n::t("chat.phone.close")).expect("the rooms list draws no Close button");
+    phone_frame(&ctx, &theme, &mut state, tap(close.center()));
+    let out = settle(&ctx, &theme, &mut state);
+    assert_eq!(state.chat_active_channel, "garden", "Close switched rooms");
+    assert!(drawn(&out, humanity_core::i18n::t("chat.phone.rooms")).is_some(), "Close left the rooms list up");
+}
+
+/// NO DESKTOP SHORTCUTS "?" ON A PHONE (operator: "the mobile shows the ? button at the top right
+/// that displays desktop shortcuts like F1. I can't do F1 on my phone"): the help button is drawn on
+/// a desktop and not on a phone, and the bell takes the corner (at the right edge) either way.
+///
+/// Seen red 2026-11-23 (`draw_help_toggle_as` drawing for a phone too): "the help button is drawn on
+/// a phone".
+#[test]
+fn no_shortcuts_help_button_on_a_phone() {
+    for phone in [false, true] {
+        let (ctx, theme) = headless();
+        let mut state = GuiState::default();
+        state.go(crate::gui::GuiPage::Chat, crate::gui::How::Replace);
+        for _ in 0..3 {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, PHONE)), ..Default::default() };
+            let _ = ctx.run(input, |ctx| crate::gui::pages::keymap::draw_help_toggle_as(ctx, &theme, &mut state, phone));
+        }
+        let drawn_help = ctx.memory(|m| m.area_rect(egui::Id::new("help_toggle_button"))).is_some();
+        assert_eq!(drawn_help, !phone, "the help button is drawn: {drawn_help} (phone: {phone})");
+        let slot = crate::gui::pages::escape_menu::bell_slot(phone);
+        assert_eq!(slot, if phone { 0 } else { 1 }, "the bell stands in the help button's place on a phone");
+    }
+}

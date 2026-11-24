@@ -115,6 +115,11 @@ left the page, the room's description stops before Copy link, every window fits 
 the rungs below are pieces of one layout, not separate patches. Native egui first
 (`chat/phone.rs` owns the phone's Chat), the website mirrors it under its phone width.
 
+The top bar above these rows is itself being redesigned for phones (a Menu button, a breadcrumb,
+the bell; planned 2026-11-23 in `docs/design/navigation-redesign.md`). Built 2026-11-23: Chat opens
+on a conversation, the rooms list has Close and a tap on the selected room closes it, and no "?" on
+a phone.
+
 ### What a phone shows today, top to bottom
 
 | Row | Height (points) | What |

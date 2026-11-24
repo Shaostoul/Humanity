@@ -299,6 +299,20 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// the screen belongs to the game and F1 is the way in (which still works everywhere,
 /// including here).
 pub fn draw_help_toggle(ctx: &Context, theme: &Theme, state: &mut GuiState) {
+    draw_help_toggle_as(ctx, theme, state, humanity_core::platform::device::phone());
+}
+
+/// [`draw_help_toggle`] for a device that is (or is not) a phone, so a test chooses without the
+/// phone switch every test shares.
+pub fn draw_help_toggle_as(ctx: &Context, theme: &Theme, state: &mut GuiState, phone: bool) {
+    // A phone has no F1 and no keyboard shortcuts: the panel this opens lists the desktop's keys
+    // (operator, 2026-11-23: "I can't do F1 on my phone"), so no button and no stranded pin. The
+    // bell takes its corner (escape_menu::bell_slot); the planned Menu holds help for phones
+    // (docs/design/navigation-redesign.md).
+    if phone {
+        state.help_panel_pinned = false;
+        return;
+    }
     // No button in the FPS view (the screen belongs to the game there, and F1 still
     // works), and none on the title screen. MainMenu is the other page that draws no
     // nav bar, so nothing reserves the top-right corner for the button there and it

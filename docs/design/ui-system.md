@@ -427,6 +427,9 @@ merge, name specifically what would be lost by the other choice.
 
 ## Page parity (web ↔ native)
 
+The top bar's planned redesign (a Menu page as a table of contents, a breadcrumb, the bell and a
+Notifications page, 2026-11-23): `docs/design/navigation-redesign.md`.
+
 **The inventory is not duplicated here any more.** This document used to carry a
 hand-maintained list snapshotted at v0.124.0, and by 2026-09 it named three pages
 that exist in neither client and two that are no longer native pages at all.

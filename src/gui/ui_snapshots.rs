@@ -4279,7 +4279,8 @@ fn snapshot_chat_phone() {
     chat_on_phone("chat_phone", false);
 }
 
-/// The same with the rooms list showing (a phone's Chat opens on it).
+/// The same with the rooms list showing (the Rooms button opens it; its Close button leaves it; a
+/// phone's Chat opens on the conversation, `snapshot_chat_phone`).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_chat_phone_rooms() {

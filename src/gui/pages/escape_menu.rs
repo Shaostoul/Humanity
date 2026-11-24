@@ -164,9 +164,22 @@ pub fn corner_rect(ctx: &egui::Context, theme: &Theme, slot: usize) -> Rect {
     Rect::from_min_size(egui::pos2(right - size, screen.top() + corner_y(theme, size)), Vec2::splat(size))
 }
 
+/// Which corner slot the notices bell stands in: beside help on a desktop (slot 1), in help's own
+/// place (slot 0, the right edge) on a phone, which draws no help button.
+pub fn bell_slot(phone: bool) -> usize {
+    if phone {
+        0
+    } else {
+        1
+    }
+}
+
 /// The room the window's top-right corner keeps for the help button and the notices bell, which
 /// stand there and are not laid out in the row.
 fn corner_reserve(ctx: &egui::Context, theme: &Theme) -> f32 {
+    if humanity_core::platform::device::phone() {
+        return corner_size(ctx, theme) + 18.0; // the bell alone: a phone draws no help button
+    }
     2.0 * corner_size(ctx, theme) + crate::gui::notice_panel::BELL_GAP + 18.0
 }
 

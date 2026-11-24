@@ -282,6 +282,9 @@ fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         );
     }
 
+    if resp.clicked() {
+        super::phone::room_tapped(ui.ctx()); // a phone closes the rooms list on any tap
+    }
     if resp.clicked() && state.chat_active_channel != "scratchpad" {
         // Only clear+refetch when actually switching contexts. Re-clicking the
         // active row is a no-op (BUG-035 — used to nuke local-echoed unsent text).
@@ -551,6 +554,9 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                     }
 
+                    if response.clicked() {
+                        super::phone::room_tapped(ui.ctx());
+                    }
                     if response.clicked() && state.chat_active_channel != dm_channel {
                         // History loads from the LOCAL encrypted store —
                         // the relay keeps no DM history (sealed-sender).
@@ -846,6 +852,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     egui::popup_below_widget(ui, menu_id, &cog_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| group_menu(ui));
                     row_resp.context_menu(|ui| group_menu(ui));
                     if row_resp.clicked() {
+                        super::phone::room_tapped(ui.ctx());
                         open_p2p_id = Some(p.group_id.clone());
                     }
                     if row_resp.hovered() && !cog_resp.hovered() {
@@ -1140,6 +1147,9 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 ui.separator();
                                 super::mute_menu::level_items(ui, theme, state, &server.url, &ch.id);
                             });
+                            if out.opened {
+                                super::phone::room_tapped(ui.ctx());
+                            }
                             if (out.opened || out.voice_clicked) && state.private_key_bytes.is_some() {
                                 // The one switch (gui/connections.rs), shared with the cog
                                 // and the server strip, then land directly in the room.
@@ -1688,6 +1698,9 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                                 voice: ch.voice_enabled.then_some(ch.voice_joined),
                             },
                         );
+                        if out.opened {
+                            super::phone::room_tapped(ui.ctx());
+                        }
                         if out.voice_clicked {
                             voice_toggle_idx = Some((idx, !ch.voice_joined));
                         } else if out.opened && state.chat_active_channel != ch.id {

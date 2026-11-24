@@ -49,7 +49,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     let area = layers::area(ctx, egui::Id::new("notice_bell_button"), Layer::Primary)
         // Centred in the top menu's primary row, beside help (navigation rung 2), placed from the
         // screen and its size alone (escape_menu::corner_rect: a finger tall on a phone).
-        .fixed_pos(crate::gui::pages::escape_menu::corner_rect(ctx, theme, 1).min)
+        .fixed_pos(crate::gui::pages::escape_menu::corner_rect(ctx, theme, crate::gui::pages::escape_menu::bell_slot(humanity_core::platform::device::phone())).min)
         // The Area's own response senses hover only: egui's default for an Area is a click, which
         // made it a nameless Tab stop of its own beside the bell (the top menu's a11y walk).
         .sense(egui::Sense::hover())
