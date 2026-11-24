@@ -1867,6 +1867,11 @@
       "date": "2026-11-23",
       "decision": "OPERATOR, phone test of v0.1571.0 (2026-11-23): 'I can't upload images because the windows aren't scaling to the phone. Then the chat page UI needs work ... the go live and open studio buttons could be hidden in the studio page instead of also being in the chat page. Anything else stick out to you?' (The composer now sits above Android's buttons: the v0.1571.0 fix works.) Found: Attach browses the app's private folder (useless on Android's scoped storage) and its window overflows both edges; the rows above the messages take about 40% of the screen; 'More' twice; the profile picture over Switch; '?' clipped; the channel description under 'Copy link'; a narrow message box. Dispatched wk-phoneattach.txt (usage 97%, so one focused agent): Android's system document picker for Attach (ACTION_OPEN_DOCUMENT through a Java helper), every egui window fitting the visible area, Go Live / Open Studio moved to the Studio page, the overlaps fixed, and the full phone layout plan for the chat page written (built after the 2026-11-26 reset).",
       "why": "Uploading pictures from the phone is a core use; the rest is the first cleanup the operator asked for."
+    },
+    {
+      "date": "2026-11-23",
+      "decision": "RELEASED v0.1572.0 (the first today): the phone attaches pictures and files through Android's system document picker (PickFiles.java, attach_android.rs), every window fits a phone (window_fit.rs, 20 windows), the Live strip off the Chat page in both apps, the room description and the bell and help clear of each other, the recovery words in as many columns as fit (BUG-409); the chat page's phone layout plan written in docs/design/chat-layout.md for after the reset. Gates: release build, relay check, lints, rig-tests, test-lib 6,890, verify-relay, verify-runtime 3/3, webrtc, second-player, copresence, respawn; check-delivery OK; the APK attached by Build Android App. Open: whether the Chat page should show an ON AIR line while streaming (decide in the phone layout pass).",
+      "why": "The operator's phone could not attach pictures; this release lets it."
     }
   ],
   "active_scopes_to_avoid": [
