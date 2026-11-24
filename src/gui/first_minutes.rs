@@ -24,6 +24,7 @@ use humanity_core::i18n::{t, t_dyn, t_marked_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiPage, GuiState, SettingsCategory};
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// Where the person is in the tour. Kept in `config.json` (`first_minutes`).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -189,7 +190,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .anchor(Align2::RIGHT_BOTTOM, Vec2::new(-16.0, -16.0 - crate::gui::bottom_strip::height(ctx)))
         .fixed_size(Vec2::new(340.0, 0.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.label(
                 RichText::new(tf("tour.counter", &[("n", &(idx + 1)), ("total", &all.len())]))
                     .size(theme.font_size_small)

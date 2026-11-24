@@ -3,7 +3,9 @@
 //!
 //! The app is a NativeActivity, so until now the APK held no Java at all. Two things need some:
 //! a foreground service (rung A4, "stay connected while closed") is a Java class Android
-//! instantiates itself, and Android's key store is a Java interface. The Java is three small
+//! instantiates itself, and Android's key store is a Java interface (since then the window's
+//! insets, `VisibleArea`, and Attach's document picker, `PickFiles`, an activity of its own because
+//! only an activity receives a picker's answer, 2026-11-23). The Java is a few small
 //! classes under `android/java/`, compiled by android/build-apk.sh with `javac` against the
 //! platform's android.jar and turned into `classes.dex` with `d8`, both from the SDK on GitHub's
 //! runner (no Gradle). The key store's work is done in Java (`KeyStoreBridge`) rather than as a
@@ -74,8 +76,28 @@ pub const VISIBLE_AREA_LISTEN: JavaCall = JavaCall { class: "VisibleArea", metho
 /// reported them.
 pub const VISIBLE_AREA_INSETS: JavaCall = JavaCall { class: "VisibleArea", method: "insets", sig: "()[I" };
 
+/// Open Android's document picker over the app, for Attach (2026-11-23, PickFiles.java; the app's
+/// own file browser cannot see the phone's pictures under scoped storage).
+pub const PICK_FILES_START: JavaCall = JavaCall { class: "PickFiles", method: "start", sig: "(Landroid/app/Activity;)V" };
+/// The picker's answer, taken: "picked" then each chosen document's URI, "cancelled", or "failed"
+/// then why; null while the person has not answered.
+pub const PICK_FILES_TAKE: JavaCall = JavaCall { class: "PickFiles", method: "take", sig: "()[Ljava/lang/String;" };
+/// A chosen document's name and size in bytes ("-1" when its provider does not know it).
+pub const PICK_FILES_DESCRIBE: JavaCall = JavaCall {
+    class: "PickFiles",
+    method: "describe",
+    sig: "(Landroid/content/Context;Ljava/lang/String;)[Ljava/lang/String;",
+};
+/// Copy a chosen document, streamed, into a file in the app's folder, at most so many bytes: the
+/// bytes copied, or -1 when it holds more.
+pub const PICK_FILES_COPY: JavaCall = JavaCall {
+    class: "PickFiles",
+    method: "copy",
+    sig: "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;J)J",
+};
+
 /// Every call, for the test against the Java sources.
-pub const ALL: [JavaCall; 12] = [
+pub const ALL: [JavaCall; 16] = [
     KEY_CREATE,
     KEY_SEAL,
     KEY_UNSEAL,
@@ -88,6 +110,10 @@ pub const ALL: [JavaCall; 12] = [
     NOTICES_ASK,
     VISIBLE_AREA_LISTEN,
     VISIBLE_AREA_INSETS,
+    PICK_FILES_START,
+    PICK_FILES_TAKE,
+    PICK_FILES_DESCRIBE,
+    PICK_FILES_COPY,
 ];
 
 /// The JNI descriptor of a Java type as the sources write it (the few the calls use).
@@ -95,11 +121,13 @@ pub const ALL: [JavaCall; 12] = [
 fn descriptor(java: &str) -> Option<String> {
     Some(match java {
         "int" => "I".into(),
+        "long" => "J".into(),
         "boolean" => "Z".into(),
         "void" => "V".into(),
         "byte[]" => "[B".into(),
         "int[]" => "[I".into(),
         "String" => "Ljava/lang/String;".into(),
+        "String[]" => "[Ljava/lang/String;".into(),
         "Context" => "Landroid/content/Context;".into(),
         "Activity" => "Landroid/app/Activity;".into(),
         _ => return None,

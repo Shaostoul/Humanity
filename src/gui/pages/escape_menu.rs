@@ -142,10 +142,32 @@ pub fn rows_height(theme: &Theme) -> f32 {
     theme.nav_primary_height + theme.nav_secondary_height + theme.nav_separator_height
 }
 
+/// The side of the two square buttons in the window's top-right corner (help, and the notices bell
+/// beside it): `keymap::HELP_TOGGLE_SIZE` on a desktop; on a phone a finger's height (the theme's
+/// `touch_target`, which the theme makes every control's least height there), held inside the
+/// primary row. Read from the style's control height rather than the phone switch, so a test lays
+/// out the phone's corner with the phone's style.
+pub fn corner_size(ctx: &egui::Context, theme: &Theme) -> f32 {
+    let control = ctx.style().spacing.interact_size.y;
+    control.max(crate::gui::pages::keymap::HELP_TOGGLE_SIZE).min((theme.nav_primary_height - 4.0).max(crate::gui::pages::keymap::HELP_TOGGLE_SIZE))
+}
+
+/// Where the corner button `slot` stands (0: help, at the right edge; 1: the notices bell, left of
+/// it), in the window's points: worked out from the screen and the size alone, centred in the
+/// primary row. (2026-11-23: anchored by the size they had last frame, the two stood off the
+/// right edge on a phone's first frame, which a phone drawing only on change could keep, and help,
+/// a finger tall, hung below its row.)
+pub fn corner_rect(ctx: &egui::Context, theme: &Theme, slot: usize) -> Rect {
+    let size = corner_size(ctx, theme);
+    let screen = ctx.screen_rect();
+    let right = screen.right() - 8.0 - slot as f32 * (size + crate::gui::notice_panel::BELL_GAP);
+    Rect::from_min_size(egui::pos2(right - size, screen.top() + corner_y(theme, size)), Vec2::splat(size))
+}
+
 /// The room the window's top-right corner keeps for the help button and the notices bell, which
-/// are anchored there and not laid out in the row.
-fn corner_reserve() -> f32 {
-    crate::gui::pages::keymap::HELP_TOGGLE_SIZE + crate::gui::notice_panel::BELL_SIZE + crate::gui::notice_panel::BELL_GAP + 18.0
+/// stand there and are not laid out in the row.
+fn corner_reserve(ctx: &egui::Context, theme: &Theme) -> f32 {
+    2.0 * corner_size(ctx, theme) + crate::gui::notice_panel::BELL_GAP + 18.0
 }
 
 /// A response named for assistive technology (its words, and whether it is the current one), so
@@ -308,7 +330,7 @@ fn primary_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, menu: &
 
             // The Aa switch, at the right end before the corner the bell and help keep.
             let aa_w = bh;
-            let aa = Rect::from_min_size(egui::pos2(full.right() - corner_reserve() - aa_w, cy - bh / 2.0), Vec2::new(aa_w, bh));
+            let aa = Rect::from_min_size(egui::pos2(full.right() - corner_reserve(ctx, theme) - aa_w, cy - bh / 2.0), Vec2::new(aa_w, bh));
 
             // The categories that fit, in order; the rest under More.
             let size = theme.font_size_body;

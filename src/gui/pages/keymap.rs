@@ -320,8 +320,9 @@ pub fn draw_help_toggle(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // The nav bar reserves the matching width on its right edge so nothing is covered.
     // Part of the primary menu (layer 10, gui/layers.rs): on its row, under any popup's shade.
     crate::gui::layers::area(ctx, egui::Id::new("help_toggle_button"), crate::gui::layers::Layer::Primary)
-        // Centred in the top menu's primary row (navigation rung 2).
-        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-8.0, crate::gui::pages::escape_menu::corner_y(theme, HELP_TOGGLE_SIZE)))
+        // Centred in the top menu's primary row (navigation rung 2), placed from the screen and its
+        // size alone (escape_menu::corner_rect: a finger tall on a phone).
+        .fixed_pos(crate::gui::pages::escape_menu::corner_rect(ctx, theme, 0).min)
         // Hover only: an Area senses a click by default, a nameless Tab stop beside the button.
         .sense(egui::Sense::hover())
         .show(ctx, |ui| {
@@ -336,7 +337,7 @@ pub fn draw_help_toggle(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             .fill(fill)
             .stroke(egui::Stroke::new(1.0_f32, theme.border()))
             .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
-            .min_size(egui::Vec2::splat(HELP_TOGGLE_SIZE));
+            .min_size(egui::Vec2::splat(crate::gui::pages::escape_menu::corner_size(ctx, theme)));
             let resp = ui.add(btn);
             // Its hint under both rows of the top menu, never over the secondary row.
             crate::gui::widgets::hint::below(&resp, crate::gui::pages::escape_menu::rows_height(theme)).on_hover_text(tooltip);

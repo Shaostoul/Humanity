@@ -66,21 +66,46 @@ fn keep(ui: &Ui, id: egui::Id, up: bool) {
     ui.ctx().data_mut(|d| d.insert_temp(id, (up, pass)));
 }
 
-/// The 24 words of `phrase`, numbered in four columns, covered until the person presses Show the
-/// words (see the module). `id_salt` names this place, so each place covers on its own. True
-/// while they are shown: a Copy button beside them is drawn only then (BUG-214), so a stray click
+/// The space between two columns of words.
+const COLUMN_GAP: f32 = 18.0;
+
+/// How many columns of words fit the width there is: four on a desktop, fewer on a phone (three on
+/// a 412-point phone), so no word is ever cut off at the edge (2026-11-23: in four columns the fourth
+/// ran past a phone's window, words 4, 8, 12 ... hidden). Four, three, two and one all divide 24,
+/// so every row is full and the words read across in order.
+fn columns(ui: &Ui, theme: &Theme) -> usize {
+    // The widest a place can be: "24. " and the covered word, or the longest word in the list
+    // (eight letters), as laid out in the monospace font.
+    let font = egui::FontId::monospace(theme.font_size_body);
+    let cell = [format!("24. {COVERED_WORD}"), "24. wwwwwwww".to_string()]
+        .into_iter()
+        .map(|text| ui.fonts(|f| f.layout_no_wrap(text, font.clone(), egui::Color32::PLACEHOLDER).size().x))
+        .fold(0.0_f32, f32::max);
+    let fit = ((ui.available_width() + COLUMN_GAP) / (cell + COLUMN_GAP)).floor() as usize;
+    match fit {
+        0..=1 => 1,
+        2 => 2,
+        3 => 3,
+        _ => 4,
+    }
+}
+
+/// The 24 words of `phrase`, numbered in four columns (fewer where four do not fit, [`columns`]),
+/// covered until the person presses Show the words (see the module). `id_salt` names this place,
+/// so each place covers on its own. True while they are shown: a Copy button beside them is drawn only then (BUG-214), so a stray click
 /// on covered words cannot put them on the clipboard.
 pub fn words(ui: &mut Ui, theme: &Theme, id_salt: &str, phrase: &str) -> bool {
     let id = egui::Id::new(id_salt).with("phrase_cover");
     let mut up = lifted(ui, id);
+    let across = columns(ui, theme);
     egui::Grid::new(egui::Id::new(id_salt).with("phrase_cover_grid"))
-        .num_columns(4)
-        .spacing([18.0, 4.0])
+        .num_columns(across)
+        .spacing([COLUMN_GAP, 4.0])
         .show(ui, |ui| {
             for (i, word) in phrase.split_whitespace().enumerate() {
                 let (shown, color) = if up { (word, theme.text_primary()) } else { (COVERED_WORD, theme.text_muted()) };
                 ui.label(RichText::new(format!("{:>2}. {shown}", i + 1)).monospace().size(theme.font_size_body).color(color));
-                if (i + 1) % 4 == 0 {
+                if (i + 1) % across == 0 {
                     ui.end_row();
                 }
             }

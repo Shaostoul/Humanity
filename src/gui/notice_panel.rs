@@ -45,17 +45,17 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     }
     let unseen = state.notify.list.unseen();
     let open = state.notify.panel_open;
-    let x = -(8.0 + crate::gui::pages::keymap::HELP_TOGGLE_SIZE + BELL_GAP);
     // Part of the primary menu (layer 10, gui/layers.rs): drawn on its row, under any popup's shade.
     let area = layers::area(ctx, egui::Id::new("notice_bell_button"), Layer::Primary)
-        // Centred in the top menu's primary row, beside help (navigation rung 2).
-        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(x, crate::gui::pages::escape_menu::corner_y(theme, BELL_SIZE)))
+        // Centred in the top menu's primary row, beside help (navigation rung 2), placed from the
+        // screen and its size alone (escape_menu::corner_rect: a finger tall on a phone).
+        .fixed_pos(crate::gui::pages::escape_menu::corner_rect(ctx, theme, 1).min)
         // The Area's own response senses hover only: egui's default for an Area is a click, which
         // made it a nameless Tab stop of its own beside the bell (the top menu's a11y walk).
         .sense(egui::Sense::hover())
         .show(ctx, |ui| {
             let label = widgets::notice_bell::label_for(unseen);
-            widgets::notice_bell::notice_bell(ui, theme, BELL_SIZE, unseen, open, &label)
+            widgets::notice_bell::notice_bell(ui, theme, crate::gui::pages::escape_menu::corner_size(ctx, theme), unseen, open, &label)
         });
     let anchor = area.response.rect;
     let mut just_opened = false;

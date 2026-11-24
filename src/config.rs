@@ -1081,12 +1081,6 @@ pub struct AppConfig {
     pub chat_friends_collapsed: bool,
     #[serde(default)]
     pub chat_members_collapsed: bool,
-    /// Collapse state of the Studio quick-access section (chat right rail,
-    /// above Friends). Defaults expanded so livestream access survives the
-    /// main-menu consolidation that folds away the top-nav Studio button.
-    #[serde(default)]
-    pub chat_studio_collapsed: bool,
-
     /// The Library rail's order (2026-10-10, operator: "it's hard to search through while
     /// not alphabetical"). false = A to Z, the default; true = Suggested, the catalog's own
     /// reading order (the learning path). Set by the two chips at the top of the rail
@@ -1785,7 +1779,6 @@ impl AppConfig {
             chat_connected_server_collapsed: state.chat_connected_server_collapsed,
             chat_friends_collapsed: state.chat_friends_collapsed,
             chat_members_collapsed: state.chat_members_collapsed,
-            chat_studio_collapsed: state.chat_studio_collapsed,
             library_suggested_order: state.library_suggested_order,
             hud_chat_feed_visible: state.hud_chat_feed_visible,
             ingame_chat_panel_height: state.ingame_chat_panel_height,
@@ -2173,7 +2166,6 @@ impl AppConfig {
         state.chat_connected_server_collapsed = self.chat_connected_server_collapsed;
         state.chat_friends_collapsed = self.chat_friends_collapsed;
         state.chat_members_collapsed = self.chat_members_collapsed;
-        state.chat_studio_collapsed = self.chat_studio_collapsed;
         state.library_suggested_order = self.library_suggested_order;
         state.hud_chat_feed_visible = self.hud_chat_feed_visible;
         // Guard a corrupted saved value: a tiny/zero height would collapse the

@@ -204,6 +204,12 @@ window.HOS_I18N_EN = {
     "line_not_sent_mass_mention": "Not sent: @everyone and @here are for this server's moderators and admins.",
     "all_reactions": "All reactions",
     "attach": "Attach",
+    "attach_picker_failed": "The phone's file picker did not open ({{why}}). Try Attach again.",
+    "attach_read_failed": "{{name}} was not sent: the phone could not read it ({{why}}).",
+    "attach_reading": {
+      "one": "Getting the file you chose ready to send...",
+      "other": "Getting the {{n}} files you chose ready to send..."
+    },
     "badge_hint": "Who can read: {{read}}. Who can post: {{post}}.",
     "badge_label": "Who can read and post in this channel",
     "block": "Block",

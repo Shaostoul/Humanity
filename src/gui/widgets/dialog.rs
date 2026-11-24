@@ -15,6 +15,7 @@ use egui::{Align2, Color32, Frame, RichText, CornerRadius, Stroke, Ui, Vec2};
 // Vec2 used by `dialog_anchored` callers via the `offset` parameter.
 use super::super::theme::Theme;
 use crate::gui::layers;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// Render a centered themed dialog. Returns true if the dialog was shown.
 ///
@@ -113,6 +114,9 @@ fn dialog_inner(
     }
 
     let mut window = layers::window(ctx, egui::Id::new(id), RichText::new(title).color(theme.text_primary()).strong(), layers::Layer::PopupWindow);
+    // On a phone or any small screen every window's body scrolls by itself, fitted to the visible
+    // area (widgets/window_fit.rs), so this dialog's own scrolling would only nest a second one.
+    let vscroll = vscroll && !super::window_fit::small(ctx);
     // A window with its own scroll area does not size itself to its content (it keeps egui's
     // default height and scrolls inside a short box), and once sized it keeps that size. So it is
     // held to exactly the height its content took last frame, up to the screen less a margin;
@@ -135,7 +139,7 @@ fn dialog_inner(
     }
     let win_resp = window
         .open(&mut local_open)
-        .constrain_to(room)
+        .constrain_to(super::window_fit::constrain_rect(ctx, egui::Id::new(id), room))
         .anchor(anchor, offset)
         .resizable(false)
         .collapsible(false)
@@ -155,7 +159,7 @@ fn dialog_inner(
                     color: Color32::from_black_alpha(64),
                 }),
         )
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             shown = true;
             let top = ui.min_rect().top();
             content(ui);

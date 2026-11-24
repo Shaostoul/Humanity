@@ -1,6 +1,7 @@
 //! The phone app's calls into its own Java (Android rungs A1 and A4, 2026-11-20): Android's key
 //! store, the stay-connected service and the notices; since 2026-11-22 the window's insets too
-//! (what Android's bars and keyboard cover, `VisibleArea.java`). Only on Android.
+//! (what Android's bars and keyboard cover, `VisibleArea.java`), and since 2026-11-23 Attach's
+//! document picker (`PickFiles.java`). Only on Android.
 //!
 //! Each call attaches the calling thread to the Java VM (cheap when it already is), loads the
 //! class through the Application's class loader (a thread the VM did not start sees only
@@ -282,5 +283,73 @@ pub fn visible_area_insets() -> Result<Option<[i32; 4]>, String> {
         let mut out = [0i32; 4];
         array.get_region(env, 0, &mut out)?;
         Ok(Some(out))
+    })
+}
+
+// ── Attach: Android's document picker (2026-11-23) ──────────────────────────
+
+/// Open Android's document picker over the app (`PickFiles.java`), on the activity
+/// [`set_activity`] handed over: the person chooses from Photos, Downloads, Drive or anything else
+/// Android offers. The answer is taken with [`pick_files_take`].
+pub fn pick_files_start() -> Result<(), String> {
+    let activity = ACTIVITY.load(std::sync::atomic::Ordering::SeqCst);
+    if activity.is_null() {
+        return Err("no activity on screen to open the picker from".into());
+    }
+    let raw: jni::sys::jobject = activity.cast();
+    with_app("pick_files_start", |env, app| {
+        // SAFETY: set_activity's contract: a valid global reference until replaced.
+        let activity = unsafe { env.as_cast_raw::<JObject>(&raw) }?;
+        call_static(env, app, &java::PICK_FILES_START, &[JValue::Object(&activity)])?.v()
+    })
+}
+
+/// A Java `String[]` as strings; `None` for null.
+fn strings_of(env: &mut Env, obj: JObject) -> jni::errors::Result<Option<Vec<String>>> {
+    if obj.is_null() {
+        return Ok(None);
+    }
+    let array = env.cast_local::<jni::objects::JObjectArray<JString>>(obj)?;
+    let n = array.len(env)?;
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let s: JString = array.get_element(env, i)?;
+        out.push(s.try_to_string(env)?);
+    }
+    Ok(Some(out))
+}
+
+/// The picker's answer as `PickFiles.take` holds it ("picked" then each chosen document's URI,
+/// "cancelled", or "failed" then why), taken; `None` while the person has not answered. The chat
+/// reads it (src/gui/pages/chat/attach_android.rs `parse`).
+pub fn pick_files_take() -> Result<Option<Vec<String>>, String> {
+    with_app("pick_files_take", |env, app| {
+        let out = call_static(env, app, &java::PICK_FILES_TAKE, &[])?.l()?;
+        strings_of(env, out)
+    })
+}
+
+/// A chosen document's name as its provider shows it ("" when it says none) and its size in bytes
+/// (`None` when the provider does not know it).
+pub fn pick_files_describe(uri: &str) -> Result<(String, Option<u64>), String> {
+    with_app("pick_files_describe", |env, app| {
+        let uri = env.new_string(uri)?;
+        let out = call_static(env, app, &java::PICK_FILES_DESCRIBE, &[JValue::Object(app), JValue::Object(&uri)])?.l()?;
+        let parts = strings_of(env, out)?.unwrap_or_default();
+        let name = parts.first().cloned().unwrap_or_default();
+        let size = parts.get(1).and_then(|s| s.parse::<i64>().ok()).filter(|n| *n >= 0).map(|n| n as u64);
+        Ok((name, size))
+    })
+}
+
+/// Copy a chosen document, streamed, into the file `dest`, at most `max` bytes: the bytes copied,
+/// or `None` when it holds more than `max` (the part copied is deleted by the Java).
+pub fn pick_files_copy(uri: &str, dest: &str, max: u64) -> Result<Option<u64>, String> {
+    with_app("pick_files_copy", |env, app| {
+        let uri = env.new_string(uri)?;
+        let dest = env.new_string(dest)?;
+        let max = i64::try_from(max).unwrap_or(i64::MAX);
+        let n = call_static(env, app, &java::PICK_FILES_COPY, &[JValue::Object(app), JValue::Object(&uri), JValue::Object(&dest), JValue::Long(max)])?.j()?;
+        Ok(u64::try_from(n).ok())
     })
 }

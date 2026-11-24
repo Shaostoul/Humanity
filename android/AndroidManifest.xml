@@ -55,6 +55,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Attach (2026-11-23, android/java/.../PickFiles.java): a transparent activity started over
+             the app that opens Android's document picker and keeps what the person chose, since
+             NativeActivity has no onActivityResult of its own. Not exported: only the app starts
+             it. No noHistory: the picker covers it, and it must still be there for the answer.
+             configChanges as the app's own, so turning the phone does not open a second picker. -->
+        <activity
+            android:name="us.united_humanity.humanityos.PickFiles"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <!-- The stay-connected service (android/java/.../ChatService.java): it only keeps the
              process, and so the app's own chat connection, alive while the app is closed.
              specialUse: dataSync stops after 6 hours a day on Android 15, and remoteMessaging

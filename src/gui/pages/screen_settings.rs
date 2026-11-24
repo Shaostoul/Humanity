@@ -18,6 +18,7 @@ use crate::gui::{GuiPage, GuiState};
 use egui::RichText;
 use humanity_core::i18n::{t, t_dyn, tf};
 use humanity_ship::machines::{display_size_of, MachineHome};
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// What a screen shows, as the panel offers it.
 #[derive(Debug, Clone, PartialEq)]
@@ -131,7 +132,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .default_width(380.0)
         // Over the middle of the viewport, clear of the editor's side panels.
         .default_pos(ctx.screen_rect().center() - egui::vec2(190.0, 160.0))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.label(RichText::new(t("screens.how_to_edit")).size(theme.font_size_small).color(theme.text_secondary()));
             ui.add_space(theme.spacing_sm);
 

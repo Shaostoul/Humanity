@@ -7,6 +7,7 @@ use egui::{Align2, Color32, RichText, Vec2};
 use crate::gui::{connect_target, GuiPage, GuiState, OFFICIAL_SERVER, VERSION};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 #[cfg(test)]
 thread_local! {
@@ -76,7 +77,7 @@ fn draw_storage_chooser(ctx: &egui::Context, theme: &Theme) {
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(520.0, 0.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(24.0);
                 ui.label(RichText::new("Welcome to").size(16.0).color(theme.text_secondary()));
@@ -140,6 +141,9 @@ fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let body_max_h = (screen.height() - chrome.y - 8.0).max(120.0);
     let body_id = egui::Id::new("onboarding_body");
     let body_h = crate::gui::visible_area::body_height(ctx, body_id, body_max_h);
+    // On a phone or any small screen the card's body is fitted and scrolls by itself
+    // (widgets/window_fit.rs, 2026-11-23); its own scrolling body stays for a desktop.
+    let fitted = crate::gui::widgets::window_fit::small(ctx);
     crate::gui::layers::window(ctx, egui::Id::new("onboarding"), "onboarding", crate::gui::layers::Layer::PageFloat)
         .title_bar(false)
         .resizable(false)
@@ -149,15 +153,20 @@ fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         // taller once the 24 words are showing: the Back button under Finish
         // Setup was cut in half (2026-09-27 snapshot review).
         // As tall as the step, scrolling when the visible area is shorter (visible_area.rs).
-        .fixed_size(Vec2::new(width, body_h))
+        .fixed_size(Vec2::new(width, if fitted { 0.0 } else { body_h }))
         .frame(frame)
-        .show(ctx, |ui| {
-            crate::gui::visible_area::scrolling_body(ui, body_id, body_h, body_max_h, |ui| match state.onboarding_step {
+        .show_fitted(ctx, |ui| {
+            let mut steps = |ui: &mut egui::Ui| match state.onboarding_step {
                 0 => draw_step_welcome(ui, theme, state),
                 1 => draw_step_server(ui, theme, state),
                 2 => draw_step_identity(ui, theme, state),
                 _ => draw_step_ready(ui, theme, state),
-            });
+            };
+            if fitted {
+                steps(ui);
+            } else {
+                crate::gui::visible_area::scrolling_body(ui, body_id, body_h, body_max_h, steps);
+            }
         });
 }
 
@@ -949,7 +958,7 @@ fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(360.0, 380.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(20.0);
                 ui.label(RichText::new("HumanityOS").size(theme.font_size_title).color(theme.accent()));

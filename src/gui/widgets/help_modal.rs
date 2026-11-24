@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::gui::theme::Theme;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// A single help topic loaded from `data/help/topics.json`.
 #[derive(Debug, Clone, Deserialize)]
@@ -216,7 +217,7 @@ pub fn draw(
                 .inner_margin(theme.card_padding)
                 .stroke(Stroke::new(1.0_f32, theme.border())),
         )
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             // Body paragraphs
             for paragraph in &topic.body {
                 let plain = strip_html(paragraph);

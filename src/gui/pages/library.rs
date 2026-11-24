@@ -18,6 +18,7 @@ use egui::{Align, CursorIcon, Frame, Label, Layout, RichText, ScrollArea, Sense,
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::markdown;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// Which view the right pane shows.
 #[derive(Clone, PartialEq)]
@@ -837,7 +838,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     .resizable(false)
                                     .open(&mut open)
                                     .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                                    .show(ui.ctx(), |ui| {
+                                    .show_fitted(ui.ctx(), |ui| {
                                         ui.set_max_width(420.0);
                                         match hit {
                                             Some(e) => {

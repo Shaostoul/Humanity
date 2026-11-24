@@ -111,7 +111,7 @@ which runs [build-apk.sh](build-apk.sh). Nothing is installed on anyone's PC.
 
 ### The Java in the APK
 
-Four small classes under [java/](java/us/united_humanity/humanityos/) (2026-11-20), compiled by
+Five small classes under [java/](java/us/united_humanity/humanityos/) (2026-11-20), compiled by
 `build-apk.sh` with the runner's `javac` against the platform's `android.jar` and turned into
 `classes.dex` by the SDK's `d8`; no Gradle, no libraries:
 
@@ -120,6 +120,12 @@ Four small classes under [java/](java/us/united_humanity/humanityos/) (2026-11-2
 - `Notices`: the phone's notices, and the request to allow them.
 - `VisibleArea` (2026-11-22): how far Android's status bar, navigation bar, a camera cutout and the
   on-screen keyboard reach over the window (its insets), for the pages to stay clear of them.
+- `PickFiles` (2026-11-23): Attach. A transparent activity started over the app that opens
+  Android's own document picker (ACTION_OPEN_DOCUMENT, several at once), keeps what the person
+  chose, and reads each chosen document's name, size and bytes through the ContentResolver. An
+  activity of its own because only an activity receives a picker's answer (onActivityResult), and
+  NativeActivity offers none to native code; a headless Fragment would too, but android.app.Fragment
+  has been deprecated since Android 9.
 
 Why Java and not a chain of JNI calls from Rust: `javac` checks every Android class, method and
 argument when the APK is built, where a JNI call names its method in a string that fails only on a
@@ -161,6 +167,17 @@ test-signed and named so, and a release does not publish it.
   because a window laid out edge to edge (Android 15 does that for every app targeting it) keeps a
   content rectangle the size of the whole window. The run log says what covers the window each time
   it changes (`[VisibleArea] covered px ...`).
+- **Attach** ([src/gui/pages/chat/attach_android.rs](../src/gui/pages/chat/attach_android.rs),
+  2026-11-23): Attach opens Android's own document picker, opening on your pictures, where you
+  choose from Photos, Downloads, Drive or anything else the phone offers, several at once (the
+  app's own file browser cannot see the phone's pictures: Android keeps every app to its own
+  folder). Each chosen file is copied into the app's folder, streamed, and goes through the same
+  attach step as on a desktop; a file over the conversation's size limit is not copied, and the chat
+  says so. The copies are deleted at the next Attach once nothing is still sending.
+- **Windows fit the screen** ([src/gui/widgets/window_fit.rs](../src/gui/widgets/window_fit.rs),
+  2026-11-23): every window (a dialog, a confirmation, the passphrase, the recovery phrase) is no
+  wider or taller than the part of the screen you can see; a long one scrolls inside itself, and a
+  centred one stays centred.
 - **Passphrases and PINs** ([src/gui/widgets/secret_field.rs](../src/gui/widgets/secret_field.rs),
   2026-11-22): every box you type a secret into has an eye beside it that shows what you typed, to
   check it; it hides again when the window closes or you switch to another app.
@@ -187,6 +204,7 @@ enterable (built at the first Enter). `just verify-phone-start` boots all of the
 The workflow proves the library compiles and links for Android, that the Java compiles against
 Android's own classes, and that the APK is well formed and signed. Whether it starts, draws, takes
 touch and the on-screen keyboard, whether the pages stay clear of the bars and the keyboard, survives leaving and coming back, how long the first start takes,
-whether remembering the key and staying connected work, only the phone shows. Reading its log needs a PC
+whether remembering the key and staying connected work, whether Attach's document picker opens on
+your pictures and what you choose in it sends, only the phone shows. Reading its log needs a PC
 with `adb` (`adb logcat -s HumanityOS`); without one, the app's own logs are inside its private
 folder.

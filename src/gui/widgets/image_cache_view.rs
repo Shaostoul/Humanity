@@ -10,6 +10,7 @@ use egui::{Align2, Color32, Context, Frame, RichText, CornerRadius, Sense, Strok
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
 use super::image_cache::{default_downloads_dir, filename_from_url, ImageStatus};
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// The viewer's popup and window, by id.
 const VIEWER: &str = "hos_image_viewer_window";
@@ -44,7 +45,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 .inner_margin(theme.card_padding)
                 .stroke(Stroke::new(1.0_f32, theme.border())),
         )
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.set_max_width(screen.width() * 0.9);
             ui.set_max_height(screen.height() * 0.9);
 

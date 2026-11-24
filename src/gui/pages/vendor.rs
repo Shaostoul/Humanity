@@ -13,6 +13,7 @@ use std::cell::RefCell;
 
 use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 thread_local! {
     /// false = Buy tab, true = Sell tab.
@@ -39,7 +40,7 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
         .fixed_size(egui::Vec2::new(460.0, 420.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .open(&mut open_flag)
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             // Wallet + status header.
             ui.horizontal(|ui| {
                 ui.label(
