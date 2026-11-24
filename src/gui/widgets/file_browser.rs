@@ -18,6 +18,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::file_picker_memory as memory;
 use egui::RichText;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// One entry in a directory listing.
 #[derive(Debug, Clone, PartialEq)]
@@ -382,7 +383,7 @@ pub fn file_picker_modal(
                 .inner_margin(theme.card_padding)
                 .shadow(egui::epaint::Shadow { offset: [0, 4], blur: 12, spread: 0, color: egui::Color32::from_black_alpha(64) }),
         )
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             // Places: the person's own folders, the app's, every drive (the DMs' red).
             section(ui, theme, Tint::Red, "Places", |ui| {
                 ui.horizontal_wrapped(|ui| {

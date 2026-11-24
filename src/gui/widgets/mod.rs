@@ -19,6 +19,8 @@ pub mod image_cache_view;
 pub mod form_row;
 pub mod alert;
 pub mod dialog;
+// Every window fits the visible area: a phone's, above its keyboard (2026-11-23).
+pub mod window_fit;
 pub mod tree;
 pub mod body_pill;
 // The level picker (Maps increment 3, 2026-10-22): a multi-level place's levels top to bottom, yours

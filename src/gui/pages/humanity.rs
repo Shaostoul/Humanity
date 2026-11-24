@@ -16,6 +16,7 @@ use crate::gui::theme::Theme;
 use humanity_core::i18n::{t, t_marked};
 use crate::gui::widgets::{self, with_hint};
 use super::civilization;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// The Humanity Accord, embedded at compile time from the canonical repo copy so
 /// it is readable in-app with no network and no separate data file to ship or let
@@ -92,7 +93,7 @@ fn render_doc_modal(ctx: &egui::Context, theme: &Theme) {
                 .stroke(Stroke::new(1.0_f32, theme.border()))
                 .corner_radius(CornerRadius::same(8)),
         )
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 widgets::markdown::render_markdown(ui, theme, d.body.as_str());
             });

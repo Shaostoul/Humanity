@@ -28,6 +28,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
 use crate::net::protected::{Preset, PromptMode, ProtectedAction, ReviewItem, SetupStep};
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// THE ALWAYS-VISIBLE LINE at the top of Settings > Safety while the setup is on (10h): the
 /// preset's `status_line`, the same words the chat's rail shows. Nothing while it is off.
@@ -293,7 +294,7 @@ pub(crate) fn draw_pin_prompt(ctx: &egui::Context, theme: &Theme, state: &mut Gu
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             match mode {
                 PromptMode::Pin => {
                     let field = widgets::secret_field::SecretField::new("protected.prompt_input", &mut state.protected.prompt_input).hint_text(preset.labels.pin.as_str()).desired_width(260.0).show(ui, theme);

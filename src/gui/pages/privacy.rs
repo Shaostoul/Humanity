@@ -29,6 +29,7 @@ use serde::Deserialize;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::Hint;
 use crate::gui::{widgets, GuiState};
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PrivacyTier {
@@ -265,7 +266,7 @@ pub fn draw_privacy_tier_modal(ctx: &egui::Context, theme: &Theme, state: &mut G
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(460.0, 0.0))
         .frame(Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.add_space(theme.spacing_sm);
             ui.label(
                 RichText::new(t("privacy.modal_title"))

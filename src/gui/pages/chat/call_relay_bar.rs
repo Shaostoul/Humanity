@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::net::call_relay::CallScope;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 /// The line under a call's or room's controls, in the warning colour.
 pub(super) fn relay_line(ui: &mut egui::Ui, theme: &Theme, line: &str) {
@@ -44,7 +45,7 @@ pub(super) fn draw_room_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         .resizable(false)
         .anchor(egui::Align2::CENTER_TOP, [0.0, top])
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(&title)

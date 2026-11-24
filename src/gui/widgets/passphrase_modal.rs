@@ -11,6 +11,7 @@ use crate::gui::theme::Theme;
 use crate::gui::layers;
 use crate::gui::widgets;
 use humanity_core::i18n::{t, tf};
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // A full-screen popup (gui/layers.rs). Unlocking, setting a first passphrase or PIN asks for a
@@ -33,27 +34,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let body_id = egui::Id::new(PASSPHRASE).with("body");
     let body_max_h = (ctx.screen_rect().height() - 56.0).max(120.0);
     let body_h = crate::gui::visible_area::body_height(ctx, body_id, body_max_h);
+    // On a phone or any small screen the window's body is fitted and scrolls by itself
+    // (widgets/window_fit.rs, 2026-11-23); its own scrolling body stays for a desktop.
+    let fitted = crate::gui::widgets::window_fit::small(ctx);
     let window = layers::window(ctx, egui::Id::new(PASSPHRASE), t("passphrase.window_title"), layers::Layer::PopupWindow)
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         // As tall as its contents, scrolling when that is more than a phone shows above its
         // keyboard (gui/visible_area.rs).
-        .fixed_size(egui::vec2(modal_w, body_h))
+        .fixed_size(egui::vec2(modal_w, if fitted { 0.0 } else { body_h }))
         .frame(Frame::window(&ctx.style())
             .fill(theme.bg_card())
             .corner_radius(CornerRadius::same(8))
             .stroke(Stroke::new(1.0_f32, theme.accent()))
             .inner_margin(20.0))
-        .show(ctx, |ui| {
-            crate::gui::visible_area::scrolling_body(ui, body_id, body_h, body_max_h, |ui| match state.passphrase_mode {
+        .show_fitted(ctx, |ui| {
+            let mut forms = |ui: &mut egui::Ui| match state.passphrase_mode {
                 PassphraseMode::SetNew => draw_set_new(ui, theme, state),
                 PassphraseMode::Unlock => draw_unlock(ui, theme, state),
                 PassphraseMode::Change => draw_change(ui, theme, state),
                 PassphraseMode::PinSetup => draw_pin_setup(ui, theme, state),
                 PassphraseMode::PinUnlock => draw_pin_unlock(ui, theme, state),
                 PassphraseMode::PinChange => draw_pin_change(ui, theme, state),
-            });
+            };
+            if fitted {
+                forms(ui);
+            } else {
+                crate::gui::visible_area::scrolling_body(ui, body_id, body_h, body_max_h, forms);
+            }
         });
     if let Some(w) = window {
         layers::seat(ctx, &shade, w.response.layer_id);

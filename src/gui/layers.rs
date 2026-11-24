@@ -199,9 +199,20 @@ pub fn area(ctx: &Context, id: impl Into<Id>, layer: Layer) -> egui::Area {
 /// window that used its title as its id passes `Id::new(title)`). Use this, never
 /// `egui::Window::new` (`tests/layer_lint.rs`). A full-screen popup's window is
 /// [`Layer::PopupWindow`], seated on its [`shade`] with [`seat`].
+///
+/// On a phone (or any small screen) the window is held inside the visible area, its frame
+/// included, and centred in it when anchored at the centre; show it with
+/// `widgets::window_fit::Fitted::show_fitted`, whose body scrolls when it is taller than the visible
+/// area (2026-11-23, widgets/window_fit.rs). A desktop's windows are made exactly as before.
 pub fn window<'open>(ctx: &Context, id: Id, title: impl Into<egui::WidgetText>, layer: Layer) -> egui::Window<'open> {
+    use crate::gui::widgets::window_fit;
     claim(ctx, layer, LayerId::new(layer.order(), id));
-    egui::Window::new(title).id(id).order(layer.order())
+    let window = egui::Window::new(title).id(id).order(layer.order());
+    if window_fit::small(ctx) {
+        window.constrain_to(window_fit::constrain_rect(ctx, id, window_fit::room(ctx)))
+    } else {
+        window
+    }
 }
 
 /// A painter on `layer` (paint only, it takes no click), under `id`.

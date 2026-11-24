@@ -40,6 +40,7 @@
 
 use super::*;
 use crate::gui::layers;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 // `pub(super)` only because its caller (`draw`, the page frame) stayed in
 // `chat.rs`; it was private when the two lived in one file.
@@ -1364,7 +1365,7 @@ pub(crate) fn draw_incoming_call_modal(ctx: &egui::Context, theme: &Theme, state
         .anchor(egui::Align2::CENTER_TOP, [0.0, top])
         .fixed_size(egui::Vec2::new(340.0, 0.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.add_space(theme.spacing_sm);
             ui.label(
                 RichText::new(&peer_name)
@@ -1424,7 +1425,7 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
             .resizable(false)
             .anchor(egui::Align2::CENTER_TOP, [0.0, top])
             .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-            .show(ctx, |ui| {
+            .show_fitted(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new(format!("Calling {}...", peer_name))
@@ -1460,7 +1461,7 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         .resizable(false)
         .anchor(egui::Align2::CENTER_TOP, [0.0, top])
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(format!("In call with {}", peer_name))

@@ -26,6 +26,7 @@ use egui::{Context, RichText};
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
 use humanity_systems::weather::WeatherCondition;
+use crate::gui::widgets::window_fit::Fitted as _; // every window fits a phone (2026-11-23)
 
 #[cfg(test)]
 thread_local! {
@@ -179,7 +180,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
         .default_pos([40.0, 80.0])
         .default_width(330.0)
         .resizable(true)
-        .show(ctx, |ui| {
+        .show_fitted(ctx, |ui| {
             ui.label(
                 RichText::new(
                     "Everything that sets the mood of a scene: the clock, the sky \

@@ -194,3 +194,32 @@ fn typed_words_are_checked_against_the_word_list() {
     );
     assert!(crate::gui::widgets::phrase_typed::words("   ").is_empty());
 }
+
+/// The first-run card on a phone with the recovery phrase showing (its 24 words, the tallest the
+/// identity step gets): the whole window inside the visible area and centred in it
+/// (widgets/window_fit.rs, 2026-11-23, the phone's windows fitting in one place).
+///
+/// Seen red 2026-11-23 midway through the fit, with the card's own scrolling body dropped on a phone
+/// before the fitted body could scroll sideways (its 24 words want more than 412 points): "the
+/// recovery phrase card [[-67.6 97.5] - [479.6 793.5]] is not inside the visible area [[0.0 24.0] -
+/// [412.0 867.0]]".
+#[test]
+fn the_recovery_phrase_card_fits_a_phone() {
+    let (ctx, theme) = headless();
+    let mut state = GuiState::default();
+    state.onboarding_step = 2;
+    state.settings.seed_phrase_visible = true;
+    state.private_key_bytes = Some(vec![7u8; 32]);
+    let mut visible = egui::Rect::NOTHING;
+    for _ in 0..4 {
+        let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, PHONE)), ..Default::default() };
+        visible_area::apply(&ctx, &mut input, KEYBOARD_DOWN);
+        let _ = ctx.run(input, |ctx| {
+            visible = ctx.screen_rect();
+            draw_onboarding(ctx, &theme, &mut state);
+        });
+    }
+    let card = ctx.memory(|m| m.area_rect(egui::Id::new("onboarding"))).expect("the card was drawn");
+    assert!(visible.expand(0.5).contains_rect(card), "the recovery phrase card {card:?} is not inside the visible area {visible:?}");
+    assert!((card.center().x - visible.center().x).abs() < 1.0, "the card {card:?} is not centred in {visible:?}");
+}
