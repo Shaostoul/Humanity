@@ -84,6 +84,10 @@ pub(crate) use attach_send::{room_limit_here, upload_token_here, UploadLimits, N
 /// The attach step: what is hidden in a file, the switch, Send anyway (2026-10-11). See `chat/attach_step.rs`.
 pub(crate) mod attach_step;
 pub use attach_step::FilesFlow;
+/// Attach on a phone: Android's own document picker (2026-11-23). See `chat/attach_android.rs`.
+/// Only an Android build opens it; on a desktop only its tests call it.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub(crate) mod attach_android;
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
 mod attach_view;
 /// Files posted into a public channel: a card with Download, and View in 3D for a model (2026-10-17).
@@ -198,6 +202,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             FilePickerResult::Picked(paths) => attach_send::start_attach_all(state, paths),
         }
     }
+    // On a phone, Attach opens Android's own document picker instead (2026-11-23): its answer,
+    // and what was chosen once read, arrive here (chat/attach_android.rs).
+    #[cfg(target_os = "android")]
+    attach_android::poll(ctx, state);
     attach_step::draw(ctx, theme, state); // the picked file's attach step, until Send or Cancel
     attach_send::offer_drop(ctx, state); // files dropped on the window go here (gui/drop_files.rs)
     crate::gui::pages::files::chat_card::apply(state); // what the Media cards asked last frame

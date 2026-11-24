@@ -541,9 +541,17 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, place
                         );
                         // Hidden in a DM or a group when the person turned it off ("receive only").
                         if !attach_step::attach_off_here(state) && widgets::Button::secondary(humanity_core::i18n::t("chat.attach")).tooltip_above(&attach_tip, input_rect.top()).show(ui, theme) {
-                            state.chat_attach_picker = Some(
-                                crate::gui::widgets::file_browser::FilePickerState::new(ATTACH_EXTS, attach_limit).multiple(),
-                            );
+                            // A phone opens Android's own document picker (Photos, Downloads, Drive):
+                            // the app's folder browser cannot see the phone's pictures under scoped
+                            // storage (2026-11-23, chat/attach_android.rs).
+                            #[cfg(target_os = "android")]
+                            super::attach_android::open(state, attach_limit);
+                            #[cfg(not(target_os = "android"))]
+                            {
+                                state.chat_attach_picker = Some(
+                                    crate::gui::widgets::file_browser::FilePickerState::new(ATTACH_EXTS, attach_limit).multiple(),
+                                );
+                            }
                         }
                     }
                     let send_clicked = widgets::Button::primary(humanity_core::i18n::t("chat.send"))

@@ -283,6 +283,9 @@ pub struct FilesFlow {
     /// The server could not remove a file's hidden details (its 422): the conversation it was for and
     /// the file, while the person is asked whether to send it anyway (`draw_server_ask`).
     pub(crate) server_ask: Option<(String, AttachJob)>,
+    /// Attach on a phone (2026-11-23): Android's document picker open, or what was chosen in it
+    /// being read (chat/attach_android.rs).
+    pub(crate) phone_pick: super::attach_android::PhonePick,
 }
 
 /// Is this a private conversation (a DM or a group) whose attach button the person turned off

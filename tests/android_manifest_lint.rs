@@ -185,3 +185,23 @@ fn every_class_the_manifest_names_is_built_into_the_apk() {
     }
     assert!(Path::new(&repo().join("android/java")).is_dir());
 }
+
+/// Attach's picker activity (2026-11-23, `PickFiles.java`, src/gui/pages/chat/attach_android.rs):
+/// declared, so Android starts it; not exported, so only the app does; transparent, so the app shows
+/// through until the document picker covers it; never `noHistory`, which would finish it the moment
+/// the picker covers it and lose the person's answer; and its own `configChanges`, so turning the
+/// phone while the picker is open does not make it again and open a second picker.
+///
+/// Seen red 2026-11-23 with `android:noHistory="true"` added to it: "PickFiles must keep its place
+/// under the picker (no noHistory), or the answer is lost".
+#[test]
+fn the_attach_picker_activity_is_private_and_waits_for_its_answer() {
+    let xml = manifest();
+    let name = format!("{PACKAGE}.PickFiles");
+    let pick = elements(&xml, "activity").into_iter().find(|e| attr(e, "android:name") == Some(name.as_str()));
+    let pick = pick.unwrap_or_else(|| panic!("no <activity> named {name}"));
+    assert_eq!(attr(pick, "android:exported"), Some("false"), "PickFiles must not be exported");
+    assert!(attr(pick, "android:theme").is_some_and(|t| t.contains("Translucent")), "PickFiles must be transparent");
+    assert_ne!(attr(pick, "android:noHistory"), Some("true"), "PickFiles must keep its place under the picker (no noHistory), or the answer is lost");
+    assert!(attr(pick, "android:configChanges").is_some_and(|c| c.contains("orientation") && c.contains("screenSize")), "PickFiles must ride out turning the phone");
+}
