@@ -84,6 +84,11 @@ Each line is written the way a player would hear it; the release notes and
 - The phone app attaches pictures and files through Android's own picker, and every window fits the phone's screen.
 - The chat page drops the Live strip (going live is on the Studio page) and keeps a long room description clear of Copy link.
 
+### v0.1573.0 (23 November 2026)
+
+- On a phone, Chat opens on your last room or #global, a tapped room always opens, and the rooms list has a Close button; the desktop's shortcut help no longer shows on phones.
+- A new install's music starts at a third of full volume.
+
 ### Next release
 
 

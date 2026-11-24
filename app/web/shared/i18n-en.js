@@ -221,6 +221,8 @@ window.HOS_I18N_EN = {
     "server_quote": "the server's words, \"{{text}}\"",
     "server_row_hint": "Shows or hides this server's channels.",
     "phone": {
+      "close": "Close",
+      "close_hint": "Closes the list of rooms and goes back to the conversation you had open.",
       "rooms": "Rooms",
       "rooms_hint": "Back to the list of rooms and conversations. Pick one to open it."
     },
