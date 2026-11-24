@@ -79,6 +79,11 @@ Each line is written the way a player would hear it; the release notes and
 - Every passphrase, PIN and token box has an eye to show what you typed, in the app and on the website.
 - The app's own messages can never carry a server's words, on the desktop and the website.
 
+### v0.1572.0 (23 November 2026)
+
+- The phone app attaches pictures and files through Android's own picker, and every window fits the phone's screen.
+- The chat page drops the Live strip (going live is on the Studio page) and keeps a long room description clear of Copy link.
+
 ### Next release
 
 

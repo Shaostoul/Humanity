@@ -1142,12 +1142,6 @@
       "modified": 1795365870
     },
     {
-      "path": "/chat/chat-live.js",
-      "hash": "sha256:9f6ed813bf0e2899af5b540cbd6129b28557a09a9b128be22309b75686061d66",
-      "size": 2937,
-      "modified": 1786952356
-    },
-    {
       "path": "/chat/chat-messages.js",
       "hash": "sha256:7294917d82f226d75b6dddb2a07a9e46e9fbe20239a98174c452e8ab71336be6",
       "size": 68970,
@@ -1287,9 +1281,9 @@
     },
     {
       "path": "/chat/index.html",
-      "hash": "sha256:3d5ddbe14a968ac7e0412338304cdd748204278c8b26ccc26e4fb8680158773b",
-      "size": 67009,
-      "modified": 1795399150
+      "hash": "sha256:38628fcd142a593ed76dd9f475aa3d8d651db1a610fbc42eda6d45277add609b",
+      "size": 67043,
+      "modified": 1795487621
     },
     {
       "path": "/chat/inputs.css",
@@ -1377,9 +1371,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:a81248aed3b7e1fb46322751d4b78025e289528868f9edf02824f014b484a050",
+      "hash": "sha256:fe5d8ed2d8d6880d19425afdd9b77896fcef59922569b344e2b70f32ff6ee6d3",
       "size": 42804,
-      "modified": 1795399150
+      "modified": 1795487621
     },
     {
       "path": "/files.html",
@@ -1587,9 +1581,9 @@
     },
     {
       "path": "/pages/download-app.js",
-      "hash": "sha256:cec8c33a4147e8d1c1e6d11b7fa2a296e23a4572656ddc9db2d1da885e7c477b",
+      "hash": "sha256:84841bdd23f20a83167b1b2c3b3cc0b8a35bc0bdf0c1bbc37c02c945ed760420",
       "size": 15676,
-      "modified": 1795399150
+      "modified": 1795487621
     },
     {
       "path": "/pages/files-add.js",
@@ -1779,9 +1773,9 @@
     },
     {
       "path": "/pages/ops-app.js",
-      "hash": "sha256:cadd57c744aba164fe7120c2791d35ec817ab597d56d03b1259efae5210615de",
+      "hash": "sha256:1268ddebfffa6c61fd07d1ff980f3e1eb607eb3140bec3254c031c391d7c35a1",
       "size": 3646,
-      "modified": 1795399150
+      "modified": 1795487621
     },
     {
       "path": "/pages/orgs-app.js",
@@ -1815,9 +1809,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:d1c93fce40bf99881eef4a68fd99415f438ba9bdf2361cd051f02a421e04ade3",
+      "hash": "sha256:2bb0323afce66e625cc4f1cadc1e5198555cd68af93fbdc1ec82c699e178f26b",
       "size": 127139,
-      "modified": 1795399150
+      "modified": 1795487621
     },
     {
       "path": "/pages/settings-icons.js",
@@ -1923,9 +1917,9 @@
     },
     {
       "path": "/settings.html",
-      "hash": "sha256:3febf7876958f93d841ef8ffafe831b38d378360793e8eb208af3e0dfba4b06d",
+      "hash": "sha256:1dc26ab8327a8f8bddb2de96e1fe41c1d95fc6bebbf5882e5c9b57de0103ced3",
       "size": 140314,
-      "modified": 1795402797
+      "modified": 1795487621
     },
     {
       "path": "/shared/accessibility.js",
@@ -2115,9 +2109,9 @@
     },
     {
       "path": "/shared/i18n-en.js",
-      "hash": "sha256:2978034ddd83e0e9a084b1ddf76b9b2a9859b07466421e83e614f684baa8f8c5",
-      "size": 676960,
-      "modified": 1795402717
+      "hash": "sha256:d080ae1dfc45b6c56a954677cddb0dd2908a9a55a6ac1df4a27435c8f01cda6e",
+      "size": 686891,
+      "modified": 1795487603
     },
     {
       "path": "/shared/i18n.js",
@@ -2415,9 +2409,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:c268bd02ba4e8c73eec8fc0b61a60d684010393774a8d39aa667c7806b0b5ae5",
+      "hash": "sha256:cc245d17340886a8f8f1a0f9c5eeb40e7de520db7ce4e8ca7dab6614a723857b",
       "size": 134334,
-      "modified": 1795399150
+      "modified": 1795487621
     },
     {
       "path": "/shared/ship-plan.js",
@@ -2445,9 +2439,9 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:07dc9e57040099c5fbfe073ab1ed54ef649d12814ac3f18110873e9fc5efab2e",
+      "hash": "sha256:f5029a0ac0e86353436e88e06401be9c575a14df7a6d0fd9a23ba51318dbd742",
       "size": 7204,
-      "modified": 1795399150
+      "modified": 1795487621
     },
     {
       "path": "/shared/theme.css",
@@ -2573,9 +2567,9 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1795402819
+      "modified": 1795487642
     }
   ],
-  "total_size": 18816941,
-  "file_count": 429
+  "total_size": 18823969,
+  "file_count": 428
 }
