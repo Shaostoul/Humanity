@@ -35,6 +35,8 @@
 /saves/*
 !/saves/.gitkeep
 /backups/*
+# The deploy's copies of the relay program it replaced, for a hand rollback (deploy.yml, 2026-11-24).
+/rollback/
 !/backups/.gitkeep
 /config.json
 

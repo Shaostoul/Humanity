@@ -247,7 +247,12 @@ jobs:
                 exit 1
               fi
               chmod 755 "$BIN.incoming"
-              cp "$BIN" backups/HumanityOS-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+              # The program it replaces, kept for a hand rollback in a folder of its own (2026-11-24:
+              # these root-owned copies sat in backups/ beside the relay's database backups, where the
+              # relay's owner-only check could not make them private), the newest five only.
+              mkdir -p rollback && chmod 700 rollback
+              cp "$BIN" rollback/HumanityOS-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+              find rollback -maxdepth 1 -type f -name 'HumanityOS-*' -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r -d '\n' rm -f --
               mv -f "$BIN.incoming" "$BIN"
               rm -f "$BIN.incoming.sha256"
               echo "$SHA" > "$BIN.source"

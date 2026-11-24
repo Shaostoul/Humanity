@@ -69,6 +69,8 @@ if [ "$SRC_SIZE_BYTES" -lt 16384 ]; then
 fi
 
 mkdir -p "$BACKUP_DIR"
+# Only the relay's account opens this folder (2026-11-24: the unit runs this as `humanity`).
+chmod 700 "$BACKUP_DIR" 2>/dev/null || true
 
 # .backup is the SQLite online-backup primitive. It opens a separate
 # read connection, walks DB pages, and writes a coherent snapshot
@@ -107,10 +109,11 @@ else
 fi
 
 # Restrict mode on the backup — same secret-handling posture as the
-# live DB. The relay runs as user `humanity`; backups should be readable
-# only by that user (or root).
-chmod 640 "$OUT"
-chown humanity:humanity "$OUT" || true
+# live DB: readable by the relay's account `humanity` alone (600; the
+# unit runs this script as `humanity` since 2026-11-24, so the file is
+# already its own; the chown is for a run by hand as root).
+chmod 600 "$OUT"
+chown humanity:humanity "$OUT" 2>/dev/null || true
 
 # Rotate: keep the newest $KEEP of each form (plain, only made when the
 # key is missing; sealed .db.aes otherwise). Independent of the

@@ -16,6 +16,13 @@ After=network.target
 
 [Service]
 Type=oneshot
+# As the relay's own account, never root (2026-11-24, the operator: "Try accomplishing that"): the
+# job only reads data/relay.db (read-only) and data/backup.key and writes backups/, all the relay's;
+# root gave it power it never used, and its root-owned copies were files the relay's owner-only check
+# could not make private (16 warnings at every start). UMask makes every file it writes private.
+User=humanity
+Group=humanity
+UMask=0077
 ExecStart=/usr/local/bin/humanity-backup-db
 Nice=10
 IOSchedulingClass=idle
