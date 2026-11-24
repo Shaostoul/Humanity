@@ -98,7 +98,11 @@ entry; code: src/net/live.rs, src/relay/live.rs, web/pages/watch.html.
    chat gained its live-now mirror (web/chat/chat-live.js polling
    /api/live, rows linking /watch?s=). INCREMENT 1 COMPLETE except the
    Go Live binding PICKER (a room selector in Studio/strip), which
-   lands with the popout increment.
+   lands with the popout increment. **2026-11-23: the live strip and the
+   web chat's live-now list left the Chat page** (operator: "the go live
+   and open studio buttons could be hidden in the studio page instead of
+   also being in the chat page"); Go Live and its status are the Studio
+   page's, the streams live now the Watch page's.
 2. **WebRTC small-audience video**: reuse the shipped WebRTC + TURN stack
    for P2P screen/camera share to small rooms (this is also the watch-party
    seed). Viewer cap documented honestly.

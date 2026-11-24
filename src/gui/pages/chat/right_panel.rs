@@ -1,23 +1,17 @@
-//! The chat page's PEOPLE surfaces: the right rail and the live strip.
+//! The chat page's PEOPLE surface: the right rail, which lists who you can talk to (Friends, then
+//! the current server's Members), every person through the single `draw_user_row` that owns what a
+//! person looks like in this page (identicon, presence dot, role badge, name colour).
 //!
-//! The right rail lists who you can talk to (Friends, then the current
-//! server's Members) and the live strip across the top of the page lists who is
-//! broadcasting right now. They are one cluster because they are the same
-//! thing drawn twice: both are lists of people, both open the user modal on
-//! click, and both go through the single `draw_user_row` that owns what a
-//! person looks like in this page (identicon, presence dot, role badge, name
-//! colour). Keeping them together is what stops that row drifting into two.
+//! The live strip that stood across the top of the page (v0.1150: Go Live, Open Studio, the streams
+//! live now) left the Chat page on 2026-11-23 (operator, on his phone: "the go live and open studio
+//! buttons could be hidden in the studio page instead of also being in the chat page"): going live,
+//! its status and the stream's address are the Studio page's, and the streams live now are listed
+//! on the Watch page, each with Watch.
 //!
 //! Extracted VERBATIM from `gui/pages/chat.rs` (file-size ratchet), which stood
 //! at 9,053 lines against an 8,000 budget. Third of four clusters out in that
-//! pass. The only delta beyond the move is two `pub(super)` prefixes, on
-//! `draw_right_panel` and `draw_live_strip`, whose caller (`draw`, the page
-//! frame) stayed behind.
-//!
-//! Note the live strip is drawn by `draw` at the TOP of the page, not inside
-//! the rail: it was moved out of this column in v0.1150 so a stream card gets
-//! the full page width. It lives in this file because of what it draws, not
-//! where it is painted.
+//! pass. The only delta beyond the move was a `pub(super)` prefix on
+//! `draw_right_panel`, whose caller (`draw`, the page frame) stayed behind.
 //!
 //! Takes `use super::*` like the page's other children, so the shared section
 //! headers, `name_color`, the role-badge painter and the page's imports all
@@ -32,10 +26,6 @@ pub(super) fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         .id_salt("chat_right_scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            // The Studio quick-access section moved OUT of this rail into the
-            // full-width live strip at the top of the page (v0.1150, operator
-            // direction). See draw_live_strip.
-
             // ── Friends Section ──
             draw_friends_section(ui, theme, state);
 
@@ -43,136 +33,6 @@ pub(super) fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
 
             // ── Server Members Section ──
             draw_members_section(ui, theme, state);
-        });
-}
-
-/// Studio (broadcast/livestream) quick-access section at the very top of the
-/// chat right rail — a native mirror of the website's studio widget. The point
-/// is durability: when the top nav condenses into Real/Play pages, the current
-/// nav-bar Studio button disappears, so streamers reach Go Live and the full
-/// Studio page from here instead. Collapse state persists via AppConfig.
-/// The live strip: a full-width expandable panel at the top of the Chat page
-/// (v0.1150, the studio-watch design's increment 1). Collapsed it is one slim
-/// clickable row that says whether YOU are on air and how many streams are
-/// live on this server; expanded it carries the broadcast controls (the old
-/// right-rail Studio section, promoted) and the live-now directory with
-/// one-click Watch. Collapse state reuses `chat_studio_collapsed` so existing
-/// configs keep their preference.
-// `pub(super)` only because its caller (`draw`, which paints the strip across
-// the top of the page rather than inside the rail) stayed in `chat.rs`.
-pub(super) fn draw_live_strip(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // Keep the directory fresh while the Chat page is open, whether or not
-    // the strip is expanded: the collapsed header shows the live count, and a
-    // stale zero would read as "nobody streams here".
-    crate::gui::pages::watch::poll_directory(ctx, state);
-
-    let collapsed = state.chat_studio_collapsed;
-    egui::TopBottomPanel::top("chat_live_strip")
-        .frame(
-            Frame::NONE
-                .fill(theme.bg_tertiary())
-                .inner_margin(egui::Margin::symmetric(8, 4)),
-        )
-        .show(ctx, |ui| {
-            // ── Header row: always visible, one click toggles the body ──
-            let on_air = state.studio.broadcast_live;
-            let live_count = state.watch_streams.len();
-            let summary = if on_air {
-                format!("ON AIR, {} watching", state.studio.broadcast_viewers)
-            } else if state.studio.is_live {
-                "Connecting...".to_string()
-            } else if live_count == 1 {
-                "1 stream live".to_string()
-            } else if live_count > 1 {
-                format!("{live_count} streams live")
-            } else {
-                "Go live, watch streams".to_string()
-            };
-            let title = format!("Live: {summary}");
-            let bg = if on_air { theme.success().gamma_multiply(0.25) } else { theme.bg_tertiary() };
-            if section_header(ui, theme, &title, collapsed, bg) {
-                state.chat_studio_collapsed = !state.chat_studio_collapsed;
-                crate::config::AppConfig::from_gui_state(state).save();
-            }
-            if collapsed {
-                return;
-            }
-
-            ui.spacing_mut().item_spacing.y = theme.row_gap;
-            ui.add_space(4.0);
-
-            // ── Broadcast controls (promoted from the old right-rail section) ──
-            ui.horizontal(|ui| {
-                ui.add_space(12.0);
-                ui.spacing_mut().item_spacing.x = 6.0;
-
-                if state.studio.is_live {
-                    if widgets::Button::danger("End Stream").show(ui, theme) {
-                        state.studio.is_live = false;
-                        state.studio.is_paused = false;
-                        // The engine loop owns the publisher; without this the
-                        // broadcast kept running after Chat said it ended (the
-                        // pre-v0.1150 dead-button rot).
-                        state.studio.broadcast_request = Some(false);
-                    }
-                } else if widgets::Button::primary("Go Live").show(ui, theme) {
-                    state.studio.is_live = true;
-                    state.studio.is_paused = false;
-                    state.studio.live_start_time = ui.ctx().input(|i| i.time);
-                    state.studio.broadcast_error.clear();
-                    // Ask the engine to start the REAL publisher, exactly like
-                    // the Studio page's Go Live. Before v0.1150 this was
-                    // missing, so Chat's Go Live broadcast nothing.
-                    state.studio.broadcast_request = Some(true);
-                }
-
-                // How::From, so Escape on the Studio page returns to Chat.
-                if widgets::Button::secondary("Open Studio").show(ui, theme) {
-                    state.go(crate::gui::GuiPage::Studio, crate::gui::How::From);
-                }
-
-                // Honest status, mirrored from the real publisher.
-                if on_air {
-                    ui.label(
-                        RichText::new(format!(
-                            "{} kbps, watch at {}",
-                            state.studio.broadcast_kbps, state.studio.broadcast_url
-                        ))
-                        .size(theme.font_size_small)
-                        .color(theme.success()),
-                    );
-                } else if !state.studio.broadcast_error.is_empty() {
-                    ui.label(
-                        RichText::new(state.studio.broadcast_error.clone())
-                            .size(theme.font_size_small)
-                            .color(theme.danger()),
-                    );
-                }
-            });
-
-            // ── Live now: the same directory the Watch page lists ──
-            let streams = state.watch_streams.clone();
-            if !streams.is_empty() {
-                ui.add_space(2.0);
-                for (id, stream_title, viewers, _bound_chat) in streams {
-                    ui.horizontal(|ui| {
-                        ui.add_space(12.0);
-                        let label =
-                            if stream_title.is_empty() { id.clone() } else { stream_title.clone() };
-                        ui.label(RichText::new(label).strong());
-                        ui.label(
-                            RichText::new(format!("{viewers} watching"))
-                                .size(theme.font_size_small)
-                                .color(theme.text_muted()),
-                        );
-                        if widgets::Button::secondary("Watch").show(ui, theme) {
-                            crate::gui::pages::watch::start_watching(state, &id);
-                            state.go(crate::gui::GuiPage::Watch, crate::gui::How::From);
-                        }
-                    });
-                }
-            }
-            ui.add_space(4.0);
         });
 }
 

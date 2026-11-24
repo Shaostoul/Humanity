@@ -2860,6 +2860,10 @@ broadcast nothing) and replaces four stale "rehearsal only" strings with
 honest publisher-mirrored status (ON AIR viewers/kbps/dropped,
 Connecting, or the verbatim error). Web /watch accepts ?u=<name> as an
 alias of ?s=. Design + remaining increment work: docs/design/studio-watch.md.
+**2026-11-23: the strip left the Chat page** (operator, on his phone: "the go live and open
+studio buttons could be hidden in the studio page instead of also being in the chat page"): Go
+Live, its status and the stream address are the Studio page's, the live-now directory is the Watch
+page's, and the web chat's live-now list (web/chat/chat-live.js) went with it.
 - Native: src/gui/pages/chat.rs (draw_live_strip), studio.rs, watch.rs (helpers shared)
 - Web: web/pages/watch.html (?u= alias)
 

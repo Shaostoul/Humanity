@@ -43,7 +43,7 @@ use left_panel::draw_left_panel;
 mod right_panel;
 // Chat on a phone: one column at a time (Android rung A1, 2026-11-14).
 mod phone;
-use right_panel::{draw_live_strip, draw_right_panel};
+use right_panel::draw_right_panel;
 
 /// The overlays drawn on top of the panels: pins, search, the user profile,
 /// add-server, edit-channel, create/join group, the Commons explainer, the
@@ -162,6 +162,8 @@ mod channel_row_tests; // a room row is the same under every server (BUG-242)
 mod self_mail_tests; // my copy of a DM leaves apart from the recipient's (BUG-259)
 #[cfg(test)]
 mod emoji_tests; // emoji pictures in reaction pills; Copy text gives the real emoji (2026-11-20)
+#[cfg(test)]
+mod phone_tests; // no Go Live on the Chat page; the room's description stops before Copy link (2026-11-23)
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -220,10 +222,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     attach_send::drain(ctx, state); // a finished upload: its text goes out like typed text
 
-    // ── LIVE STRIP (v0.1150, operator direction: "expandable tab at the top
-    // of the chat page" for streaming). Declared BEFORE the side panels so
-    // egui gives it the full window width above all three columns.
-    draw_live_strip(ctx, theme, state);
+    // (The live strip across the top, with Go Live and Open Studio, left this page on 2026-11-23:
+    // they are the Studio page's, and the streams live now are listed on the Watch page.)
 
     // The rooms, the open room and the people: three columns on a desktop, one at a time on a
     // phone (Android rung A1, chat/phone.rs).
@@ -532,39 +532,50 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_muted()),
                     );
                 } else {
-                    // Normal channel header
-                    ui.label(
-                        RichText::new(format!("# {}", state.chat_active_channel))
-                            .size(theme.font_size_heading)
-                            .color(theme.text_primary())
-                            .strong(),
-                    );
-
+                    // Normal channel header. Copy link at the header's end (2026-11-03,
+                    // chat/channel_link.rs): this channel's address on this server, to send to
+                    // someone, only for a channel the server lists (not the scratch pad, which is
+                    // this device's alone). It is placed FIRST, from the right, and the name and the
+                    // description take what is left, the description cut short with an ellipsis
+                    // (the whole of it shows when the pointer rests on it): on a 412-point phone a
+                    // long description ran under Copy link (2026-11-23).
                     let desc = state
                         .chat_channels
                         .iter()
                         .find(|c| c.id == state.chat_active_channel)
-                        .map(|c| c.description.as_str())
-                        .unwrap_or("");
-                    if !desc.is_empty() {
-                        ui.label(
-                            RichText::new(format!("  |  {}", desc))
-                                .size(theme.font_size_small)
-                                .color(theme.text_muted()),
-                        );
-                    }
-                    // Copy link at the header's end (2026-11-03, chat/channel_link.rs): this
-                    // channel's address on this server, to send to someone. Only for a channel the
-                    // server lists (not the scratch pad, which is this device's alone).
-                    if state.chat_channels.iter().any(|c| c.id == state.chat_active_channel) {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        .map(|c| c.description.clone())
+                        .unwrap_or_default();
+                    let listed = state.chat_channels.iter().any(|c| c.id == state.chat_active_channel);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if listed {
                             let copy = humanity_core::i18n::t("chat.copy_link");
                             if widgets::Button::ghost(copy).hint("chat.copy_link_hint").show(ui, theme) {
                                 let (server, id) = (state.active_server(), state.chat_active_channel.clone());
                                 channel_link::copy_channel_link(ui.ctx(), state, &server, &id);
                             }
+                        }
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(format!("# {}", state.chat_active_channel))
+                                        .size(theme.font_size_heading)
+                                        .color(theme.text_primary())
+                                        .strong(),
+                                )
+                                .truncate(),
+                            );
+                            if !desc.is_empty() {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(format!("  |  {}", desc))
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    )
+                                    .truncate(),
+                                );
+                            }
                         });
-                    }
+                    });
                 }
             });
         });
