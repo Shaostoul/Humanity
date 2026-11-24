@@ -118,7 +118,7 @@ fn the_corner_buttons_stay_in_the_primary_row() {
     let (ctx, theme) = headless();
     ctx.style_mut(|s| s.spacing.interact_size.y = s.spacing.interact_size.y.max(theme.touch_target));
     let mut state = GuiState::default();
-    state.active_page = crate::gui::GuiPage::Chat;
+    state.go(crate::gui::GuiPage::Chat, crate::gui::How::Replace);
     let now = crate::notifications::now_secs();
     for (i, who) in ["Ann", "Ben", "Cy", "Dana"].iter().enumerate() {
         let c = crate::notifications::Candidate { kind: "dm".into(), server: "https://united-humanity.us".into(), conversation: format!("dm:k{i}"), sender: who.to_string(), ..Default::default() };

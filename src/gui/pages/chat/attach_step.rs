@@ -284,7 +284,8 @@ pub struct FilesFlow {
     /// the file, while the person is asked whether to send it anyway (`draw_server_ask`).
     pub(crate) server_ask: Option<(String, AttachJob)>,
     /// Attach on a phone (2026-11-23): Android's document picker open, or what was chosen in it
-    /// being read (chat/attach_android.rs).
+    /// being read (chat/attach_android.rs). Only an Android build reads it.
+    #[cfg_attr(not(target_os = "android"), allow(dead_code))]
     pub(crate) phone_pick: super::attach_android::PhonePick,
 }
 
