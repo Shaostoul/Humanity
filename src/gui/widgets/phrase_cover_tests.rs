@@ -200,3 +200,46 @@ fn first_run_shows_the_backup_card_with_the_words_covered() {
     frame(release);
     assert_eq!(words_on_screen(&frame(vec![]), &phrase), 24, "until held for 3 seconds");
 }
+
+/// ON A PHONE NO WORD IS CUT OFF: in a 380-point column (the recovery phrase's card on a 412-point
+/// phone) the 24 numbered places all lie inside the column, in fewer than four columns, in order.
+///
+/// Seen red 2026-11-23 with the four fixed columns: "\"3.\" at [[275.6 0.0] - [395.4 19.0]] runs past
+/// the 380-point column" (the third column already past it, the fourth wholly off the card).
+#[test]
+fn no_word_is_cut_off_on_a_phone() {
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    theme.apply_to_egui(&ctx);
+    let phrase = phrase();
+    let column = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(380.0, 900.0));
+    let draw = |ctx: &egui::Context| {
+        egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+            ui.set_max_width(column.width());
+            ui.allocate_new_ui(egui::UiBuilder::new().max_rect(column), |ui| words(ui, &theme, "test_phrase_phone", &phrase));
+        });
+    };
+    pass(&ctx, true, vec![], draw);
+    let out = pass(&ctx, true, vec![], draw);
+    let mut found = Vec::new();
+    for cs in &out.shapes {
+        if let egui::Shape::Text(t) = &cs.shape {
+            let text = t.galley.text().trim_start().to_string();
+            if let Some((n, _)) = text.split_once(". ") {
+                if let Ok(n) = n.parse::<usize>() {
+                    found.push((n, t.galley.rect.translate(t.pos.to_vec2())));
+                }
+            }
+        }
+    }
+    assert_eq!(found.len(), 24, "all 24 places are drawn");
+    for (n, r) in &found {
+        assert!(r.right() <= column.right() + 0.5, "\"{n}.\" at {r:?} runs past the {}-point column", column.width());
+    }
+    // In order: each place starts a row below the one before or to its right.
+    found.sort_by_key(|(n, _)| *n);
+    for pair in found.windows(2) {
+        let ((_, a), (_, b)) = (pair[0], pair[1]);
+        assert!(b.top() > a.top() + 0.5 || (b.left() > a.left() && (b.top() - a.top()).abs() < 0.5), "the places read across in order: {a:?} then {b:?}");
+    }
+}

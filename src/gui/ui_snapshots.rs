@@ -4268,6 +4268,88 @@ fn restore_on_phone(state: &mut GuiState) {
     state.settings.seed_phrase_input = "legal winner thank year wave sausage abandn ocean country dumb snake trial".to_string();
 }
 
+/// The Chat page on a phone (412 x 915 points, drawn at 2x, the status and navigation bars painted
+/// as grey strips) with a room open, as the app's frame draws it: the top menu with the notices
+/// bell (four unseen) and help, the server strip, the room's header with a long description cut
+/// short before Copy link, and no live strip (Go Live is the Studio page's) (2026-11-23,
+/// chat/phone_tests.rs).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_phone() {
+    chat_on_phone("chat_phone", false);
+}
+
+/// The same with the rooms list showing (a phone's Chat opens on it).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_phone_rooms() {
+    chat_on_phone("chat_phone_rooms", true);
+}
+
+/// The first-run card on a phone with the 24 recovery words showing (412 x 915 points, drawn at 2x,
+/// the bars painted as grey strips): the card inside the visible area (2026-11-23,
+/// widgets/window_fit.rs; its test: pages/main_menu_restore_tests.rs).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_main_menu_phrase_phone() {
+    let bars = crate::gui::visible_area::Covered { left: 0.0, top: 24.0, right: 0.0, bottom: 48.0 };
+    render_page_png_covered("main_menu_phrase_phone", 824, 1830, 200.0, bars, |ctx, theme, state| {
+        state.onboarding_complete = false;
+        state.onboarding_step = 2;
+        state.settings.seed_phrase_visible = true;
+        state.private_key_bytes = Some(vec![7u8; 32]);
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+}
+
+fn chat_on_phone(name: &str, rooms: bool) {
+    let bars = crate::gui::visible_area::Covered { left: 0.0, top: 24.0, right: 0.0, bottom: 48.0 };
+    humanity_core::platform::device::set_phone_preview(true);
+    render_page_png_covered(name, 824, 1830, 200.0, bars, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::Chat;
+        seed_notices(state);
+        state.chat_channels = vec![crate::gui::state_types::ChatChannel {
+            id: "general".into(),
+            name: "general".into(),
+            description: "Talk about anything here: introductions, questions, what you are growing this season".into(),
+            ..Default::default()
+        }];
+        state.chat_active_channel = "general".into();
+        ctx.data_mut(|d| d.insert_temp(egui::Id::new("chat_phone_shows_rooms"), rooms));
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::dispatch::draw_tool_page(ctx, crate::gui::GuiPage::Chat, theme, state);
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+    });
+    humanity_core::platform::device::set_phone_preview(false);
+}
+
+/// The Attach window on a phone (412 x 915 points, drawn at 2x, the bars painted as grey strips),
+/// as the phone preview and any picker on a phone shows it: inside the visible area, centred, its
+/// body scrolling (2026-11-23, widgets/window_fit.rs; Android's own Attach opens the system's
+/// document picker instead, chat/attach_android.rs).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_file_picker_phone() {
+    use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerState};
+    let dir = humanity_core::test_temp::dir("snapshot_picker_phone");
+    std::fs::create_dir_all(dir.join("photos")).unwrap();
+    for (name, size) in [("IMG_2041.jpg", 2_400_000usize), ("IMG_2042.jpg", 2_100_000), ("garden-plan.pdf", 302_000), ("seed-list.txt", 4_000)] {
+        std::fs::write(dir.join(name), vec![0u8; size]).unwrap();
+    }
+    let mut picker = FilePickerState::new(&[], 500 * 1024 * 1024).with_pick_verb("Attach").multiple();
+    picker.current_dir = dir.to_path_buf();
+    let picker = std::cell::RefCell::new(picker);
+    let bars = crate::gui::visible_area::Covered { left: 0.0, top: 24.0, right: 0.0, bottom: 48.0 };
+    render_page_png_covered("file_picker_phone", 824, 1830, 200.0, bars, |ctx, theme, _state| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            for i in 0..40 {
+                ui.label(format!("A chat message behind the picker, line {i}"));
+            }
+        });
+        let _ = file_picker_modal(ctx, theme, &mut picker.borrow_mut(), "Attach files: choose one or more");
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_main_menu() {

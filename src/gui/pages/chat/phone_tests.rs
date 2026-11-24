@@ -102,3 +102,43 @@ fn the_channel_description_stops_before_copy_link() {
     assert!(desc.right() <= link.left() + 0.5, "the description {desc:?} runs under Copy link {link:?}");
     assert!(link.right() <= PHONE.x + 0.5, "Copy link {link:?} runs off the {}-point screen", PHONE.x);
 }
+
+/// THE TOP MENU'S CORNER ON A PHONE: help ("?") and the notices bell with its count stand inside the
+/// primary row and inside the 412-point screen from the first frame on, clear of the server strip's
+/// Switch (the operator's phone, 2026-11-23: the bell with its badge over Switch or off the right
+/// edge, the "?" cut off at the edge). A phone's controls are a finger tall (the theme's
+/// `touch_target`, set here as the theme sets it on a phone, without the phone switch every test
+/// shares).
+///
+/// Seen red 2026-11-23 with the two anchored by their last frame's size, as they were: "on frame 1
+/// help [[0.0 11.0] - [44.0 55.0]] is not inside the primary row [[0.0 0.0] - [412.0 48.0]]" (at the
+/// left edge on its first frame, and a finger tall from 11 points down, below its 48-point row).
+#[test]
+fn the_corner_buttons_stay_in_the_primary_row() {
+    let (ctx, theme) = headless();
+    ctx.style_mut(|s| s.spacing.interact_size.y = s.spacing.interact_size.y.max(theme.touch_target));
+    let mut state = GuiState::default();
+    state.active_page = crate::gui::GuiPage::Chat;
+    let now = crate::notifications::now_secs();
+    for (i, who) in ["Ann", "Ben", "Cy", "Dana"].iter().enumerate() {
+        let c = crate::notifications::Candidate { kind: "dm".into(), server: "https://united-humanity.us".into(), conversation: format!("dm:k{i}"), sender: who.to_string(), ..Default::default() };
+        state.notify.list.add(&c, crate::notifications::Show::Name, now - 60);
+    }
+    let row = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(PHONE.x, theme.nav_primary_height));
+    for frame in 1..=4 {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, PHONE)), ..Default::default() };
+        let out = ctx.run(input, |ctx| {
+            crate::gui::pages::escape_menu::draw_nav_bar(ctx, &theme, &mut state);
+            crate::gui::pages::server_strip::draw(ctx, &theme, &mut state);
+            crate::gui::pages::keymap::draw_help_toggle(ctx, &theme, &mut state);
+        });
+        let switch = drawn(&out, crate::gui::pages::server_strip::SWITCH);
+        for (what, id) in [("help", "help_toggle_button"), ("the bell", "notice_bell_button")] {
+            let r = ctx.memory(|m| m.area_rect(egui::Id::new(id))).unwrap_or_else(|| panic!("{what} is drawn"));
+            assert!(row.expand(0.5).contains_rect(r), "on frame {frame} {what} {r:?} is not inside the primary row {row:?}");
+            if let Some(s) = switch {
+                assert!(!r.intersects(s), "on frame {frame} {what} {r:?} lies over Switch {s:?}");
+            }
+        }
+    }
+}
