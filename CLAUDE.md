@@ -114,6 +114,16 @@ names now while no one is using HOS where no one gets hurt. If we have differing
 that could introduce a lot of confusion." Only a name that genuinely means something else keeps it
 (`src/media/` is the audio and video playback engine, not the Files page).
 
+**Keep It Stupid Simple: remove what is superfluous (operator, 2026-11-24).** Verbatim: "We find
+efficiency and security in removing superfluous things like that. It's similar to the no backwards
+compatibility rule until v1.0 to prevent ugly code from it. We want clean and efficient code. In the
+future we'll have to do a refactor of the code to ensure things are efficient and that there isn't
+weird code nesting that adds unnecessary complexity/inefficiency. The goal is to "Keep It Stupid
+Simple" because, that's where the most efficiency and security comes from." So an unused account,
+service, file, setting, branch or layer of nesting is removed, not kept "just in case"; the simplest
+design that does the job wins; a refactor pass for needless nesting and complexity is planned work
+(never trimming dev or debug tooling, the rule below).
+
 **Nobody is using the platform yet (operator, restated 2026-07-31).** Do NOT weigh "live users" in
 engineering decisions until launch: prefer the RIGHT fix over the fast patch, never spend tokens or
 scope protecting hypothetical users from a change, and justify a revert by a clean base to build
