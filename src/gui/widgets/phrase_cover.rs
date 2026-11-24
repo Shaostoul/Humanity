@@ -74,9 +74,13 @@ const COLUMN_GAP: f32 = 18.0;
 /// ran past a phone's window, words 4, 8, 12 ... hidden). Four, three, two and one all divide 24,
 /// so every row is full and the words read across in order.
 fn columns(ui: &Ui, theme: &Theme) -> usize {
-    // "24. " and the longest word in the list (eight letters), in the monospace font.
+    // The widest a place can be: "24. " and the covered word, or the longest word in the list
+    // (eight letters), as laid out in the monospace font.
     let font = egui::FontId::monospace(theme.font_size_body);
-    let cell = ui.fonts(|f| f.glyph_width(&font, 'm')) * 12.0;
+    let cell = [format!("24. {COVERED_WORD}"), "24. wwwwwwww".to_string()]
+        .into_iter()
+        .map(|text| ui.fonts(|f| f.layout_no_wrap(text, font.clone(), egui::Color32::PLACEHOLDER).size().x))
+        .fold(0.0_f32, f32::max);
     let fit = ((ui.available_width() + COLUMN_GAP) / (cell + COLUMN_GAP)).floor() as usize;
     match fit {
         0..=1 => 1,
