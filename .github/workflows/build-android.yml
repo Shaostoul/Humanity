@@ -37,6 +37,8 @@ on:
       - 'crates/humanity-core/src/auto_unlock.rs'
       - 'src/notifications/stay_connected.rs'
       - 'src/notifications/toast.rs'
+      # Attach's document picker, the Rust side of PickFiles.java (2026-11-23).
+      - 'src/gui/pages/chat/attach_android.rs'
   workflow_dispatch:
   # Once a day (the operator, 2026-11-15: "Yes." to a daily build): the path filter cannot see
   # desktop code that only breaks on a phone (the first real build failed on src/net/ws_client.rs
