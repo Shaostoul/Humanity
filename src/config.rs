@@ -1171,7 +1171,9 @@ fn default_fov() -> f32 { 90.0 }
 // the old 3.0 was ~12x too fast (it made every new player's view whip around).
 fn default_mouse_sensitivity() -> f32 { 0.25 }
 fn default_master_volume() -> f32 { 0.8 }
-fn default_music_volume() -> f32 { 0.5 }
+/// A third (the operator, 2026-11-23): a new person cannot reach the Music page until sign-up and the
+/// tour are done, so the music must not start loud.
+fn default_music_volume() -> f32 { 0.33 }
 fn default_sfx_volume() -> f32 { 0.7 }
 fn default_ui_volume() -> f32 { 1.0 }
 fn default_sky_orbit_mode() -> String { "planets".to_string() }
@@ -3049,6 +3051,10 @@ mod pbkdf2_migration_tests {
         assert!(c.sky_star_halos);
         assert_eq!(c.fov, 90.0);
         assert_eq!(c.master_volume, 0.8);
+        // The music starts at a third (the operator, 2026-11-23: "the music volume starts at like 33%
+        // instead of 100% since users can't immediately access the music page due to sign up and the
+        // tour"). Seen red 2026-11-23 against the old default: left 0.5, right 0.33.
+        assert_eq!(c.music_volume, 0.33, "a fresh install's music starts at a third");
         // Interface-sound control (v0.1112): default full volume, enabled, so
         // the quiet click is unchanged for a fresh install.
         assert_eq!(c.ui_volume, 1.0);

@@ -4732,7 +4732,7 @@ impl Default for SettingsState {
             furniture_detail: crate::gui::furniture_detail::DEFAULT_LEVEL.to_string(),
             garment_textures: crate::gui::garment_textures::DEFAULT_LEVEL.to_string(),
             master_volume: 0.8,
-            music_volume: 0.5,
+            music_volume: 0.33, // config.rs default_music_volume: a third
             sfx_volume: 0.7,
             ui_volume: 1.0,
             notifications_volume: 1.0,
