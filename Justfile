@@ -236,7 +236,7 @@ sync:
         git fetch origin main && \
         git reset --hard origin/main && \
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
-        ( bash scripts/clear-build-cache.sh /opt/Humanity; chmod +x scripts/humanity-disk-guard.sh scripts/humanity-relay-watchdog.sh; bash scripts/install-server-files.sh /opt/Humanity main; systemctl daemon-reload; systemctl enable --now humanity-disk-guard.timer humanity-backup-db.timer humanity-relay-watchdog.timer; if visudo -cf scripts/sudoers.d/humanity-relay-services >/dev/null 2>&1; then install -m 0440 -o root -g root scripts/sudoers.d/humanity-relay-services /etc/sudoers.d/humanity-relay-services; fi; ) || true && \
+        ( bash scripts/clear-build-cache.sh /opt/Humanity; chmod +x scripts/humanity-disk-guard.sh scripts/humanity-relay-watchdog.sh; bash scripts/install-server-files.sh /opt/Humanity main; systemctl daemon-reload; systemctl enable --now humanity-disk-guard.timer humanity-backup-db.timer humanity-relay-watchdog.timer humanity-reboot-if-needed.timer; if visudo -cf scripts/sudoers.d/humanity-relay-services >/dev/null 2>&1; then install -m 0440 -o root -g root scripts/sudoers.d/humanity-relay-services /etc/sudoers.d/humanity-relay-services; fi; ) || true && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
         cargo build --release --features relay --no-default-features 2>&1 | tail -4 && \
         bash scripts/clear-build-cache.sh /opt/Humanity && \

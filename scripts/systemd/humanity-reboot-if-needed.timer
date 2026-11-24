@@ -1,0 +1,14 @@
+# HumanityOS: at 06:00 Pacific every day, reboot if (and only if) an update needs it (2026-11-24, the
+# operator: "Let's do it at 6AM Pacific time on both servers."). systemd reads the time zone here, so
+# the hour stays 06:00 Pacific through daylight saving while the servers keep UTC. Installed by
+# scripts/install-server-files.sh (scripts/server-files.txt); enabled once per server
+# (provision-vps.sh, or by hand: systemctl enable --now humanity-reboot-if-needed.timer).
+[Unit]
+Description=HumanityOS: daily 06:00 Pacific reboot when an update needs it
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 America/Los_Angeles
+Persistent=false
+
+[Install]
+WantedBy=timers.target

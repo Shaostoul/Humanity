@@ -1,0 +1,15 @@
+# HumanityOS: reboot the server only when an update asked for it (2026-11-24).
+#
+# WHY: unattended security upgrades install kernel and core-library fixes on their own, but those only
+# take effect after a reboot, which nobody scheduled (public.guide ran an unpatched kernel for days).
+# The operator, 2026-11-24: "Let's do it at 6AM Pacific time on both servers." The timer
+# (humanity-reboot-if-needed.timer) runs this at 06:00 America/Los_Angeles; Debian writes
+# /run/reboot-required when an installed update needs one, and nothing happens otherwise. The relay,
+# nginx and the timers come back by themselves (humanity-relay waits for the clock to be set, at most
+# 90 s: scripts/systemd-dropins/humanity-relay-time-sync.conf).
+[Unit]
+Description=HumanityOS: reboot only when an installed update needs it
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/humanity-reboot-if-needed

@@ -31,8 +31,11 @@ file all    755 scripts/humanity-backup-db.sh                   /usr/local/bin/h
 file all    755 scripts/vps/regen-releases-manifest             /usr/local/bin/regen-releases-manifest
 file all    755 scripts/vps/humanity-mirror-release             /usr/local/bin/humanity-mirror-release
 file all    755 scripts/vps/sqlite3-guard                          /usr/local/bin/sqlite3
+file all    755 scripts/vps/humanity-reboot-if-needed              /usr/local/bin/humanity-reboot-if-needed
 file all    644 scripts/systemd/humanity-backup-db.service      /etc/systemd/system/humanity-backup-db.service
 file all    644 scripts/systemd/humanity-backup-db.timer        /etc/systemd/system/humanity-backup-db.timer
+file all    644 scripts/systemd/humanity-reboot-if-needed.service /etc/systemd/system/humanity-reboot-if-needed.service
+file all    644 scripts/systemd/humanity-reboot-if-needed.timer   /etc/systemd/system/humanity-reboot-if-needed.timer
 file all    644 scripts/systemd/humanity-disk-guard.service     /etc/systemd/system/humanity-disk-guard.service
 file all    644 scripts/systemd/humanity-disk-guard.timer       /etc/systemd/system/humanity-disk-guard.timer
 file all    644 scripts/systemd/humanity-relay-watchdog.service /etc/systemd/system/humanity-relay-watchdog.service

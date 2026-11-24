@@ -295,7 +295,7 @@ systemctl daemon-reload
 # silently failed under `|| true`. It is a repo-owned unit now (installed by
 # the glob above); enable it here and assert it below.
 systemctl enable --now humanity-relay-watchdog.timer humanity-disk-guard.timer \
-  humanity-backup-db.timer
+  humanity-backup-db.timer humanity-reboot-if-needed.timer
 # Prime it once so a fresh box has a backup within seconds, not 30 minutes.
 [ -x /usr/local/bin/humanity-backup-db ] || \
   install -m 755 "$REPO/scripts/humanity-backup-db.sh" /usr/local/bin/humanity-backup-db

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# humanity-reboot-if-needed: reboot this server only when an installed update needs it (2026-11-24).
+# Run daily at 06:00 Pacific by humanity-reboot-if-needed.timer (the operator: "Let's do it at 6AM
+# Pacific time on both servers."). Debian's update tools write /run/reboot-required (and the packages
+# that asked, in /run/reboot-required.pkgs) when a kernel or core-library fix waits for a reboot;
+# without that file nothing happens. Installed at /usr/local/bin by scripts/server-files.txt.
+set -u
+FLAG="${HUMANITY_REBOOT_FLAG:-/run/reboot-required}"
+say() { logger -t humanity-reboot "$1" 2>/dev/null || echo "humanity-reboot: $1"; }
+if [ -f "$FLAG" ]; then
+  pkgs="$(cat "$FLAG.pkgs" 2>/dev/null | tr '\n' ' ')"
+  say "an update needs a reboot (${pkgs:-no package list}): rebooting"
+  exec "${HUMANITY_REBOOT_CMD:-systemctl}" reboot
+fi
+say "no reboot needed"
