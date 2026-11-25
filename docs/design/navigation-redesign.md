@@ -14,6 +14,8 @@ and list of `docs/design/notifications.md` (rung 1 and rung 2 part 1). The phone
 The last three sentences (open the last channel, tap the selected room, close the rooms list) and
 the "?" on a phone were fixed the same day (Part A, section 9). Everything else is this plan.
 
+**Page audit (2026-11-24):** every page, how it is reached, the orphans and the merge list are in `docs/design/page-audit-2026-11-24.md`; build the Menu page from it.
+
 ## 1. What there is today (checked 2026-11-23)
 
 | Piece | Where | Note |
