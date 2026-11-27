@@ -1922,6 +1922,11 @@
       "date": "2026-11-25",
       "decision": "OPERATOR, 2026-11-25, choosing the Community left panel: 'I'm leaning more towards the verb one. I feel like being intuitive for people brand new to tech would work out better.' So the persistent left panel is grouped by activity: TALK (DMs, groups, rooms, a server shown as a small tag), CALL (voice rooms), WATCH (live now), SHARE (shared files), LISTEN (listening rooms), ORGANISE (organisations), then Servers with each cog (settings open in the main area) and add; recommended on top: a 'For you' list that is the same list as the notifications bell (not yet confirmed by him); a long TALK list gets a server filter. Built after the 2026-11-26 reset with the navigation redesign.",
       "why": "Plain verbs are the easiest words for people new to tech."
+    },
+    {
+      "date": "2026-11-27",
+      "decision": "OPERATOR, 2026-11-27, after the usage reset: 'I'm not set on the redesign. Let's work on other things other than the redesign.' So the navigation redesign, the Community left panel (verbs), the chat hub of spaces and the chat phone layout pass are ON HOLD (their plans stay in docs/design/navigation-redesign.md, chat-layout.md, page-audit-2026-11-24.md and the journal). Proposed plan for this week, security first: wave 1 (parallel, disjoint files) owner round 10 + a tenth review, proof of work and role allowances against floods, united-humanity.us to Debian 13, the leftovers cleanup and the Market merge, the DPG form's updated text, the phone app updating itself, the bedroom command center; wave 2 DM forward secrecy (the 2026-11-16 PQ decision), direct DMs over Tor (alternatives scan first), the KISS refactor pass, bots as the server's voice, live funding rung 2, the Servo browser test; smaller: the mirror's CPU cost, verify's timeout words. Waiting on his word before starting (he asked for the plan first).",
+      "why": "The operator wants other work than the redesign this week; security leads."
     }
   ],
   "active_scopes_to_avoid": [
