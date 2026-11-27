@@ -27,9 +27,11 @@ concurrency:
 #           reads it), coordination/ (the agents' journal and registry, which the relay reads per
 #           request) and performance/ (the desktop's Performance page). Until 2026-10-30 every
 #           journal commit restarted the relay and dropped everyone's chat.
-#   build   (only when Rust changed) compiles on Ubuntu 22.04, whose glibc (2.35) is older than the
-#           VPS's Debian 12 (2.36): ubuntu-latest's newer glibc gives a program Debian 12 refuses
-#           to start (the release relay built there needs GLIBC_2.39). It checks that, too.
+#   build   (only when Rust changed) compiles on Ubuntu 22.04, whose glibc (2.35) is older than
+#           Debian 12's (2.36), the oldest a self-hoster may run (docs/admin/SELF-HOSTING.md); both
+#           project servers run Debian 13 (2.41) since 2026-11-27. ubuntu-latest's newer glibc gives
+#           a program Debian 12 refuses to start (the release relay built there needs GLIBC_2.39).
+#           It checks that, too.
 #   deploy  updates the checkout, the timers and the web root as before, swaps the new program in
 #           with one rename, and restarts only if the plan says so, then waits for /health.
 
@@ -108,12 +110,12 @@ jobs:
       - name: Build the relay
         run: cargo build --release --features relay --no-default-features
 
-      - name: Check it runs on the VPS's glibc (Debian 12, 2.36)
+      - name: Check it runs on Debian 12's glibc (2.36, the oldest a self-hoster may run)
         run: |
           need=$(objdump -T target/release/HumanityOS | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -V | tail -1)
           echo "The relay needs glibc $need"
           if [ "$(printf '%s\n2.36\n' "$need" | sort -V | tail -1)" != "2.36" ]; then
-            echo "::error::the relay needs glibc $need, newer than the VPS's 2.36"
+            echo "::error::the relay needs glibc $need, newer than Debian 12's 2.36 (the oldest a self-hoster may run)"
             exit 1
           fi
 

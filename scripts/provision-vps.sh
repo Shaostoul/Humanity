@@ -1,6 +1,8 @@
 #!/bin/bash
 # =============================================================================
-# provision-vps.sh — build the HumanityOS server from a bare Debian 12 install.
+# provision-vps.sh — build the HumanityOS server from a bare Debian 12 or 13 install (both
+# project servers run Debian 13: public.guide from its first install, united-humanity.us upgraded
+# in place on 2026-11-27).
 #
 # Born from the 2026-08-07 incident (see docs/INCIDENT-PLAYBOOK.md, "The TURN
 # relay abuse"): the old box was hand-built over months, so its real state and

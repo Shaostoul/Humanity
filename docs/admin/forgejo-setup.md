@@ -30,7 +30,7 @@ repository") and push to it directly.
 | systemd unit | `/etc/systemd/system/forgejo.service` | `User=forgejo`, hardening flags |
 | nginx vhost | `/etc/nginx/sites-available/git.united-humanity.us` | reverse proxy `127.0.0.1:3000`, `client_max_body_size 1024m` for LFS |
 | TLS | `/etc/letsencrypt/live/git.united-humanity.us/` | Let's Encrypt by **webroot** (`/var/www/letsencrypt`, served by the port-80 block), so it renews with nginx running; the main site's certificate uses standalone |
-| Git | `/usr/bin/git` | Debian 12's 2.39.5, new enough (Forgejo needs 2.34.1 or later; Debian 11's 2.30.2 was not, which is why the first install built 2.45.2 from source) |
+| Git | `/usr/bin/git` | Debian 13's 2.47.3 since the server's upgrade on 2026-11-27 (Debian 12's 2.39.5 before it), new enough (Forgejo needs 2.34.1 or later; Debian 11's 2.30.2 was not, which is why the first install built 2.45.2 from source) |
 
 ## What's the public surface
 
