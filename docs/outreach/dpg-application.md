@@ -1,7 +1,82 @@
 # Digital Public Goods application: the evidence, indicator by indicator
 
-**Prepared 2026-11-20. Filled in on the DPGA form on 2026-11-20, saved, NOT submitted**: the operator waits until the current work lands. Before submitting, update these fields on the form: **9b** (the sentence "It needs the server's owner to be set, which is still done on the server itself" changes once the owner claim code ships); **the general page's Solution type** and **indicator 4** (add the mobile app once an APK is published on a release). The Digital Public Goods Alliance (DPGA) takes an
-application only from a person authorised to speak for the project, so the operator submits it.
+**Prepared 2026-11-20. Filled in on the DPGA form on 2026-11-20, saved, NOT submitted.** Brought up
+to date on 2026-11-27: both things the saved form waited on have landed (a server's owner is set in
+the app since v0.1569.0, 2026-11-22; an Android app ships with every release since v0.1567.0,
+2026-11-21), so the three fields below change and nothing else on the form has to. The Digital
+Public Goods Alliance (DPGA) takes an application only from a person authorised to speak for the
+project, so the operator submits it.
+
+## Paste these into the form
+
+In the order the form shows them. Open the saved application, change these three, read it over,
+submit. Once it is submitted, delete this section: the indicator sections below hold the same text.
+
+**1. General information page, "Solution type".** Keep what was ticked on 2026-11-20 and add the
+mobile app choice (use the form's own wording; the choices were not written down here). Why: the
+Android app, `HumanityOS-android-arm64.apk`, has been published with every release since v0.1567.0
+(2026-11-21).
+
+**2. Indicator 4, Platform Independence, "Which are the core technologies your solution depends
+on?"** Replace the saved text with this (new: the phone app, Android in the list of systems, the
+Android sentence, and 859 crates where it said 843). "Closed components" stays **No**.
+
+> Core technologies: Rust (desktop app, phone app and server), wgpu, egui and rapier3d (desktop), axum, tokio
+> and SQLite (server), plain HTML/JavaScript/CSS (website, no build step), and RustCrypto's ML-DSA
+> and ML-KEM crates. Every dependency is open source (859 Rust crates, all under open licences such
+> as MIT, Apache-2.0, BSD and MPL-2.0). The same source builds for Linux, Windows, macOS and Android; on Linux
+> the app can run entirely on open components (Vulkan with open drivers), and the server runs on
+> Linux with no graphics hardware. On Windows and macOS it uses the operating system's own graphics
+> interface. The Android app (arm64, Android 8.0 or later, installed from the website's download
+> page or the releases page) uses Android's own system interfaces, with no Google Play services and
+> no Google push service. The Windows download's shader compiler is built by the project from Microsoft's
+> open-source DXC (NCSA licence) for faster start-up, and is optional: the app runs without it. Outside services are optional (a
+> Solana node for the optional wallet, browser push services for optional notifications), and no AI
+> model is bundled.
+
+**3. Indicator 9b, Inappropriate, Misleading & Illegal Content, "How does your solution handle
+inappropriate, misleading and illegal content?"** Replace the saved text with this. Only the three
+sentences from "Whoever runs a server" to "says so publicly" are new; they replace "It needs the
+server's owner to be set, which is still done on the server itself; until it is, the policy gives
+operators the manual steps that do the same, and says so publicly." The rest is as saved.
+
+> Policy: the HumanityOS content policy
+> (https://github.com/Shaostoul/Humanity/blob/main/docs/legal/content-policy.md, also in the in-app
+> Library and linked from Settings > Safety in both apps and from every page of the website) names
+> what is never allowed: child sexual abuse material and any sexual contact with a child or attempt
+> at it, first; then the Humanity Accord's absolute prohibitions (sharing sexual images without
+> consent, trafficking, threats, blackmail, fraud, calls to harm a group of people); then anything
+> illegal where the server runs. It tells people how to report on HumanityOS and straight to the
+> authorities (the CyberTipline takes reports from any country), and never to save or forward an
+> abusive image. On a report that a child may be involved, the operator calls the emergency number
+> if a child is in danger, never opens the file, takes it out of public view without destroying it,
+> bans the key, reports to the CyberTipline (or the country's own line), and keeps what was
+> reported locked away for one year.
+> Reporting: every message and person can be reported from both apps, with reasons including "A child
+> may be in danger" and "Someone is in danger". For those two the dialog first shows the official
+> emergency number and child abuse reporting body for the person's country (NCMEC's CyberTipline in
+> the US; 18 countries listed with sources). Reports are signed, and reported private messages are
+> verified against the sender's own signature, so reports cannot be forged. Moderators and admins act
+> on a Reports page: delete the post; mute, kick or ban the member (signed admin actions, recorded in
+> an admin log); or erase the account's data. Moderators are never shown reported files or links,
+> and a report carrying a file is refused, so no volunteer is exposed to abuse imagery. A one-click
+> "hide and keep" action takes a reported post and its files out of view at once and keeps a copy
+> for the year, sealed so that only the server's owner can open it and nobody can view it in the
+> app; the owner alone can export it into a file for the hotline or the police, place a legal hold,
+> destroy it early or restore it, and every step is signed and logged. Whoever runs a server becomes
+> its owner in the app, with a one-time code the server writes only to its own log and to a file on
+> its own machine; the owner can hand the role on and name one successor, and both re-seal every
+> kept copy first. Both of the project's servers have an owner. On a server nobody has claimed yet
+> the action is refused with nothing kept, and the policy gives operators the manual steps that do
+> the same, and says so publicly. Detection: private messages are
+> end-to-end encrypted, so no one, admins included, can scan them; action rests on reports from the
+> people in a conversation, and warnings for scams and requests for the recovery phrase run on each
+> person's own device. Response time: HumanityOS has not launched, so none has been measured yet;
+> reports wait for each server's volunteer admins and moderators.
+
+Nothing else on the saved form needs to change. Two optional touches, true either way: the last
+page's deployment note can add "and an Android app" beside the desktop downloads, and Goal 4's
+evidence now counts seven how-tos (the pasted Goal 4 answer gives no count).
 This file holds everything the application form asks, the evidence a reviewer can open for each
 answer, and an answer for each field written so a reviewer can check it in under a minute. Why we
 are applying, and the first check of the standard:
@@ -22,9 +97,9 @@ outside the repository.
 
 | Indicator | What a reviewer could fail | What closes it |
 |---|---|---|
-| 9b, illegal content | The content policy is merged ([docs/legal/content-policy.md](../legal/content-policy.md), 2026-11-20, in the Library and linked from Settings > Safety in both apps, the website's footer and its rules page), and it says plainly what the app does not do yet. "Hide and keep" is on the Reports page in both apps (2026-11-20, [docs/design/hide-and-keep.md](../design/hide-and-keep.md) rungs 1 to 5): the post and its files out of view at once, one copy sealed to the server's owner for the year a CyberTipline report must be preserved, nobody able to view it, the owner alone able to export, hold, destroy or restore it, every step signed. It needs the server's owner to be set, which is still done on the server itself; until then an operator follows the policy's manual steps. Reports are deleted 90 days after a decision unless they hold a kept copy. No response time has been measured, and the policy sets no target. | Setting the server's owner in the app (the operator's choice of mechanism, `docs/design/in-app-ops.md`). A report's retention for the child-danger reason is still an open decision (`docs/PRIORITIES.md`, "Report duties"). |
+| 9b, illegal content | The content policy is merged ([docs/legal/content-policy.md](../legal/content-policy.md), 2026-11-20, in the Library and linked from Settings > Safety in both apps, the website's footer and its rules page), and it says plainly what the app does not do yet. "Hide and keep" is on the Reports page in both apps (2026-11-20, [docs/design/hide-and-keep.md](../design/hide-and-keep.md) rungs 1 to 5): the post and its files out of view at once, one copy sealed to the server's owner for the year a CyberTipline report must be preserved, nobody able to view it, the owner alone able to export, hold, destroy or restore it, every step signed. Since v0.1569.0 (2026-11-22) whoever runs a server claims its owner role in the app (Server Settings, Claim ownership, with a one-time code the server writes only to its own log and to `data/owner-claim-code.txt`; [docs/admin/SELF-HOSTING.md](../admin/SELF-HOSTING.md), "Becoming the server's owner"), and both of the project's servers have had an owner since 2026-11-22 and 23. On a server nobody has claimed, hide and keep is refused with nothing kept, and an operator follows the policy's manual steps. Reports are deleted 90 days after a decision unless they hold a kept copy. No response time has been measured, and the policy sets no target. | The owner part is closed (in the app since v0.1569.0, the mechanism the operator approved; `docs/design/in-app-ops.md`). Still open: a report's retention for the child-danger reason (`docs/PRIORITIES.md`, "Report duties"; the code keeps every decided report 90 days, `src/relay/storage/reports.rs`). |
 | 9c, harassment | The content policy does not name harassment: it covers threats, blackmail and calls to harm a group of people, and leaves "every other report" to the admins' proportionate choice. Harassment is named in the rules of the project's own server, [united-humanity.us/rules](https://united-humanity.us/rules) ("No harassment, hate speech, doxxing or targeted attacks"), with the moderators' real powers and the order of responses. Those rules are one server's; since 2026-11-20 [CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md) applies them to the project's GitHub repository and Discord too, defines harassment, and says how to report and appeal. The Humanity Accord states principles, not rules with consequences. | Closed by the code of conduct, for the project's own spaces. Other people's servers write their own rules; the content policy still leaves harassment to each server's admins. |
-| 3 and 4, ownership and dependencies | The Windows download ships two Microsoft files, `dxcompiler.dll` and `dxil.dll`, copied from the Windows SDK (`.github/workflows/build-desktop.yml`), with no licence notice anywhere in the project. The compiler's source is open (its repository's LICENSE.TXT is the "University of Illinois/NCSA Open Source License", read 2026-11-20), and that licence asks that a binary copy carry its copyright notice; the code comments call it MIT. Whether `dxil.dll`, as shipped in the SDK, carries the same terms is not settled (`docs/reference/attribution-audit-2026-09-06.md`, item 7). | The dated finding is written, [2026-11-21-dxc-redistribution.md](../reference/findings/2026-11-21-dxc-redistribution.md), and it is negative for the copies shipped so far: they fall under the Windows SDK licence and are not on its redistribution list. DXC's own release zip turned out to carry a Microsoft licence beside the NCSA one (read 2026-11-20), so the project now builds the pair itself from DXC's NCSA source (`.github/workflows/build-dxc.yml`) and ships LICENSE.TXT beside each file, from the next release on. Until that release is out, the answer below should not imply the shipped files are under an open licence. |
+| 3 and 4, ownership and dependencies | Closed for the current download. The Windows download ships two shader compiler files, `dxcompiler.dll` and `dxil.dll`. Every release from v0.865.0 to v0.1565.0 copied them from the Windows SDK, whose licence does not let us hand those copies out ([2026-11-21-dxc-redistribution.md](../reference/findings/2026-11-21-dxc-redistribution.md), a negative finding); those old downloads still carry them. | Since v0.1566.0 (2026-11-20) the project builds the pair itself from DXC's open source, under the "University of Illinois/NCSA Open Source License" (`.github/workflows/build-dxc.yml`, published once as the asset release `assets-dxc-v1.9.2609`), and the Windows download carries DXC's LICENSE.TXT beside each file (`dxcompiler.LICENSE.txt`, `dxil.LICENSE.txt`) with its `ThirdPartyNotices.txt` (`.github/workflows/build-desktop.yml`). Checked 2026-11-27 in the build log of v0.1573.0, the latest release: the pinned zip's checksum passed and the files were copied. |
 | 8, standards | Closed 2026-11-20: the post-quantum code now passes NIST's published ACVP vectors for FIPS 203 and 204 (240 vectors, in the Rust build and on the website, run in CI), as well as the tests across our own implementations. | Nothing; keep the vectors running in CI. |
 | 9a, privacy and security | No independent human security audit has been done since the post-quantum switch; the reviews so far are AI reviews and one contributor's review of the cryptography (2026-11-16). Two known limits are open: direct messages have no forward secrecy yet; a private group's server can see its name, members and who posted when. (A third, the wallet key being the recovery phrase's raw entropy, was closed on 2026-11-19: it is now derived under its own label.) | Say it plainly (the answer below does). The first is decided and designed (`docs/design/dm-forward-secrecy.md`); the second is named in the privacy policy. |
 | 7, laws | The laws were read by AI from primary sources, not by a lawyer. No DMCA designated agent is registered (none until the project has an address to give, through a fiscal sponsor or a nonprofit of its own). | Say it plainly (the answer below does). |
@@ -47,10 +122,11 @@ that are both the maintainer's, and no other organisation uses it yet. The answe
 4. **Which goals to select.** Recommended, in this order: 4, 6, 3, 2, 16 (the evidence is in "The
    Sustainable Development Goals" below). Goal 1, the mission, can be added, but its evidence is
    indirect; the short description can carry it instead.
-5. **When to submit.** The content policy is merged (2026-11-20), so every indicator now has an
-   answer. Recommended: submit now, with the limits said. Hide and keep reached both apps on 2026-11-20 and
-   the 9b removal sentence says so; re-read it before submitting, because an application under
-   review cannot be edited.
+5. **When to submit.** Every indicator has had an answer since the content policy merged
+   (2026-11-20), and the two things the saved form waited on have landed (the owner set in the app,
+   v0.1569.0; the Android app, v0.1567.0). Recommended: paste the three fields at the top of this
+   file and submit, with the limits said. Read it over first, because an application under review
+   cannot be edited.
 6. **A response time for reports.** The form asks for "the average response time for assessment
    and/or action". The content policy sets no target. Recommended: say that none has been measured
    because the platform has not launched, and that reports wait for each server's volunteer admins;
@@ -90,6 +166,12 @@ robots.txt first, in a step of its own.
 | The UN's goal pages, https://sdgs.un.org/goals/goal1 to goal16 (goals 1, 2, 3, 4, 6, 7 and 16) | not dated | The target texts quoted below. Read 11 seconds apart (the site asks for 10). |
 | `LICENSE.TXT` of https://github.com/microsoft/DirectXShaderCompiler (through GitHub's API) | not dated; the latest release is v1.9.2609, 2026-09-29 | For the Windows DLLs (indicators 3 and 4). |
 
+Re-checked on 2026-11-27 for the update at the top: the repository at main, the GitHub releases
+(`gh release view` on v0.1566.0 to v0.1573.0, and the build log of v0.1573.0), and, through
+GitHub's API, the DPGA's `standard-questions.md` (read again to find the Solution type field: it is
+not in it) and the last-change dates of it and `standard.md` (both unchanged). No other outside
+page was read.
+
 The standard, its questions and its wiki are licensed CC BY-SA 4.0 (each repository's licence), and
 are quoted in this file with that credit: *Digital Public Goods Standard, by the Digital Public Goods
 Alliance, CC BY-SA 4.0.* This file is under CC BY-SA 4.0 too, like the rest of `docs/`.
@@ -113,6 +195,7 @@ The form asks these before the indicators, and asks that the details and the cod
 | Solution name | HumanityOS |
 | Aliases | HOS (confirm; the repository is named Humanity) |
 | Solution category | Open Software (question 3 above) |
+| Solution type | Chosen on the form on 2026-11-20 (not written down here). Add the mobile app choice: an Android app has shipped with every release since v0.1567.0 (2026-11-21). This field is on the live form but not in the DPGA's published `standard-questions.md`. |
 | Short description (published on the registry) | A free, open-source app for chat, planning, trade and shared decisions, with a library of practical guides on food, water, first aid and repair. Your identity is a key on your own device: no sign-up, post-quantum encrypted messages, and anyone can run a server. |
 | Website | https://united-humanity.us |
 | Alternate email address | yours |
@@ -153,11 +236,13 @@ reference."
   [LICENSES.md](../../LICENSES.md) and [CREDITS.md](../../CREDITS.md).
 - The DPG Wiki's list of accepted licences (read 2026-11-20) includes AGPL-3.0, CC-BY-SA-4.0,
   CC0-1.0, ODbL-1.0, CC-BY-SA-3.0-IGO and CC-BY-4.0, which covers ours and the shipped outside data.
-- The Rust dependencies: `cargo metadata`, read 2026-11-20, lists 843 third-party crates, and every
+- The Rust dependencies: `cargo metadata`, read 2026-11-27, lists 859 third-party crates (843 on
+  2026-11-20), and every
   one declares an open licence (most MIT or Apache-2.0; also BSD, ISC, Zlib, MPL-2.0, Unicode-3.0,
   CC0, BSL-1.0, CDLA-Permissive-2.0 for a certificate list, and OFL-1.1 with the Ubuntu Font Licence
-  for the bundled fonts). No crate is proprietary. Since 2026-11-20 the 746 of them linked into the
-  six programs a release ships carry their copyright and licence notices with every download, in
+  for the bundled fonts). No crate is proprietary. Since 2026-11-20 the ones linked into the
+  six programs a release ships (759 on 2026-11-27: the desktop app for four targets, the Android
+  app and the server) carry their copyright and licence notices with every download, in
   [THIRD-PARTY-NOTICES.txt](../../THIRD-PARTY-NOTICES.txt) (generated from `Cargo.lock` by
   `scripts/gen-third-party-notices.js`, shown in the app under Settings > Credits), and
   `scripts/tests/third-party-notices-fresh.test.js` fails in CI when that file falls behind
@@ -250,9 +335,19 @@ dependency; if so, the open alternatives and how little has to change to use the
   kira for the desktop app; Rust, axum, tokio and SQLite for the server (the relay); plain HTML,
   JavaScript and CSS for the website, with no build step; RustCrypto's `ml-dsa` and `ml-kem` and the
   vendored `@noble/post-quantum` for the cryptography (`docs/reference/cryptography.md`).
-- The latest release, v0.1565.0 (2026-11-20), ships the desktop app for Windows, macOS (Apple
-  silicon and Intel) and Linux, and the server for Linux:
-  https://github.com/Shaostoul/Humanity/releases. One source tree builds them all.
+- The latest release on 2026-11-27, v0.1573.0 (2026-11-24), ships the desktop app for Windows,
+  macOS (Apple silicon and Intel) and Linux, the Android app (`HumanityOS-android-arm64.apk`, with
+  its checksum) and the server for Linux: https://github.com/Shaostoul/Humanity/releases. One
+  source tree builds them all. Every release since v0.1567.0 (2026-11-21) carries the APK.
+- The Android app (`docs/FEATURES.md`, "The native app on Android"; `android/README.md`): the same
+  native app's pages, chat and Settings for an arm64 phone on Android 8.0 or later
+  (`android/build-apk.sh`, `MIN_SDK=26`), without the 3D world, which says so on screen
+  (`crates/humanity-core/src/platform/device.rs`). Installed by hand from the download page or the
+  releases page, signed with the project's key. It uses Android's own system interfaces through
+  NativeActivity and five small Java classes (`android/java/`), with no Google Play services and
+  no Google push service (`docs/design/platforms.md`, rung A4: a foreground service the person
+  turns on, instead of Google's push, which "needs Google's code in the app and Google's servers in
+  the path").
 - Graphics: on Linux the app draws through Vulkan, for which open drivers exist; on Windows through
   DirectX 12 and on macOS through Metal, the systems' own interfaces (`src/renderer/mod.rs`).
 - The Windows DLLs are optional: the app loads `dxcompiler.dll` and `dxil.dll` only when both sit
@@ -263,20 +358,24 @@ dependency; if so, the open alternatives and how little has to change to use the
   one of three backup destinations (a folder, or another HumanityOS server, are the others;
   `docs/admin/continuous-backup.md`). No AI model ships in the app.
 
-**Answer, ready to paste** (closed components: **No**):
+**Answer, ready to paste** (closed components: **No**; field 2 of the paste list at the top):
 
-> Core technologies: Rust (desktop app and server), wgpu, egui and rapier3d (desktop), axum, tokio
+> Core technologies: Rust (desktop app, phone app and server), wgpu, egui and rapier3d (desktop), axum, tokio
 > and SQLite (server), plain HTML/JavaScript/CSS (website, no build step), and RustCrypto's ML-DSA
-> and ML-KEM crates. Every dependency is open source (843 Rust crates, all under open licences such
-> as MIT, Apache-2.0, BSD and MPL-2.0). The same source builds for Linux, Windows and macOS; on Linux
+> and ML-KEM crates. Every dependency is open source (859 Rust crates, all under open licences such
+> as MIT, Apache-2.0, BSD and MPL-2.0). The same source builds for Linux, Windows, macOS and Android; on Linux
 > the app can run entirely on open components (Vulkan with open drivers), and the server runs on
 > Linux with no graphics hardware. On Windows and macOS it uses the operating system's own graphics
-> interface. The Windows download's shader compiler is built by the project from Microsoft's
+> interface. The Android app (arm64, Android 8.0 or later, installed from the website's download
+> page or the releases page) uses Android's own system interfaces, with no Google Play services and
+> no Google push service. The Windows download's shader compiler is built by the project from Microsoft's
 > open-source DXC (NCSA licence) for faster start-up, and is optional: the app runs without it. Outside services are optional (a
 > Solana node for the optional wallet, browser push services for optional notifications), and no AI
 > model is bundled.
 
 **Verdict: ready.** The DLLs are our own build of DXC's open source since v0.1566.0 (2026-11-20).
+The Android app is early (the README's "What's still cooking" still lists native mobile apps): the
+answer says what it is and claims nothing more.
 
 ## Indicator 5: Documentation
 
@@ -527,8 +626,14 @@ warnings, protected setup"; `docs/design/blocking-and-safe-mode.md`, sections 6 
   operator yet. The law behind it:
   [the 2026-11-20 finding](../reference/findings/2026-11-20-csam-reporting.md).
 - **Hide and keep** is built in both apps (rungs 1 to 5, 2026-11-20):
-  [docs/design/hide-and-keep.md](../design/hide-and-keep.md). It needs the server's owner to be set,
-  still done on the server itself; until then, the policy's manual steps.
+  [docs/design/hide-and-keep.md](../design/hide-and-keep.md). It seals its copy to the server's
+  owner, whom the person running the server sets in the app with a one-time claim code (since
+  v0.1569.0, 2026-11-22; `src/relay/handlers/owner.rs`, the desktop's
+  `src/gui/pages/server_settings/owner.rs`, the website's `web/chat/chat-owner.js`;
+  [docs/admin/SELF-HOSTING.md](../admin/SELF-HOSTING.md), "Becoming the server's owner"). Both of
+  the project's servers have had an owner since 2026-11-22 and 23. On a server nobody has claimed,
+  the action is refused with nothing kept, and the policy's manual steps apply (the policy's "What
+  the app does not do for an operator yet").
 - A report dialog on both apps with eleven reasons, among them "A child may be in danger", "Someone
   is in danger", "Unwanted sexual messages", "Harassment or bullying" and "Threats of violence"
   (`data/safety/report_reasons.json`).
@@ -556,7 +661,7 @@ warnings, protected setup"; `docs/design/blocking-and-safe-mode.md`, sections 6 
 > server); pictures, video and other files; profiles; marketplace listings with pictures and reviews;
 > signed proposals, votes and credentials; bug reports; buildings in the shared game world.
 
-**Answer, ready to paste:**
+**Answer, ready to paste** (field 3 of the paste list at the top):
 
 > Policy: the HumanityOS content policy
 > (https://github.com/Shaostoul/Humanity/blob/main/docs/legal/content-policy.md, also in the in-app
@@ -581,18 +686,22 @@ warnings, protected setup"; `docs/design/blocking-and-safe-mode.md`, sections 6 
 > "hide and keep" action takes a reported post and its files out of view at once and keeps a copy
 > for the year, sealed so that only the server's owner can open it and nobody can view it in the
 > app; the owner alone can export it into a file for the hotline or the police, place a legal hold,
-> destroy it early or restore it, and every step is signed and logged. It needs the server's owner
-> to be set, which is still done on the server itself; until it is, the policy gives operators the
-> manual steps that do the same, and says so publicly. Detection: private messages are
+> destroy it early or restore it, and every step is signed and logged. Whoever runs a server becomes
+> its owner in the app, with a one-time code the server writes only to its own log and to a file on
+> its own machine; the owner can hand the role on and name one successor, and both re-seal every
+> kept copy first. Both of the project's servers have an owner. On a server nobody has claimed yet
+> the action is refused with nothing kept, and the policy gives operators the manual steps that do
+> the same, and says so publicly. Detection: private messages are
 > end-to-end encrypted, so no one, admins included, can scan them; action rests on reports from the
 > people in a conversation, and warnings for scams and requests for the recovery phrase run on each
 > person's own device. Response time: HumanityOS has not launched, so none has been measured yet;
 > reports wait for each server's volunteer admins and moderators.
 
 **Verdict: ready, with a limit said.** Hide and keep reached both apps (rung 5, 2026-11-20) and the
-sentence that begins "A one-click" says so; the limit left is that a server's owner is still set on
-the server itself, not in the app, and the answer says so. The retention of a child-danger
-report (90 days after a decision today) is still an open decision.
+sentence that begins "A one-click" says so; the owner is set in the app since v0.1569.0, and both
+of the project's servers have one. Limits left, both said: no response time has been measured, and
+a server nobody has claimed falls back to the policy's manual steps. The retention of a
+child-danger report (90 days after a decision today) is still an open decision.
 
 ### 9c: Protection from Harassment
 
@@ -633,8 +742,9 @@ section 6):
   `web/pages/rules.html`), open with "Respect every person. No harassment, hate speech, doxxing or
   targeted attacks.", list what each moderator power really does, and set the order of responses (a
   word, then mute, then kick, then ban). The content policy links them. They are that server's
-  rules: there is no project-wide code of conduct, none for contributors, and the content policy
-  itself does not name harassment (thin spots table).
+  rules; since 2026-11-20 [CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md) applies them to the
+  project's GitHub repository and Discord too, for contributors and members alike. The content
+  policy itself does not name harassment (thin spots table).
 
 **Answer, ready to paste:**
 
@@ -684,7 +794,7 @@ and "promotion of a culture of peace and non-violence".
 137 practical guides: Grow Food (34), Wild Food (4), Water (12), Shelter and Power (17), When
 Somebody Is Hurt (14), Making and Repair (39) and Where You Are (17). Each guide ends with the
 primary sources it was written from (`data/library/index.json`; the writing rules in
-`docs/contributor/library-writer-brief.md`). Six step-by-step how-tos with timers and checks
+`docs/contributor/library-writer-brief.md`). Seven step-by-step how-tos with timers and checks
 (`data/how_to/`, https://united-humanity.us/how-to). The Humanity Accord's documents on rights,
 consent and conflict resolution sit on the Library's "Your Rights and Consent" and "How We Decide"
 shelves. Everything is CC BY-SA 4.0 or CC0, so a school or a library may copy, translate and adapt
@@ -722,9 +832,9 @@ US EPA and the WHO (for example `data/library/making_water_safe_to_drink.md`, "S
 > with a step-by-step how-to for boiling water. It is free, works offline, and may be copied and
 > translated freely. This serves targets 6.1 (safe drinking water) and 6.2 (sanitation and hygiene).
 
-**Limits.** Knowledge, not infrastructure. Four of the six how-tos, this one among them, are marked
-as able to cause serious harm if wrong; they are sourced and were reviewed twice by AI, and wait for
-a person's review before they show as checked (`docs/FEATURES.md`, "How-to").
+**Limits.** Knowledge, not infrastructure. Four of the seven how-tos, this one among them, carry the
+highest hazard mark, `lethal` (a mistake could kill); they are sourced and were reviewed twice by
+AI, and wait for a person's review before they show as checked (`docs/FEATURES.md`, "How-to").
 
 ### Goal 3: Good health and well-being
 
@@ -738,7 +848,9 @@ Arrives, Bleeding and Wounds, Treating Burns, Preventing and Spotting Infection,
 Matter, When Food or Water Makes You Sick, Rats, Flies, Mosquitoes and Ticks, Cold and Hypothermia,
 When Heat Becomes Dangerous, Mental Health Under Strain, and others. The how-tos "Mix oral
 rehydration solution from a packet" (`data/how_to/health/mix_ors_packet.json`) and "Test the seals
-on home-canned jars" (`data/how_to/food/test_jar_seals.json`). Health details a person records stay
+on home-canned jars" (`data/how_to/food/test_jar_seals.json`), and since 2026-11-21 a how-to on
+cooking meat to a safe temperature (`data/how_to/food/cook_meat_to_a_safe_temperature.json`,
+marked `serious`). Health details a person records stay
 on their own device and are never sent to a server (the privacy policy, "Things we never ask for").
 
 **Answer, ready to paste:**
@@ -814,7 +926,8 @@ quorums are not built.
 - **Goal 1, no poverty** (the project's purpose). Target 1.4 names access to "appropriate new
   technology"; 1.5 asks to "build the resilience of the poor and those in vulnerable situations"
   against "shocks and disasters". Evidence: the app is free, with no ads, runs on
-  Windows, macOS, Linux and in any browser, and works offline on the desktop; the Library's guides
+  Windows, macOS, Linux, Android phones (an early app, since 2026-11-21) and in any browser, and
+  works offline on the desktop; the Library's guides
   include Helping Your Neighbours After a Disaster and The Hazards Where You Live. The link to
   reducing poverty is indirect, so it is recommended for the short description rather than the
   selection.
@@ -827,10 +940,10 @@ quorums are not built.
 
 | Field | Answer |
 |---|---|
-| Where it is deployed | United States: two servers, united-humanity.us and public.guide, both run by the maintainer, linked to each other. Desktop downloads for Windows, macOS and Linux reach anyone. |
+| Where it is deployed | United States: two servers, united-humanity.us and public.guide, both run by the maintainer, linked to each other. Desktop downloads for Windows, macOS and Linux, and an Android app, reach anyone. (The form asks for countries from a list; this is the note behind the choice.) |
 | Who else uses it | No organisation has adopted it yet. Say so. |
 | Designed for other languages? | Yes. Every word in both apps comes from a language file by key (`data/i18n/en.json`), and a missing word falls back to English. |
-| Available languages | English. Spanish, French, Chinese and Japanese files exist, with 37 phrases each against 7,492 in English (counted 2026-11-20), so list English only. |
+| Available languages | English. Spanish, French, Chinese and Japanese files exist, with 37 phrases each against 8,836 in English (every key in `data/i18n/en.json`, counted 2026-11-27; the 7,492 of 2026-11-20 was counted another way, not recorded), so list English only. |
 | Programmes | Yours to answer. |
 | Highlights | The devlog, one card per release: https://united-humanity.us/devlog. The Library: https://united-humanity.us/library. The releases: https://github.com/Shaostoul/Humanity/releases. The mission: https://united-humanity.us/mission. |
 
@@ -849,16 +962,17 @@ would not publish; the answers in this file are written to be published.
 
 **One sitting, in order:**
 
-1. Hide and keep reached both apps on 2026-11-20 and the 9b sentence that begins "A one-click"
-   says so ([docs/design/hide-and-keep.md](../design/hide-and-keep.md)); re-read it once.
+1. The application is already filled in and saved (2026-11-20). Change the three fields in "Paste
+   these into the form" at the top of this file: the general page's Solution type, indicator 4 and
+   9b.
 2. Optional, about five minutes: the eligibility tool, https://digitalpublicgoods.net/eligibility.
    It asks whether you are the developer or owner, then one question per indicator, and either says
    the solution is eligible or gives pointers.
 3. Sign up at https://app.digitalpublicgoods.net/signup with the email you want the DPGA to use, and
-   verify it.
+   verify it (done on 2026-11-20, when the form was saved).
 4. Start the application and paste, in order: the general information, indicators 1 to 9c, and the
-   scale page, from this file. The application is assessed against the version of the standard in
-   force when it is created.
+   scale page, from this file (done on 2026-11-20; step 1 covers what changed since). The
+   application is assessed against the version of the standard in force when it is created.
 5. Read it over before pressing submit: an application under review cannot be changed.
 6. Note the application ID. Its status shows on the dashboard and at
    `https://app.digitalpublicgoods.net/a/<ID>`; the public page is `https://digitalpublicgoods.net/r/<ID>`.
@@ -880,7 +994,13 @@ would not publish; the answers in this file are written to be published.
 
 ## Keeping this file true
 
-Update this file in the same piece of work when any of these lands: a change to the content policy
-(9b), hide and keep (9b), the NIST conformance tests (8), the wallet key's own derivation
-and forward secrecy (9a), the Windows DLLs' notice (3 and 4), a code of conduct (9c), or a second
-language. Before a renewal, re-read the standard and the form's questions: the DPGA changes both.
+Update this file in the same piece of work when any of these lands: a change to the content policy,
+hide and keep or the owner role (9b); a report's retention for the child-danger reason (9b);
+forward secrecy for private messages, or an independent security audit (9a); a change to the code
+of conduct (9c); the phone app growing (the 3D world, an app store) or an iOS app (the general page
+and 4); a new release platform or a change to the Windows DLLs (3 and 4); or a second language.
+Done and recorded above: the NIST conformance tests (8), the wallet key's own derivation (9a), the
+Windows DLLs' notice (3 and 4), the code of conduct (9c), the owner set in the app (9b) and the
+Android app (4). Before a renewal, re-read the standard and the form's questions: the DPGA changes
+both. (Checked 2026-11-27: `standard.md` last changed 2025-03-20 and `standard-questions.md`
+2025-06-24, both as when this file was written.)

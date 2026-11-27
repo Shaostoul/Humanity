@@ -91,7 +91,7 @@ Copy it, fork it, sell it, teach from it. The code is under the [GNU AGPL 3.0 or
 Farming, cooking, crafting, combat, quests, skills and XP, a player market with escrowed trades, livestock, weather, procedural planets, and a buildable multi-deck ship - all playable solo today with local saves. Shared-world co-presence over the relay is built and in live testing.
 
 ### What's still cooking
-- Native mobile apps (web works on phones today)
+- The phone app: an early Android app ships with every release (pages and chat, no 3D world yet); an iPhone app is not built, and the website works on phones today
 - Multiplayer polish: shared-world co-presence is in live two-player testing
 - One-click vouching and credential-issuing UI (the signed-object plumbing is live)
 - Mesh radio support for off-grid use
