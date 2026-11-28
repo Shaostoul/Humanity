@@ -4368,8 +4368,6 @@
     "android_get_sub": "Then follow the install steps below the cards.",
     "android_install_intro": "You install the app file yourself (people call this sideloading). Google Play is not used.",
     "android_install_title": "Install the phone app",
-    "android_lacks_background": "Chat while the app is closed: Android stops apps in the background. Open the app to catch up.",
-    "android_lacks_key_store": "Remembering your key between starts: it needs the Android Keystore, not built in yet. You type your passphrase each time.",
     "android_lacks_paste": "Pasting a picture from the clipboard: attach the picture as a file instead.",
     "android_lacks_programs": "Starting other programs from the Apps page: Android lets an app start only its own code (a rule of Google's, the platform holder). Open them on the phone yourself.",
     "android_lacks_title": "What the phone app does not have yet",
