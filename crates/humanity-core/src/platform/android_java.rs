@@ -96,8 +96,17 @@ pub const PICK_FILES_COPY: JavaCall = JavaCall {
     sig: "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;J)J",
 };
 
+/// Hand the downloaded, checked update (its file name in the app's `updates` folder) to Android's
+/// installer, which asks the person to confirm it (2026-11-27, UpdateInstall.java, src/updater/phone.rs):
+/// "" once the installer was started, otherwise why not.
+pub const UPDATE_INSTALL: JavaCall = JavaCall {
+    class: "UpdateInstall",
+    method: "install",
+    sig: "(Landroid/app/Activity;Ljava/lang/String;)Ljava/lang/String;",
+};
+
 /// Every call, for the test against the Java sources.
-pub const ALL: [JavaCall; 16] = [
+pub const ALL: [JavaCall; 17] = [
     KEY_CREATE,
     KEY_SEAL,
     KEY_UNSEAL,
@@ -114,6 +123,7 @@ pub const ALL: [JavaCall; 16] = [
     PICK_FILES_TAKE,
     PICK_FILES_DESCRIBE,
     PICK_FILES_COPY,
+    UPDATE_INSTALL,
 ];
 
 /// The JNI descriptor of a Java type as the sources write it (the few the calls use).

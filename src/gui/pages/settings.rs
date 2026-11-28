@@ -4,10 +4,9 @@
 //! Graphics, Controls, Privacy, Data, Updates.
 
 use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
-use crate::gui::{GuiState, SettingsCategory, WalletNetwork, VERSION};
+use crate::gui::{GuiState, SettingsCategory, WalletNetwork};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::updater::{UpdateChannel, UpdateState};
 
 /// Settings > AI (2026-11-09, docs/design/embeddable-ai.md rung 1): "No AI is installed", Your
 /// computer, and what each later AI choice will need.
@@ -56,6 +55,10 @@ pub mod recovery_net;
 /// Settings > Audio > "Sound levels" (2026-11-06): the person's own level for each shipped sound,
 /// with Play and Reset; `play_preview` is the engine's half of Play.
 pub(crate) mod sound_levels;
+/// Settings > Updates (moved here 2026-11-27, when the phone app began updating itself): "Look for
+/// updates", what the updater has to say in the update line's own words, and the version picker.
+mod updates;
+use updates::draw_updates_content;
 #[cfg(test)]
 mod identity_tests;
 
@@ -4233,155 +4236,6 @@ pub(crate) fn draw_credits_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         }
         ui.separator();
     }
-}
-
-pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let hint = state.settings.hint_display;
-    widgets::card(ui, theme, |ui| {
-        // Current version
-        ui.label(RichText::new(format!("Current Version: v{}", VERSION)).strong());
-        ui.add_space(theme.spacing_sm);
-
-        // Update channel
-        ui.label(RichText::new("Update Channel").color(theme.text_secondary()));
-        let mut is_latest = state.updater.channel == UpdateChannel::AlwaysLatest;
-        let mut is_disabled = state.updater.channel == UpdateChannel::Disabled;
-
-        if ui.radio_value(&mut is_latest, true, "Always Latest (recommended)").changed() && is_latest {
-            state.updater.channel = UpdateChannel::AlwaysLatest;
-        }
-        if ui.radio_value(&mut is_disabled, true, "Disabled (never check)").changed() && is_disabled {
-            state.updater.channel = UpdateChannel::Disabled;
-        }
-        widgets::setting_hint(ui, theme, hint, "Always Latest looks for new releases at launch and on Check Now. Disabled stops all checking. This choice lasts for the current session only; it returns to Always Latest on restart.");
-
-        // Status
-        let status_text = match &state.updater.state {
-            UpdateState::Idle => "Not checked yet".to_string(),
-            UpdateState::Checking => "Checking for updates...".to_string(),
-            UpdateState::UpToDate => "You're on the latest version".to_string(),
-            UpdateState::Available { version, .. } => format!("Update available: {}", version),
-            UpdateState::Downloading { version, progress } => {
-                format!("Downloading {}: {:.0}%", version, progress * 100.0)
-            }
-            UpdateState::Ready { version, .. } => format!("{} ready. Restart to apply.", version),
-            UpdateState::Error(e) => format!("Error: {}", e),
-        };
-        ui.label(RichText::new(&status_text).color(
-            match &state.updater.state {
-                UpdateState::Available { .. } => theme.accent(),
-                UpdateState::Error(_) => theme.danger(),
-                UpdateState::Ready { .. } => theme.success(),
-                _ => theme.text_secondary(),
-            }
-        ));
-
-        ui.add_space(theme.spacing_sm);
-
-        // Action buttons
-        ui.horizontal(|ui| {
-            if widgets::primary_button(ui, theme, "Check Now") {
-                state.updater.check_now();
-            }
-
-            if let UpdateState::Available { version, .. } = &state.updater.state {
-                let ver = version.clone();
-                if widgets::primary_button(ui, theme, "Download & Install") {
-                    state.updater.download_version(&ver);
-                }
-            }
-
-            if let UpdateState::Ready { .. } = &state.updater.state {
-                if widgets::primary_button(ui, theme, "Restart to Apply") {
-                    // Read the restart target from restart_target.txt (written
-                    // before the binary swap) to get the correct exe path.
-                    let target = crate::updater::read_restart_target(&state.updater.exe_path);
-                    humanity_core::debug::push_debug(format!("Updater: restart target = {}", target.display()));
-                    log::info!("Restarting from: {}", target.display());
-
-                    #[cfg(target_os = "windows")]
-                    {
-                        // Use a batch script to wait for this process to exit
-                        // before launching the new binary. This avoids the race
-                        // where the old process hasn't fully released the exe.
-                        match crate::updater::create_restart_script(&target, state.updater.relaunch_behind, state.updater.relaunch_quiet) {
-                            Ok(bat) => {
-                                humanity_core::debug::push_debug(format!("Updater: launching restart script {}", bat.display()));
-                                use std::os::windows::process::CommandExt;
-                                let _ = std::process::Command::new("cmd")
-                                    .args(["/C", &bat.to_string_lossy()])
-                                    .creation_flags(0x00000008) // DETACHED_PROCESS
-                                    .spawn();
-                            }
-                            Err(e) => {
-                                // Fallback: try direct spawn if batch script fails
-                                humanity_core::debug::push_debug(format!("Updater: batch script failed ({}), trying direct spawn", e));
-                                log::warn!("Updater: batch script failed: {}", e);
-                                let _ = std::process::Command::new(&target).spawn();
-                            }
-                        }
-                    }
-                    #[cfg(not(target_os = "windows"))]
-                    {
-                        let _ = std::process::Command::new(&target).spawn();
-                    }
-
-                    state.quit_requested = true;
-                }
-            }
-        });
-
-        // Download progress bar
-        if let UpdateState::Downloading { progress, .. } = &state.updater.state {
-            ui.add_space(theme.spacing_sm);
-            widgets::progress_bar(ui, theme, *progress, Some("Downloading..."));
-        }
-
-        // Release notes
-        if let UpdateState::Available { ref release_notes, .. } = &state.updater.state {
-            if !release_notes.is_empty() {
-                ui.add_space(theme.spacing_md);
-                ui.label(RichText::new("Release Notes").color(theme.text_secondary()).strong());
-                ui.add_space(theme.spacing_xs);
-                egui::Frame::NONE
-                    .fill(theme.bg_sidebar_dark())
-                    .corner_radius(CornerRadius::same(4))
-                    .inner_margin(8.0)
-                    .show(ui, |ui| {
-                        ui.label(RichText::new(release_notes).color(theme.text_muted()).size(theme.font_size_small));
-                    });
-            }
-        }
-    });
-
-    ui.add_space(theme.spacing_md);
-
-    // Version picker
-    widgets::card_with_header(ui, theme, "Available Versions", |ui| {
-        let versions = state.updater.available_versions();
-        if versions.is_empty() {
-            ui.label(RichText::new("Check for updates to see available versions.").color(theme.text_muted()));
-        } else {
-            for (tag, date, is_current) in &versions {
-                ui.horizontal(|ui| {
-                    let label = if *is_current {
-                        RichText::new(format!("{} (current)", tag)).strong().color(theme.success())
-                    } else {
-                        RichText::new(tag).color(theme.text_primary())
-                    };
-                    ui.label(label);
-                    ui.label(RichText::new(date).small().color(theme.text_muted()));
-
-                    if !is_current {
-                        let tag_clone = tag.clone();
-                        if ui.small_button("Install").clicked() {
-                            state.updater.download_version(&tag_clone);
-                        }
-                    }
-                });
-            }
-        }
-    });
 }
 
 // Vegetation LOD cost model (v0.1109).

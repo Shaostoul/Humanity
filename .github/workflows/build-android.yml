@@ -39,6 +39,9 @@ on:
       - 'src/notifications/toast.rs'
       # Attach's document picker, the Rust side of PickFiles.java (2026-11-23).
       - 'src/gui/pages/chat/attach_android.rs'
+      # The app updating itself, the Rust side of UpdateInstall.java (2026-11-27).
+      - 'src/updater.rs'
+      - 'src/updater/**'
   workflow_dispatch:
   # Once a day (the operator, 2026-11-15: "Yes." to a daily build): the path filter cannot see
   # desktop code that only breaks on a phone (the first real build failed on src/net/ws_client.rs
@@ -105,8 +108,19 @@ jobs:
           path: dist/
           retention-days: 30
 
+      # The phone app updates itself (2026-11-27, src/updater/phone.rs): it downloads the release's
+      # APK, checks it against the .sha256 file published beside it, and refuses a mismatch. So the
+      # checksum must match the APK it is published with, or every phone would refuse this release:
+      # check it here, on the runner, before either is published.
+      - name: Check the APK's checksum before publishing it
+        if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist/HumanityOS-android-arm64.apk') != ''
+        shell: bash
+        working-directory: dist
+        run: sha256sum -c HumanityOS-android-arm64.apk.sha256
+
       # Only an APK signed with the project's key goes on a release: a test-signed one could
       # never be updated in place, and removing it to install a later one deletes the app's files.
+      # The checksum goes beside it: the phone app reads both (src/updater/phone.rs).
       - name: Publish to Release
         if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist/HumanityOS-android-arm64.apk') != ''
         uses: softprops/action-gh-release@v2

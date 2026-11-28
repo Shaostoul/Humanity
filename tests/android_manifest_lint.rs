@@ -16,7 +16,9 @@
 //! - the Java agrees with it: `ChatService.java` starts in the same type
 //!   (`FOREGROUND_SERVICE_TYPE_SPECIAL_USE`), every class the manifest names has its source under
 //!   android/java/, and the application no longer says `hasCode="false"`;
-//! - android/build-apk.sh compiles that Java (javac and d8) into the APK.
+//! - android/build-apk.sh compiles that Java (javac and d8) into the APK;
+//! - the update hand-off (2026-11-27): REQUEST_INSTALL_PACKAGES, and the `UpdateInstall` provider
+//!   private, granting reads, under the authority its Java uses.
 //!
 //! Std-only, compiled standalone like the other lints (`just lints`):
 //!   CARGO_MANIFEST_DIR=<repo> rustc --test --edition 2021 tests/android_manifest_lint.rs
@@ -204,4 +206,34 @@ fn the_attach_picker_activity_is_private_and_waits_for_its_answer() {
     assert!(attr(pick, "android:theme").is_some_and(|t| t.contains("Translucent")), "PickFiles must be transparent");
     assert_ne!(attr(pick, "android:noHistory"), Some("true"), "PickFiles must keep its place under the picker (no noHistory), or the answer is lost");
     assert!(attr(pick, "android:configChanges").is_some_and(|c| c.contains("orientation") && c.contains("screenSize")), "PickFiles must ride out turning the phone");
+}
+
+/// The phone app updates itself (2026-11-27, `UpdateInstall.java`, src/updater/phone.rs): the
+/// manifest asks for REQUEST_INSTALL_PACKAGES, without which Android's installer refuses an app
+/// outside Google Play that hands it an APK; and it declares the provider that serves the
+/// downloaded update to the installer, NOT exported (nothing else on the phone may ask it for
+/// anything) and with grantUriPermissions (the installer reads the file only through the one-time
+/// grant the install intent carries), under the authority the Java builds its address from.
+///
+/// Seen red 2026-11-27 with the provider's `android:exported` set to "true": "the update provider
+/// must not be exported: only the installer the intent grants it to may read the update".
+#[test]
+fn the_update_provider_is_private_and_the_installer_is_allowed() {
+    let xml = manifest();
+    let permissions: Vec<&str> = elements(&xml, "uses-permission").iter().filter_map(|e| attr(e, "android:name")).collect();
+    assert!(
+        permissions.contains(&"android.permission.REQUEST_INSTALL_PACKAGES"),
+        "the manifest lacks REQUEST_INSTALL_PACKAGES, so Android's installer would refuse the update"
+    );
+    let name = format!("{PACKAGE}.UpdateInstall");
+    let provider = elements(&xml, "provider").into_iter().find(|e| attr(e, "android:name") == Some(name.as_str()));
+    let provider = provider.unwrap_or_else(|| panic!("no <provider> named {name}"));
+    assert_eq!(attr(provider, "android:exported"), Some("false"), "the update provider must not be exported: only the installer the intent grants it to may read the update");
+    assert_eq!(attr(provider, "android:grantUriPermissions"), Some("true"), "the update provider must allow the one-time grant the install intent carries");
+    let authority = attr(provider, "android:authorities").expect("the update provider's android:authorities");
+    let java = fs::read_to_string(repo().join("android/java/us/united_humanity/humanityos/UpdateInstall.java")).expect("UpdateInstall.java");
+    assert!(
+        java.contains(&format!("AUTHORITY = \"{authority}\";")),
+        "UpdateInstall.java builds its content:// address from another authority than the manifest's {authority:?}"
+    );
 }

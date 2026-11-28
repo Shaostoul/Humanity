@@ -251,8 +251,9 @@ impl EngineState {
         gui_state.updater.relaunch_quiet = crate::engine::launch_focus::quiet_asked();
 
         // Auto-check for updates on startup (if enabled)
-        if opts.services && gui_state.updater.channel == crate::updater::UpdateChannel::AlwaysLatest {
-            gui_state.updater.check_now();
+        // ("Look for updates" is kept with the settings, applied above; the updater asks it.)
+        if opts.services {
+            gui_state.updater.check_at_start();
         }
 
         // Post-identity routing (v0.198.0, v0.220.0 boot page; v0.415.0 the

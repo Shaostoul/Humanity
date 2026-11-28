@@ -1051,10 +1051,12 @@ pub fn draw(
                 let toast_bg = theme.bg_panel();
                 painter.rect_filled(toast_rect, CornerRadius::same(6), Color32::from_rgba_premultiplied(toast_bg.r(), toast_bg.g(), toast_bg.b(), 230));
                 painter.rect_stroke(toast_rect, CornerRadius::same(6), egui::Stroke::new(1.0_f32, theme.accent()), egui::StrokeKind::Outside);
+                // The same words by key as the update line on the pages and Settings > Updates
+                // (bottom_strip/update_offer.rs, 2026-11-27).
                 painter.text(
                     toast_rect.center(),
                     Align2::CENTER_CENTER,
-                    format!("Update {} available", version),
+                    humanity_core::i18n::tf("app_update.toast", &[("version", version)]),
                     FontId::proportional(12.0),
                     theme.accent(),
                 );

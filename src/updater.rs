@@ -8,6 +8,20 @@
 //! - Version picker: install any previous release
 //! - Downloads in background thread, shows progress
 //! - Self-replace: renames running exe, swaps in new binary, prompts restart
+//!
+//! THE PHONE (2026-11-27, [`phone`]): the same check, against the same release feed, with the same
+//! setting and the same timing ([`Updater::check_at_start`], [`Updater::poll`]), but it looks for
+//! the release's APK and its checksum instead of a desktop binary ([`UpdateTarget`]), downloads and
+//! checks it inside the app, and hands it to Android's installer instead of replacing an exe.
+//!
+//! THE OFFER (2026-11-27): a new version is offered on a line at the bottom of every app page, on a
+//! desktop and a phone alike (gui/bottom_strip/update_offer.rs), never in a window that interrupts;
+//! Settings > Updates shows the same words (gui/pages/settings/updates.rs). "Look for updates" is
+//! kept with the other settings (config.rs `update_channel`) since that day; before, it went back
+//! to Always latest at every start.
+
+#[cfg(feature = "native")]
+pub mod phone;
 
 #[cfg(feature = "native")]
 use serde::{Deserialize, Deserializer, Serialize};
@@ -42,6 +56,28 @@ impl Default for UpdateChannel {
     }
 }
 
+/// What this build updates itself with: a desktop replaces its exe with the release's binary for
+/// its platform; the phone app installs the release's APK through Android's installer ([`phone`]).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateTarget {
+    Desktop,
+    Phone,
+}
+
+#[cfg(feature = "native")]
+impl UpdateTarget {
+    /// The phone app on Android, a desktop everywhere else (the phone preview on a desktop included:
+    /// it has no APK to install).
+    pub fn this_build() -> Self {
+        if cfg!(target_os = "android") {
+            UpdateTarget::Phone
+        } else {
+            UpdateTarget::Desktop
+        }
+    }
+}
+
 /// Current state of the updater.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, PartialEq)]
@@ -59,12 +95,18 @@ pub enum UpdateState {
     },
     /// Currently downloading the update.
     Downloading { version: String, progress: f32 },
-    /// Download complete and applied. Restart required.
+    /// Download complete and applied. Restart required. On the phone: downloaded and checked
+    /// against its checksum, waiting for Install.
     Ready { version: String },
     /// Already on the latest version.
     UpToDate,
-    /// Something went wrong.
+    /// The check went wrong (no network, GitHub's answer unreadable). It is tried again at the
+    /// next hourly check.
     Error(String),
+    /// A download the person started stopped (2026-11-27): `key` is the sentence they read
+    /// (data/i18n/en.json `app_update.*`), `detail` the technical part, shown small and logged.
+    /// The update line offers Try again.
+    Failed { version: String, key: &'static str, detail: String },
 }
 
 /// A release entry from GitHub.
@@ -99,10 +141,51 @@ pub struct ReleaseAsset {
 enum UpdateMsg {
     Releases(Vec<ReleaseInfo>),
     DownloadProgress(f32),
-    /// Download finished and binary was swapped in. Restart to use.
+    /// Download finished and binary was swapped in. Restart to use. On the phone: downloaded and
+    /// checked.
     Applied(String),
+    /// The check failed.
     Error(String),
+    /// A download failed: the sentence's key and the technical detail ([`UpdateState::Failed`]).
+    Failed(&'static str, String),
 }
+
+/// Wakes the frame when a background thread has news (2026-11-27): a phone draws only on change
+/// (engine/redraw.rs), so the update line would otherwise wait for the next touch. The context is
+/// handed over by the update line's first draw ([`Updater::set_waker`]); a thread started before
+/// that (the check at start) wakes it once it is there.
+#[cfg(feature = "native")]
+#[derive(Clone, Default)]
+struct Waker(std::sync::Arc<std::sync::Mutex<Option<egui::Context>>>);
+
+#[cfg(feature = "native")]
+impl Waker {
+    fn wake(&self) {
+        if let Some(ctx) = self.0.lock().ok().and_then(|c| c.clone()) {
+            ctx.request_repaint();
+        }
+    }
+}
+
+/// A background thread's way back: each message sent also wakes the frame.
+#[cfg(feature = "native")]
+struct Reply {
+    tx: std::sync::mpsc::Sender<UpdateMsg>,
+    waker: Waker,
+}
+
+#[cfg(feature = "native")]
+impl Reply {
+    fn send(&self, msg: UpdateMsg) {
+        let _ = self.tx.send(msg);
+        self.waker.wake();
+    }
+}
+
+/// Where the release list comes from: GitHub's release feed ([`fetch_releases`]); a test hands in
+/// its own list so no test reaches the network.
+#[cfg(feature = "native")]
+type Feed = fn() -> Result<Vec<ReleaseInfo>, String>;
 
 /// The updater. Stores preferences and manages update lifecycle.
 #[cfg(feature = "native")]
@@ -113,8 +196,19 @@ pub struct Updater {
     pub available_releases: Vec<ReleaseInfo>,
     /// Check interval in seconds (default: 3600 = 1 hour).
     pub check_interval: f64,
-    /// Seconds since last check.
-    last_check_elapsed: f64,
+    /// When the last check started (or the updater was made). A clock, not a sum of frame times
+    /// (2026-11-27): the frame's time step is capped for the simulation, and a phone draws only on
+    /// change, so summing frames reached an hour far later than an hour.
+    last_check: std::time::Instant,
+    /// What this build installs: a desktop binary or the phone's APK.
+    pub target: UpdateTarget,
+    /// Where the release list comes from ([`Feed`]).
+    feed: Feed,
+    /// Wakes the frame when a background thread has news ([`Waker`]).
+    waker: Waker,
+    /// The offered version the person said Not now to: the update line hides it for this run
+    /// (Settings > Updates still offers it). A newer offer shows again.
+    offer_hidden: Option<String>,
     /// Receiver for background thread results.
     rx: Option<std::sync::mpsc::Receiver<UpdateMsg>>,
     /// Path to the exe captured at startup (before any renames).
@@ -143,7 +237,11 @@ impl Updater {
             current_version: current_version.to_string(),
             available_releases: Vec::new(),
             check_interval: 3600.0,
-            last_check_elapsed: 0.0,
+            last_check: std::time::Instant::now(),
+            target: UpdateTarget::this_build(),
+            feed: fetch_releases,
+            waker: Waker::default(),
+            offer_hidden: None,
             rx: None,
             exe_path: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("HumanityOS.exe")),
             relaunch_behind: false,
@@ -151,31 +249,50 @@ impl Updater {
         }
     }
 
-    /// Check for updates (spawns background thread).
+    /// Check for updates (spawns background thread). Also Settings' Check now, which looks once
+    /// even while looking is turned off.
     pub fn check_now(&mut self) {
         if self.state == UpdateState::Checking {
             return;
         }
         self.state = UpdateState::Checking;
-        self.last_check_elapsed = 0.0;
+        self.last_check = std::time::Instant::now();
 
         let (tx, rx) = std::sync::mpsc::channel();
         self.rx = Some(rx);
+        let reply = Reply { tx, waker: self.waker.clone() };
+        let feed = self.feed;
 
-        std::thread::spawn(move || {
-            match fetch_releases() {
-                Ok(releases) => {
-                    let _ = tx.send(UpdateMsg::Releases(releases));
-                }
-                Err(e) => {
-                    let _ = tx.send(UpdateMsg::Error(e));
-                }
-            }
+        std::thread::spawn(move || match feed() {
+            Ok(releases) => reply.send(UpdateMsg::Releases(releases)),
+            Err(e) => reply.send(UpdateMsg::Error(e)),
         });
+    }
+
+    /// The check at start (engine_boot.rs): only while "Look for updates" is on. Turned off, the
+    /// app never asks GitHub whether there is a new version, at start or later ([`Self::poll`]).
+    pub fn check_at_start(&mut self) {
+        if self.channel == UpdateChannel::AlwaysLatest {
+            self.check_now();
+        }
+    }
+
+    /// Hand over the context whose frame a background thread wakes ([`Waker`]). Cheap; the update
+    /// line calls it as it draws.
+    pub fn set_waker(&self, ctx: &egui::Context) {
+        if let Ok(mut held) = self.waker.0.lock() {
+            if held.is_none() {
+                *held = Some(ctx.clone());
+            }
+        }
     }
 
     /// Start downloading a specific version.
     pub fn download_version(&mut self, version: &str) {
+        if self.target == UpdateTarget::Phone {
+            self.download_for_phone(version);
+            return;
+        }
         // Look up in available releases first
         let release = self.available_releases.iter().find(|r| r.tag_name == version);
         let release = match release {
@@ -196,15 +313,10 @@ impl Updater {
                         // the normal path below supplies the manifest.
                         let (tx, rx) = std::sync::mpsc::channel();
                         self.rx = Some(rx);
-                        std::thread::spawn(move || {
-                            match download_and_apply(&url, &ver, None, None, &tx) {
-                                Ok(()) => {
-                                    let _ = tx.send(UpdateMsg::Applied(ver));
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(UpdateMsg::Error(e));
-                                }
-                            }
+                        let reply = Reply { tx, waker: self.waker.clone() };
+                        std::thread::spawn(move || match download_and_apply(&url, &ver, None, None, &reply) {
+                            Ok(()) => reply.send(UpdateMsg::Applied(ver)),
+                            Err(e) => reply.send(UpdateMsg::Failed("app_update.failed_download", e)),
                         });
                         return;
                     }
@@ -233,33 +345,134 @@ impl Updater {
 
         let (tx, rx) = std::sync::mpsc::channel();
         self.rx = Some(rx);
+        let reply = Reply { tx, waker: self.waker.clone() };
         let ver = version.to_string();
 
+        std::thread::spawn(move || match download_and_apply(&asset.browser_download_url, &ver, manifest_url, sig_url, &reply) {
+            Ok(()) => reply.send(UpdateMsg::Applied(ver)),
+            Err(e) => reply.send(UpdateMsg::Failed("app_update.failed_download", e)),
+        });
+    }
+
+    /// The phone's download ([`phone::download_apk`]): the release's APK, checked against the
+    /// checksum beside it, into the app's updates folder. Ready means downloaded and checked.
+    fn download_for_phone(&mut self, version: &str) {
+        let fail = |r: phone::Refusal| UpdateState::Failed { version: version.to_string(), key: r.words_key(), detail: r.detail() };
+        let Some(release) = self.available_releases.iter().find(|r| r.tag_name == version) else {
+            self.state = fail(phone::Refusal::Download(format!("{version} is not in the release list")));
+            return;
+        };
+        let Some((apk, sum)) = phone::apk_assets(&release.assets) else {
+            self.state = fail(phone::Refusal::NoChecksum(format!("{version} carries no {} and {}", phone::APK_NAME, phone::APK_SUM_NAME)));
+            return;
+        };
+        let Some(folder) = phone::folder() else {
+            self.state = fail(phone::Refusal::NotAPhone);
+            return;
+        };
+        let (apk_url, sum_url) = (apk.browser_download_url.clone(), sum.browser_download_url.clone());
+        self.state = UpdateState::Downloading { version: version.to_string(), progress: 0.0 };
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.rx = Some(rx);
+        let reply = Reply { tx, waker: self.waker.clone() };
+        let ver = version.to_string();
         std::thread::spawn(move || {
-            match download_and_apply(&asset.browser_download_url, &ver, manifest_url, sig_url, &tx) {
-                Ok(()) => {
-                    let _ = tx.send(UpdateMsg::Applied(ver));
+            // The bar moves by whole percents: one message (and one frame) per percent, not per chunk.
+            let mut shown = -1i32;
+            let mut progress = |p: f32| {
+                let pct = (p * 100.0) as i32;
+                if pct != shown {
+                    shown = pct;
+                    reply.send(UpdateMsg::DownloadProgress(p));
                 }
-                Err(e) => {
-                    let _ = tx.send(UpdateMsg::Error(e));
-                }
+            };
+            match phone::download_apk(&apk_url, &sum_url, &folder, &ver, &mut progress) {
+                Ok(_) => reply.send(UpdateMsg::Applied(ver)),
+                Err(r) => reply.send(UpdateMsg::Failed(r.words_key(), r.detail())),
             }
         });
     }
 
+    /// The phone's Install: hand the checked download to Android's installer, which asks the person
+    /// to confirm ([`phone::install`]). The state stays Ready, so a person who closed Android's
+    /// question can tap Install again; a failure says why.
+    pub fn install_downloaded(&mut self) {
+        let UpdateState::Ready { version } = &self.state else { return };
+        let version = version.clone();
+        if let Err(r) = phone::install(&version) {
+            log::warn!("Updater: the installer did not open for {version}: {}", r.detail());
+            self.state = UpdateState::Failed { version, key: r.words_key(), detail: r.detail() };
+        }
+    }
+
+    /// A desktop's Restart to apply (Settings > Updates and the update line): start the swapped-in
+    /// exe once this one has closed; the caller then asks the app to quit.
+    pub fn restart_into_update(&self) {
+        // Read the restart target from restart_target.txt (written
+        // before the binary swap) to get the correct exe path.
+        let target = read_restart_target(&self.exe_path);
+        humanity_core::debug::push_debug(format!("Updater: restart target = {}", target.display()));
+        log::info!("Restarting from: {}", target.display());
+
+        #[cfg(target_os = "windows")]
+        {
+            // Use a batch script to wait for this process to exit
+            // before launching the new binary. This avoids the race
+            // where the old process hasn't fully released the exe.
+            match create_restart_script(&target, self.relaunch_behind, self.relaunch_quiet) {
+                Ok(bat) => {
+                    humanity_core::debug::push_debug(format!("Updater: launching restart script {}", bat.display()));
+                    use std::os::windows::process::CommandExt;
+                    let _ = std::process::Command::new("cmd")
+                        .args(["/C", &bat.to_string_lossy()])
+                        .creation_flags(0x00000008) // DETACHED_PROCESS
+                        .spawn();
+                }
+                Err(e) => {
+                    // Fallback: try direct spawn if batch script fails
+                    humanity_core::debug::push_debug(format!("Updater: batch script failed ({}), trying direct spawn", e));
+                    log::warn!("Updater: batch script failed: {}", e);
+                    let _ = std::process::Command::new(&target).spawn();
+                }
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = std::process::Command::new(&target).spawn();
+        }
+    }
+
+    /// Not now on the update line: hide the offered version for this run.
+    pub fn hide_offer(&mut self) {
+        if let UpdateState::Available { version, .. } = &self.state {
+            self.offer_hidden = Some(version.clone());
+        }
+    }
+
+    /// Whether the update line shows: an offer the person has not hidden, and every step of a
+    /// download they started (its progress, Install or Restart, a failure). A failed check does not
+    /// show there (Settings says it): a phone offline at start is not news on every page.
+    pub fn offer_shown(&self) -> bool {
+        match &self.state {
+            UpdateState::Available { version, .. } => self.offer_hidden.as_deref() != Some(version.as_str()),
+            UpdateState::Downloading { .. } | UpdateState::Ready { .. } | UpdateState::Failed { .. } => true,
+            UpdateState::Idle | UpdateState::Checking | UpdateState::UpToDate | UpdateState::Error(_) => false,
+        }
+    }
+
     /// Poll for background thread results. Call once per frame.
     /// Returns true if an update just became available (for toast notifications).
-    pub fn poll(&mut self, dt: f64) -> bool {
-        self.last_check_elapsed += dt;
+    pub fn poll(&mut self) -> bool {
         let mut became_available = false;
 
-        // Auto-check on interval
-        if self.state == UpdateState::Idle || self.state == UpdateState::UpToDate {
-            if self.last_check_elapsed >= self.check_interval
-                && self.channel != UpdateChannel::Disabled
-            {
-                self.check_now();
-            }
+        // Auto-check on the interval (an hour), while "Look for updates" is on. A failed check is
+        // tried again then too (2026-11-27): before, one failure (a phone offline at start) ended
+        // the looking for the rest of the run.
+        if matches!(self.state, UpdateState::Idle | UpdateState::UpToDate | UpdateState::Error(_))
+            && self.last_check.elapsed().as_secs_f64() >= self.check_interval
+            && self.channel != UpdateChannel::Disabled
+        {
+            self.check_now();
         }
 
         // Collect messages from background thread first, then process
@@ -293,6 +506,14 @@ impl Updater {
                 UpdateMsg::Error(e) => {
                     self.state = UpdateState::Error(e);
                 }
+                UpdateMsg::Failed(key, detail) => {
+                    let version = match &self.state {
+                        UpdateState::Downloading { version, .. } => version.clone(),
+                        _ => String::new(),
+                    };
+                    log::warn!("Updater: the download of {version} stopped: {detail}");
+                    self.state = UpdateState::Failed { version, key, detail };
+                }
             }
         }
 
@@ -307,25 +528,30 @@ impl Updater {
         // invisible to auto-update rather than erroring. The download path still
         // verifies the signature as the authoritative gate (defense in depth).
         // Until provisioning, every release is eligible (legacy behaviour).
+        //
+        // The phone (2026-11-27) offers a release only when it carries the APK and its checksum
+        // (phone::apk_assets): a desktop-only release, an asset release or one whose APK is not
+        // attached yet offers nothing. The signed manifest lists the desktop binaries only, so it
+        // is not asked for there; the APK is checked against its checksum and by Android's
+        // same-key rule (phone.rs, "What protects what").
         let require_manifest = humanity_protocol::release_signature::embedded_pubkeys().is_provisioned();
+        let target_kind = self.target;
         let eligible = |r: &ReleaseInfo| -> bool {
             !r.prerelease
                 && !r.draft
-                && (!require_manifest || find_asset_url(&r.assets, MANIFEST_NAME).is_some())
+                && match target_kind {
+                    UpdateTarget::Desktop => !require_manifest || find_asset_url(&r.assets, MANIFEST_NAME).is_some(),
+                    UpdateTarget::Phone => phone::apk_assets(&r.assets).is_some(),
+                }
         };
-        let target_version = match &self.channel {
-            UpdateChannel::AlwaysLatest => {
-                // Find the latest eligible (non-prerelease, non-draft, signed) release.
-                self.available_releases
-                    .iter()
-                    .find(|r| eligible(r))
-                    .map(|r| r.tag_name.clone())
-            }
-            UpdateChannel::Disabled => {
-                self.state = UpdateState::UpToDate;
-                return;
-            }
-        };
+        // "Look for updates" decides only whether the app looks by itself (check_at_start, poll):
+        // a check made anyway (Check now, which looks once while it is off) offers what it found.
+        // Before 2026-11-27 a check while it was off always said "up to date".
+        let target_version = self
+            .available_releases
+            .iter()
+            .find(|r| eligible(r))
+            .map(|r| r.tag_name.clone());
 
         let target = match target_version {
             Some(v) => v,
@@ -343,7 +569,17 @@ impl Updater {
 
         // Find the release info
         if let Some(release) = self.available_releases.iter().find(|r| r.tag_name == target) {
-            if let Some(asset) = find_platform_asset(&release.assets) {
+            let asset = match self.target {
+                UpdateTarget::Desktop => find_platform_asset(&release.assets),
+                UpdateTarget::Phone => phone::apk_assets(&release.assets).map(|(apk, _)| apk),
+            };
+            if let Some(asset) = asset {
+                // A phone already holding this version's checked download (Android may have closed
+                // the app while the person allowed installs) goes straight to Install.
+                if self.target == UpdateTarget::Phone && phone::downloaded(&target).is_some() {
+                    self.state = UpdateState::Ready { version: target };
+                    return;
+                }
                 self.state = UpdateState::Available {
                     version: target,
                     download_url: asset.browser_download_url.clone(),
@@ -374,6 +610,12 @@ impl Updater {
 
     /// Clean up `.old` files from previous updates. Call once on startup.
     pub fn cleanup_old_versions() {
+        // The phone keeps its downloaded updates in its own folder: half-downloaded ones and those
+        // not newer than this version go (phone::stale); its exe is not ours to touch.
+        if UpdateTarget::this_build() == UpdateTarget::Phone {
+            phone::clean_up(env!("CARGO_PKG_VERSION"));
+            return;
+        }
         if let Ok(exe_path) = std::env::current_exe() {
             // Try the double-extension variant used on Windows (e.g. "app.exe.old")
             let old1 = exe_path.with_extension("exe.old");
@@ -410,10 +652,56 @@ fn fetch_releases() -> Result<Vec<ReleaseInfo>, String> {
         .into_string()
         .map_err(|e| format!("Read error: {}", e))?;
 
-    let releases: Vec<ReleaseInfo> =
-        serde_json::from_str(&body).map_err(|e| format!("Parse error: {}", e))?;
+    parse_feed(&body)
+}
 
-    Ok(releases)
+/// GitHub's release list (the JSON the feed answers with) as releases.
+#[cfg(feature = "native")]
+fn parse_feed(body: &str) -> Result<Vec<ReleaseInfo>, String> {
+    serde_json::from_str(body).map_err(|e| format!("Parse error: {}", e))
+}
+
+/// Stream `url` into the file `dest`, hashing the bytes as they pass (so a download is checked
+/// without reading the file again), `progress` told the share done (0 to 1) when the size is known.
+/// Returns the SHA-256 in lowercase hex. The desktop's download and the phone's both use it
+/// (2026-11-27). A failure leaves whatever was written: the caller deletes it.
+#[cfg(feature = "native")]
+fn stream_to_file(url: &str, dest: &std::path::Path, progress: &mut dyn FnMut(f32)) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let response = ureq::get(url)
+        .set("User-Agent", "HumanityOS-Updater")
+        .call()
+        .map_err(|e| {
+            humanity_core::debug::push_debug(format!("Updater: download HTTP error: {}", e));
+            format!("Download error: {}", e)
+        })?;
+    let total_size = response
+        .header("Content-Length")
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    humanity_core::debug::push_debug(format!("Updater: Content-Length = {} bytes", total_size));
+    humanity_core::debug::push_debug(format!("Updater: downloading to {}", dest.display()));
+
+    // Stream download in 64KB chunks with progress reporting
+    let mut reader = response.into_reader();
+    let mut file = std::fs::File::create(dest).map_err(|e| format!("File create error: {}", e))?;
+    let mut downloaded: u64 = 0;
+    let mut buf = vec![0u8; 65536];
+    let mut hasher = Sha256::new();
+    loop {
+        let n = std::io::Read::read(&mut reader, &mut buf).map_err(|e| format!("Read error: {}", e))?;
+        if n == 0 {
+            break;
+        }
+        std::io::Write::write_all(&mut file, &buf[..n]).map_err(|e| format!("Write error: {}", e))?;
+        hasher.update(&buf[..n]);
+        downloaded += n as u64;
+        if total_size > 0 {
+            progress(downloaded as f32 / total_size as f32);
+        }
+    }
+    file.sync_all().map_err(|e| format!("Write error: {}", e))?;
+    Ok(hex::encode(hasher.finalize()))
 }
 
 /// Find the correct binary asset for the current platform.
@@ -503,24 +791,9 @@ fn download_and_apply(
     version: &str,
     manifest_url: Option<String>,
     sig_url: Option<String>,
-    tx: &std::sync::mpsc::Sender<UpdateMsg>,
+    reply: &Reply,
 ) -> Result<(), String> {
     humanity_core::debug::push_debug(format!("Updater: starting download from {}", url));
-
-    let response = ureq::get(url)
-        .set("User-Agent", "HumanityOS-Updater")
-        .call()
-        .map_err(|e| {
-            humanity_core::debug::push_debug(format!("Updater: download HTTP error: {}", e));
-            format!("Download error: {}", e)
-        })?;
-
-    let total_size = response
-        .header("Content-Length")
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(0);
-
-    humanity_core::debug::push_debug(format!("Updater: Content-Length = {} bytes", total_size));
 
     let exe_path = std::env::current_exe().map_err(|e| format!("Can't find exe: {}", e))?;
     let parent = exe_path.parent().unwrap_or(std::path::Path::new("."));
@@ -535,36 +808,24 @@ fn download_and_apply(
             + ".update",
     );
 
-    humanity_core::debug::push_debug(format!("Updater: downloading to {}", update_path.display()));
-
-    // Stream download in 64KB chunks with progress reporting
-    let mut reader = response.into_reader();
-    let mut file =
-        std::fs::File::create(&update_path).map_err(|e| format!("File create error: {}", e))?;
-
-    let mut downloaded: u64 = 0;
-    let mut buf = [0u8; 65536];
-    // Hash the bytes as they stream past so we can check the download against
-    // the signed manifest without a second read of the file.
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    loop {
-        let n = std::io::Read::read(&mut reader, &mut buf)
-            .map_err(|e| format!("Read error: {}", e))?;
-        if n == 0 {
-            break;
+    // Stream it, hashing the bytes as they pass so the download is checked against the signed
+    // manifest without a second read of the file (stream_to_file, shared with the phone since
+    // 2026-11-27). The bar moves by whole percents: one message and one frame per percent.
+    let mut shown = -1i32;
+    let mut progress = |p: f32| {
+        let pct = (p * 100.0) as i32;
+        if pct != shown {
+            shown = pct;
+            reply.send(UpdateMsg::DownloadProgress(p));
         }
-        std::io::Write::write_all(&mut file, &buf[..n])
-            .map_err(|e| format!("Write error: {}", e))?;
-        hasher.update(&buf[..n]);
-        downloaded += n as u64;
-        if total_size > 0 {
-            let progress = downloaded as f32 / total_size as f32;
-            let _ = tx.send(UpdateMsg::DownloadProgress(progress));
+    };
+    let digest_hex = match stream_to_file(url, &update_path, &mut progress) {
+        Ok(hex) => hex,
+        Err(e) => {
+            let _ = std::fs::remove_file(&update_path);
+            return Err(e);
         }
-    }
-    drop(file);
-    let digest_hex = hex::encode(hasher.finalize());
+    };
 
     // Pre-download verification: ensure the file exists and is large enough
     let update_size = std::fs::metadata(&update_path)
@@ -930,6 +1191,67 @@ mod tests {
         assert_eq!(restart_focus_line(true, true), Some("set HUMANITY_NO_FOCUS=1"), "a quiet developer boot stays quiet");
         assert_eq!(restart_focus_line(false, false), Some("set HUMANITY_TAKE_FOCUS=1"), "a foreground game comes back foreground");
         assert_eq!(restart_focus_line(false, true), Some("set HUMANITY_TAKE_FOCUS=1"), "foreground wins over quiet, as launch_in_background reads it");
+    }
+
+    /// A feed with nothing in it, so a check a test starts never reaches the network.
+    fn no_releases() -> Result<Vec<ReleaseInfo>, String> {
+        Ok(Vec::new())
+    }
+
+    /// TURNING "LOOK FOR UPDATES" OFF STOPS EVERY CHECK the app makes by itself, on a desktop and
+    /// the phone alike (one setting, 2026-11-27): the one at start and the hourly one. Check now
+    /// still looks once when pressed. Turned on, both run.
+    ///
+    /// Seen red 2026-11-27 with check_at_start and poll not asking the setting: "Desktop: looking is
+    /// off, yet the start checked: Checking".
+    #[test]
+    fn turning_looking_off_stops_every_check() {
+        for target in [UpdateTarget::Desktop, UpdateTarget::Phone] {
+            let made = |channel: UpdateChannel| {
+                let mut u = Updater::new("0.1578.0");
+                u.target = target;
+                u.feed = no_releases;
+                u.channel = channel;
+                u
+            };
+            let mut off = made(UpdateChannel::Disabled);
+            off.check_at_start();
+            assert_eq!(off.state, UpdateState::Idle, "{target:?}: looking is off, yet the start checked: {:?}", off.state);
+            // The hour is up (an interval of nothing, rather than a clock moved back, which a
+            // freshly started machine cannot do).
+            off.check_interval = 0.0;
+            off.poll();
+            assert_eq!(off.state, UpdateState::Idle, "{target:?}: looking is off, yet the hourly check ran: {:?}", off.state);
+            off.check_now();
+            assert_eq!(off.state, UpdateState::Checking, "{target:?}: Check now looks once even while looking is off");
+
+            let mut on = made(UpdateChannel::AlwaysLatest);
+            on.check_at_start();
+            assert_eq!(on.state, UpdateState::Checking, "{target:?}: looking is on, yet the start did not check");
+            let mut on = made(UpdateChannel::AlwaysLatest);
+            on.check_interval = 0.0;
+            on.poll();
+            assert_eq!(on.state, UpdateState::Checking, "{target:?}: looking is on, yet the hourly check did not run");
+        }
+    }
+
+    /// "Look for updates" turned off STAYS off across a restart (2026-11-27, config.json
+    /// `update_channel`): before, it went back to looking at every start, so off never held on a
+    /// phone, which Android starts again often. A config from before the setting looks.
+    ///
+    /// Seen red 2026-11-27 with apply_to_gui_state not reading it back: "looking turned off came
+    /// back on after a restart".
+    #[test]
+    fn looking_off_is_kept_across_a_restart() {
+        let mut state = crate::gui::GuiState::default();
+        state.updater.channel = UpdateChannel::Disabled;
+        let json = serde_json::to_string(&crate::config::AppConfig::from_gui_state(&state)).expect("serialize the config");
+        let reloaded: crate::config::AppConfig = serde_json::from_str(&json).expect("read it back");
+        let mut fresh = crate::gui::GuiState::default();
+        reloaded.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.updater.channel, UpdateChannel::Disabled, "looking turned off came back on after a restart");
+        let old: crate::config::AppConfig = serde_json::from_str("{}").expect("a config from before the setting parses");
+        assert_eq!(old.update_channel, UpdateChannel::AlwaysLatest, "a config from before the setting does not look for updates");
     }
 
     #[test]

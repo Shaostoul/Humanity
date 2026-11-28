@@ -8,7 +8,8 @@
 //! We could include a link on the wip warning to a page about more details about the warning and
 //! development."
 //!
-//! THE STACK, bottom up: the warning, then the chat footer (rungs 2 and 3), then the page.
+//! THE STACK, bottom up: the warning, then the update line when there is a new version to offer
+//! ([`update_offer`], 2026-11-27), then the chat footer (rungs 2 and 3), then the page.
 //! egui stacks bottom panels in the order they are added, the first one outermost, so [`draw`]
 //! adds the warning first and anything above it after. lib.rs calls [`draw`] once a frame, after
 //! the top menu and BEFORE the page draws, so the page's own bottom panels (the crafting queue,
@@ -53,6 +54,7 @@ use crate::gui::{GuiPage, GuiState, VERSION};
 pub mod mute;
 pub use mute::WipMute;
 pub mod chat_footer;
+pub mod update_offer;
 
 /// The Library document the warning's link opens (`docs/user/rights/unfinished_software.md`; the
 /// slug is its file name, `scripts/build-library.js` `slugOf`). A test checks the shipped Library has it.
@@ -139,6 +141,10 @@ pub(crate) fn draw_at(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, 
     if wip_shown(version) && !muted {
         draw_warning(ctx, theme, state, version, now);
     }
+    // A new version of HumanityOS, when there is one to offer (update_offer.rs, 2026-11-27): on
+    // the warning, under the chat footer.
+    let offer = update_offer::draw(ctx, theme, state);
+    add_height(ctx, offer);
     // The chat footer stands on the warning (on the window's bottom while the warning is muted).
     let footer = chat_footer::draw(ctx, theme, state);
     add_height(ctx, footer);

@@ -29,8 +29,20 @@ costs: [the distribution finding](../docs/reference/findings/2026-11-14-app-dist
 4. **Open HumanityOS** from the app drawer. The first start writes the app's files into its own
    private folder and takes a little longer than the ones after it.
 
-**Updating.** Install the newer APK the same way; it replaces the old one and keeps your files, as
-long as both were signed with the project's key. An APK whose name ends in `-test-signed.apk` was
+**Updating.** The app updates itself (2026-11-27). When a newer release carries the phone app, a
+line at the bottom of every page says "A new version of HumanityOS is ready", with the version and
+its size. Tap **Download**: the app downloads it with its progress on that line and checks it
+against the checksum published beside it (a file that does not match is deleted, and the line says
+so). Then tap **Install**: Android asks you to confirm the update. The first time, Android also asks
+you to allow HumanityOS to install apps: tap **Settings**, turn on **Allow from this source**, and
+come back (if Android closed the app meanwhile, open it again and the line offers Install). **Not
+now** hides the line until the app starts again. It looks when the app starts and once an hour
+while it is open; Settings, Updates, **Look for updates: Never by itself** stops that (Check now
+still looks when you press it), on a phone as on a desktop. How it works and what protects you:
+[docs/design/platforms.md](../docs/design/platforms.md), rung A2, "The app updates itself".
+
+You can still install a newer APK by hand, the same way as the first; it replaces the old one and
+keeps your files, as long as both were signed with the project's key. An APK whose name ends in `-test-signed.apk` was
 built before that key existed: a later APK will not install over it, and uninstalling it deletes
 the app's files, your identity included. Before uninstalling a test-signed copy, write down your
 recovery phrase (Settings, Account: Reveal recovery phrase) so you can restore your identity afterwards.
@@ -111,7 +123,7 @@ which runs [build-apk.sh](build-apk.sh). Nothing is installed on anyone's PC.
 
 ### The Java in the APK
 
-Five small classes under [java/](java/us/united_humanity/humanityos/) (2026-11-20), compiled by
+Six small classes under [java/](java/us/united_humanity/humanityos/) (since 2026-11-20), compiled by
 `build-apk.sh` with the runner's `javac` against the platform's `android.jar` and turned into
 `classes.dex` by the SDK's `d8`; no Gradle, no libraries:
 
@@ -120,6 +132,10 @@ Five small classes under [java/](java/us/united_humanity/humanityos/) (2026-11-2
 - `Notices`: the phone's notices, and the request to allow them.
 - `VisibleArea` (2026-11-22): how far Android's status bar, navigation bar, a camera cutout and the
   on-screen keyboard reach over the window (its insets), for the pages to stay clear of them.
+- `UpdateInstall` (2026-11-27): the app updating itself. A content provider of its own (the APK
+  carries no AndroidX, so no FileProvider) serving only a downloaded, checked update from the app's
+  `updates` folder, read only, and `install`, which opens Android's installer on it (ACTION_VIEW
+  with a one-time read grant). The manifest asks for REQUEST_INSTALL_PACKAGES for it.
 - `PickFiles` (2026-11-23): Attach. A transparent activity started over the app that opens
   Android's own document picker (ACTION_OPEN_DOCUMENT, several at once), keeps what the person
   chose, and reads each chosen document's name, size and bytes through the ContentResolver. An
@@ -205,6 +221,7 @@ The workflow proves the library compiles and links for Android, that the Java co
 Android's own classes, and that the APK is well formed and signed. Whether it starts, draws, takes
 touch and the on-screen keyboard, whether the pages stay clear of the bars and the keyboard, survives leaving and coming back, how long the first start takes,
 whether remembering the key and staying connected work, whether Attach's document picker opens on
-your pictures and what you choose in it sends, only the phone shows. Reading its log needs a PC
+your pictures and what you choose in it sends, whether the update line's Install opens Android's
+installer and the update keeps your files, only the phone shows. Reading its log needs a PC
 with `adb` (`adb logcat -s HumanityOS`); without one, the app's own logs are inside its private
 folder.

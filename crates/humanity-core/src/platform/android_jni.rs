@@ -1,7 +1,8 @@
 //! The phone app's calls into its own Java (Android rungs A1 and A4, 2026-11-20): Android's key
 //! store, the stay-connected service and the notices; since 2026-11-22 the window's insets too
-//! (what Android's bars and keyboard cover, `VisibleArea.java`), and since 2026-11-23 Attach's
-//! document picker (`PickFiles.java`). Only on Android.
+//! (what Android's bars and keyboard cover, `VisibleArea.java`), since 2026-11-23 Attach's
+//! document picker (`PickFiles.java`), and since 2026-11-27 handing a downloaded update to Android's
+//! installer (`UpdateInstall.java`). Only on Android.
 //!
 //! Each call attaches the calling thread to the Java VM (cheap when it already is), loads the
 //! class through the Application's class loader (a thread the VM did not start sees only
@@ -352,4 +353,35 @@ pub fn pick_files_copy(uri: &str, dest: &str, max: u64) -> Result<Option<u64>, S
         let n = call_static(env, app, &java::PICK_FILES_COPY, &[JValue::Object(app), JValue::Object(&uri), JValue::Object(&dest), JValue::Long(max)])?.j()?;
         Ok(u64::try_from(n).ok())
     })
+}
+
+// ── The phone app's own updates (2026-11-27) ────────────────────────────────
+
+/// Hand the downloaded, checked update `name` (a file in the app's `updates` folder,
+/// src/updater/phone.rs) to Android's installer (`UpdateInstall.java`), on the activity
+/// [`set_activity`] handed over. Android then asks the person to confirm the update, and the first
+/// time to allow HumanityOS to install apps. `Ok` once the installer was started; `Err` with why
+/// it was not (the Java's answer, or a JNI error).
+pub fn update_install(name: &str) -> Result<(), String> {
+    let activity = ACTIVITY.load(std::sync::atomic::Ordering::SeqCst);
+    if activity.is_null() {
+        return Err("no activity on screen to install from".into());
+    }
+    let raw: jni::sys::jobject = activity.cast();
+    let answer = with_app("update_install", |env, app| {
+        // SAFETY: set_activity's contract: a valid global reference until replaced.
+        let activity = unsafe { env.as_cast_raw::<JObject>(&raw) }?;
+        let name = env.new_string(name)?;
+        let out = call_static(env, app, &java::UPDATE_INSTALL, &[JValue::Object(&activity), JValue::Object(&name)])?.l()?;
+        if out.is_null() {
+            return Ok(String::new());
+        }
+        let out = env.cast_local::<JString>(out)?;
+        out.try_to_string(env)
+    })?;
+    if answer.is_empty() {
+        Ok(())
+    } else {
+        Err(answer)
+    }
 }

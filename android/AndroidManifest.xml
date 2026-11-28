@@ -10,7 +10,8 @@
   android/java/, compiled by build-apk.sh with javac and d8 into classes.dex, which is why
   android:hasCode is no longer false. KeyStoreBridge does the Android key store's work for
   "Remember on this device" (rung A1); ChatService keeps the app connected while it is closed and
-  Notices shows its notices (rung A4).
+  Notices shows its notices (rung A4); UpdateInstall hands a downloaded, checked update to
+  Android's installer (2026-11-27).
 
   configChanges: turning the phone, folding out the keyboard or changing the screen's density
   must not restart the activity (which would start the app over); winit reports a new size and
@@ -29,6 +30,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The app updates itself (2026-11-27, android/java/.../UpdateInstall.java, src/updater/phone.rs):
+         a downloaded, checked APK is handed to Android's installer, which an app outside Google
+         Play may do only with this permission. Android still asks the person to confirm every
+         install, and the first time to allow HumanityOS to install apps at all.
+         tests/android_manifest_lint.rs holds it. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Backups (2026-11-20): nothing of the app's folder leaves the phone. allowBackup="false"
          stops the cloud backup, and before Android 12 everything; at targetSdk 31 and later some
@@ -65,6 +72,16 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- The update hand-off (2026-11-27, android/java/.../UpdateInstall.java): serves a
+             downloaded update in the app's own `updates` folder, read only, to Android's installer.
+             Not exported: only an app the intent grants it to (FLAG_GRANT_READ_URI_PERMISSION, so
+             grantUriPermissions) reads it, and only that one file. The authority is written in
+             UpdateInstall.java too; tests/android_manifest_lint.rs checks they agree. -->
+        <provider
+            android:name="us.united_humanity.humanityos.UpdateInstall"
+            android:authorities="us.united_humanity.humanityos.update"
+            android:exported="false"
+            android:grantUriPermissions="true" />
         <!-- The stay-connected service (android/java/.../ChatService.java): it only keeps the
              process, and so the app's own chat connection, alive while the app is closed.
              specialUse: dataSync stops after 6 hours a day on Android 15, and remoteMessaging

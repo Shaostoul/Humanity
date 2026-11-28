@@ -2171,6 +2171,37 @@ steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pr
   permissions, the Java built in) and `scripts/tests/build-android.test.js` (the desktop keeps keyring).
 - Plan and the later rungs (the 3D world, F-Droid): `docs/design/platforms.md`.
 
+### The app offers its own updates, on the phone too (2026-11-27)
+The phone app notices a new release and offers it, so a tester never has to find a release page; the
+desktop offers its updates the same way. A line at the bottom of every app page, never a window: "A new
+version of HumanityOS is ready: v0.X, 87 MB." with Download and Not now; then the download's progress;
+then Install on a phone (Android asks the person to confirm) or Restart to apply on a desktop; a stopped
+download says why with Try again. Not yet run on a phone.
+- The check, both platforms: `src/updater.rs` (`Updater::check_at_start`, `poll` once an hour by the
+  clock, a failed check tried again; `UpdateTarget` Desktop or Phone; `evaluate_update`; the frame woken
+  by a background result, `Waker`). Settings > Updates "Look for updates" (Always / Never by itself)
+  kept in config.json `update_channel` (before, it went back to Always at every start); Check now looks
+  once whatever it says.
+- The phone's part: `src/updater/phone.rs` (`apk_assets`: the release's `HumanityOS-android-arm64.apk`
+  AND its `.sha256`, else nothing is offered; `download_apk`: checksum first, the APK streamed and hashed
+  into `files/updates/HumanityOS-<version>.apk.part`, renamed only on a match, deleted on a mismatch;
+  `stale`/`clean_up` at start; `install`). Java: `android/java/.../UpdateInstall.java` (a provider of its
+  own serving only a checked update, read only, not exported; `install` opens Android's installer with
+  ACTION_VIEW); manifest REQUEST_INSTALL_PACKAGES and the provider; JNI `android_jni::update_install`.
+- The line: `src/gui/bottom_strip/update_offer.rs` (`sentence`, `detail`, `actions`, shared with
+  `src/gui/pages/settings/updates.rs`, which moved out of settings.rs). Words `app_update.*`; the
+  world's HUD notice uses `app_update.toast`. The phone hides the version picker and says why (Android
+  does not install an older version over a newer one).
+- The release workflow checks the APK's checksum (`sha256sum -c`) before publishing both
+  (`.github/workflows/build-android.yml`). The website's Download page says the phone app updates itself
+  (`download.android_updating`).
+- Security model and the installer route: `docs/design/platforms.md`, rung A2, "The app updates itself".
+- Checks: `src/updater/phone_tests.rs` (the feed parser, newer only, a checksum mismatch refused against
+  a loopback server, the Java's folder and names, the workflow), `src/updater.rs` tests (Look for
+  updates off stops every check; kept across a restart), `src/gui/bottom_strip/update_offer_tests.rs`
+  (the line takes room only with something to offer), `tests/android_manifest_lint.rs` (the permission
+  and the private provider), `platform::android_java`'s test (the JNI call against the Java).
+
 ### The native app on Android, rung A4: staying connected while closed (2026-11-20)
 Settings, Notifications, "Stay connected while HumanityOS is closed" (phone only, off by default; the
 hint says a notification stays in the bar and it uses some battery) runs a foreground service that

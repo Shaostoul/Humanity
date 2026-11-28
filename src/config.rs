@@ -884,6 +884,11 @@ pub struct AppConfig {
     /// The talk card's one-time AI offer was dismissed (5.2 item 4).
     #[serde(default)]
     pub ai_talk_offer_dismissed: bool,
+    /// Settings > Updates, "Look for updates" (2026-11-27, src/updater.rs): look at start and once
+    /// an hour (the default), or never by itself. Kept since the phone app began updating itself;
+    /// before, it went back to looking at every start.
+    #[serde(default)]
+    pub update_channel: crate::updater::UpdateChannel,
     /// Planet close-range surface detail (v0.816): animated ocean waves +
     /// land micro-texture on imagery planets (Earth). Orbit view identical
     /// either way (anti-alias faded); applies live via the per-frame
@@ -1737,6 +1742,7 @@ impl AppConfig {
             ai_talk_mode: state.settings.ai_talk_mode.clone(),
             ai_brain: state.settings.ai_brain.clone(),
             ai_talk_offer_dismissed: state.settings.ai_talk_offer_dismissed,
+            update_channel: state.updater.channel,
             planet_surface_detail: state.settings.planet_surface_detail,
             water_fft: state.settings.water_fft,
             water_clarity: state.settings.water_clarity,
@@ -2087,6 +2093,7 @@ impl AppConfig {
         state.settings.ai_talk_mode = self.ai_talk_mode.clone();
         state.settings.ai_brain = self.ai_brain.clone();
         state.settings.ai_talk_offer_dismissed = self.ai_talk_offer_dismissed;
+        state.updater.channel = self.update_channel;
         state.settings.planet_surface_detail = self.planet_surface_detail;
         state.settings.water_fft = self.water_fft;
         state.settings.water_clarity = self.water_clarity;

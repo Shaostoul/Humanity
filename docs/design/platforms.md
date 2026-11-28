@@ -340,6 +340,73 @@ world follows with its own lighter settings.
    installed from the phone's own browser, which reaches the website, not the desktop app. A "send
    it to my phone" card in the desktop app (a QR code to the download page) is a possible later step.
    Free.
+
+   **The app updates itself. BUILT 2026-11-27, waiting on the phone.** The operator asked on
+   2026-11-22 how to update the phone app; the answer was a release page a person new to tech had
+   to find. Now the phone makes the desktop's own check ([src/updater.rs](../../src/updater.rs)): the
+   same release feed (GitHub's release list), the same setting (Settings, Updates, **Look for
+   updates**: Always, or Never by itself, kept on the device since that day on both; before, it went
+   back to Always at every start) and the same timing (at start, then once an hour while open, by the
+   clock; a failed check is tried again at the next hour). It offers a release only when it carries
+   both `HumanityOS-android-arm64.apk` and its checksum `HumanityOS-android-arm64.apk.sha256`
+   ([src/updater/phone.rs](../../src/updater/phone.rs) `apk_assets`): a desktop-only release, an asset
+   release, a release whose APK is not attached yet, and any version not newer than the one running
+   offer nothing. The offer is a line at the bottom of every page, on the desktop's pages too
+   (`src/gui/bottom_strip/update_offer.rs`), never a window that interrupts: "A new version of
+   HumanityOS is ready: v0.X, 87 MB." with **Download** and **Not now** (hides it for this run;
+   Settings still offers it). Download fetches the APK inside the app with its progress on the line,
+   after first reading the checksum, hashing the APK as it streams into a `.part` file in the app's
+   own `files/updates` folder, and renaming it to `HumanityOS-<version>.apk` only when it matches; a
+   mismatch deletes it and the line says so plainly. **Install** hands it to Android's installer
+   (`android/java/.../UpdateInstall.java`), which asks the person to confirm the update, and the
+   first time to allow HumanityOS to install apps (Settings, Allow from this source). A start deletes
+   half-downloaded files and every update not newer than the running version; a newer checked one
+   stays, so a person whom Android's settings detour closed comes back to Install, not a second
+   download. Settings, Updates shows the same words (`app_update.*`, one word source with the line and
+   the world's HUD notice) and, on a phone, no version picker: Android does not install an older
+   version over a newer one (a platform holder's rule, Google's), and the page says so. The website
+   has no line (a page the website serves is always the newest); its Download page says the phone
+   app updates itself.
+
+   *The installer route, chosen 2026-11-27: REQUEST_INSTALL_PACKAGES and a content provider of our
+   own, not the APK's link opened in the browser.* The browser route needs no permission, but a
+   person new to tech then watches the browser's own download, has to find it in the notification
+   shade and tap it, and the app cannot check the file before Android sees it. In the app it is one
+   line: Download, Install, Android's question. AndroidX's FileProvider is a library, and the APK
+   carries none (javac and d8 against android.jar, no Gradle), so `UpdateInstall` is a minimal
+   provider: it serves only a checked update in the app's `updates` folder (names
+   `HumanityOS-<version>.apk`, nothing with a slash or `..`), read only, not exported, reached only
+   through the one-time read grant the install intent carries. The intent is ACTION_VIEW with the
+   APK's type, what a browser or the Files app sends when a downloaded APK is tapped, so the phone's
+   own installer opens as it did for the first install; ACTION_INSTALL_PACKAGE has been deprecated
+   since Android 10 (API 29), and the PackageInstaller session API it points to would add a broadcast
+   receiver and its status codes. Not on Google Play, so the permission's Play policy does not apply
+   (Play forbids self-updating anyway, item 7 below).
+
+   *What protects what (the security model, written down so nobody over-trusts it):*
+   - **Android's same-key rule** (Android's own check, not ours): an update installs over the app
+     only when it is signed with the same key as the app installed. It stops a file made by anyone
+     without that key: a fake download, a tampered mirror, someone on the network path, whatever its
+     checksum. It does NOT stop someone who can sign with the project's key. That key is kept as two
+     of the repository's secrets, which the Android workflow signs with, so a takeover of the
+     account that publishes releases (or of the repository's secrets, or of the workflow) can
+     publish an APK Android accepts as an update.
+   - **The checksum** (published by the same workflow beside the APK, which checks it with
+     `sha256sum -c` before publishing; checked again by the app before Android sees the file): stops
+     a download cut short or damaged on the way, and an APK swapped without its checksum. Published
+     by the same account as the APK, it adds nothing against that account's takeover.
+   - **HTTPS** to GitHub carries the feed, the checksum and the APK.
+   - **The person's confirmation**: Android asks before every install by an app outside Google
+     Play; the app cannot install silently.
+   - A check that would survive a takeover of the account that publishes releases needs a signature
+     made off GitHub. The desktop updater's signed release manifest is one, and it lists the desktop
+     binaries only (`scripts/make-release-manifest.js`), so the phone does not ask for it.
+
+   *Testing it on the phone:* the first release carrying this code is installed by hand once more
+   (the phone's current app cannot look for anything); every release after it that carries an APK is
+   then offered on the line. The PC-side tests (`src/updater/phone_tests.rs`, a checksum mismatch
+   refused against a loopback server among them) cover what does not need a phone; Install opening
+   Android's installer, and the update keeping the person's files, only the phone shows.
 3. **A3, a free Limited Distribution registration before 2027**, so the operator's phone (and up to
    50 authorized devices, per Google's guide) keeps installing without the advanced flow when
    developer verification reaches everyone. Needs the operator's own Google account.
