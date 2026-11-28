@@ -51,6 +51,10 @@ Bringing HumanityOS to another device (Android, iPhone, macOS, Linux stores, Win
 warnings)? What the stack supports, the work in rungs, the free routes and what costs money are in
 **[design/platforms.md](design/platforms.md)**; the dated fees and rules behind it are in
 **[reference/findings/2026-11-14-app-distribution-costs.md](reference/findings/2026-11-14-app-distribution-costs.md)**.
+Playing the game without the 3D world (your home's crops, animals, tanks and machines on a phone or
+the desktop, on the same server state as the world; single player as your own server that your
+phone joins)? The plan, what needs your hands in 3D, the budget and the rungs are in
+**[design/companion-play.md](design/companion-play.md)**.
 
 Sizing the mothership (homes, hangars, farms, livestock, the drum's steel, shielding, power)? The
 sourced, dated numbers are in

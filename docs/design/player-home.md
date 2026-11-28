@@ -15,6 +15,10 @@ the ship is premade authored content, the player's acre is the only thing they
 modify, and a home has to be DATA so premade designs can become a library that
 players contribute to.
 
+Seeing and running this home without the 3D world (its crops, animals, tanks, power, air,
+storage and machines on a phone or on the desktop's Your home page, from the same state the world
+runs on) is planned in [companion-play.md](companion-play.md).
+
 ## The footprint, and what was wrong with it
 
 The player's home is one zone in `data/blueprints/ship_structure.ron`: a box
